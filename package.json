@@ -1,0 +1,58 @@
+{
+  "name": "my-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "commonjs",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "vite": "vite",
+    "build": "vite build",
+    "electron": "electron .",
+    "dist": "npm run build && electron-builder",
+    "preview": "vite preview",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "bcryptjs": "3.0.3",
+    "better-sqlite3": "12.11.1",
+    "concurrently": "10.0.3",
+    "cross-env": "10.1.0",
+    "electron": "42.4.1",
+    "lucide-react": "1.21.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-router-dom": "7.18.0",
+    "wait-on": "9.0.10"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "4.0.4",
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "10.5.0",
+    "electron-builder": "26.15.3",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "postcss": "8.5.15",
+    "tailwindcss": "3.4.19",
+    "vite": "^8.0.12"
+  },
+  "build": {
+    "appId": "com.myapp.desktop",
+    "productName": "My Desktop App",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist",
+      "electron"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
