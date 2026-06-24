@@ -18,7 +18,7 @@ class UserRepository {
       SET full_name = ?, username = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
     `);
-    return stmt.run(fullName, username);
+    return stmt.run(fullName, username , id);
   }
 
   updatePassword(id, passwordHash) {

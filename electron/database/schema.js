@@ -42,10 +42,45 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS shop_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  shop_name TEXT NOT NULL,
+  address TEXT,
+  phone TEXT,
+  email TEXT,
+  license_number TEXT,
+  gst_number TEXT,
+  currency TEXT DEFAULT 'PKR',
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Seed default user (username: admin, password: password123)
 -- Hash generated using bcryptjs
 INSERT OR IGNORE INTO users (id, username, password_hash, full_name) 
 VALUES (1, 'admin', '$2a$10$X7O2P8N8Wv4U7S4X8y8GSuQO6B2X1uM0.wYmC7Pz2GzK7B7D/vVOW', 'Shop Admin');
+
+-- Seed default shop
+INSERT OR IGNORE INTO shop_settings (
+    id,
+    shop_name,
+    address,
+    phone,
+    email,
+    license_number,
+    gst_number,
+    currency
+)
+VALUES (
+    1,
+    'My Shop',
+    '',
+    '',
+    '',
+    '',
+    '',
+    'PKR'
+);
 `;
+
 
 module.exports = schema;

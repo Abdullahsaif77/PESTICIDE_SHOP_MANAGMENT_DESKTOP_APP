@@ -2,6 +2,26 @@ const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const registerProductIPC = require("./ipc/product.ipc")
 const { setupAuthIpc } = require("./ipc/user.ipc")
+const { setupShopIpc } = require("./ipc/shop.ipc")
+const { getBackUpIpc } = require("./ipc/backup.ipc")
+const fs = require("fs")
+
+const backUpFolderPath = path.join(__dirname, "backups");
+
+
+function BackupFolderExists(){
+  try{
+  if(!fs.existsSync(backUpFolderPath)){
+
+    fs.mkdirSync(backUpFolderPath , {recursive:true})
+    console.log('Backups folder created automatically at:', backUpFolderPath)
+  }else{
+    console.log('Backups folder already exists.');
+  }
+}catch(error){
+  console.log("Error",error.message)
+}
+}
 
 
 let mainWindow;
@@ -33,6 +53,9 @@ app.whenReady().then(() => {
   createWindow();
   registerProductIPC()
   setupAuthIpc();
+  setupShopIpc();
+  BackupFolderExists();
+  getBackUpIpc()
 
    const result = productService.createProduct({
     name: "Test Product",

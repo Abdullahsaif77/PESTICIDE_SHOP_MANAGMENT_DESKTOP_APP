@@ -32,7 +32,7 @@ class AuthService {
 
   async changePassword(id, currentPassword, newPassword) {
     // Find the raw user details to get the current hash
-    const stmt = require("../db").prepare("SELECT password_hash FROM users WHERE id = ?");
+    const stmt = require("../database/database").prepare("SELECT password_hash FROM users WHERE id = ?");
     const user = stmt.get(id);
 
     const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
