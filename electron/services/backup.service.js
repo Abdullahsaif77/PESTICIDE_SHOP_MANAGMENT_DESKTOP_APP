@@ -2,10 +2,11 @@ const backupRepository = require("../repositories/backup.repository");
 const { generateBackupZipFile, restoreBackup } = require("../utils/backup.utils");
 const fs = require("fs");
 const path = require("path");
+const { dialog, BrowserWindow } = require("electron");
 
 class BackupService {
     
-    createBackup() {
+    async createBackup() {
         try {
             // Step 1: Get DB path
             const dbPath = backupRepository.getDatabasePath();
@@ -24,16 +25,40 @@ class BackupService {
             if (!zipResult.success) {
                 throw new Error(zipResult.error);
             }
+
+            // Step 4: Show Save As dialog
+            const win = BrowserWindow.getFocusedWindow();
+            const saveResult = await dialog.showSaveDialog(win, {
+                title: 'Save Backup',
+                defaultPath: path.join(
+                    require('electron').app.getPath('documents'),
+                    zipResult.filename
+                ),
+                filters: [
+                    { name: 'ZIP Files', extensions: ['zip'] }
+                ]
+            });
+
+            // Step 5: Handle cancellation
+            if (saveResult.canceled) {
+                return {
+                    success: false,
+                    canceled: true,
+                    message: "Save cancelled"
+                };
+            }
+
+            // Step 6: Copy ZIP to selected location
+            fs.copyFileSync(zipResult.outputPath, saveResult.filePath);
             
-            // Step 4: Store ZIP in backups folder (already done in generateBackupZipFile)
-            // Step 5: Return file information
+            // Step 7: Return file information
             return {
                 success: true,
                 message: "Backup created successfully",
                 backup: {
-                    filename: zipResult.filename,
-                    path: zipResult.outputPath,
-                    size: fs.statSync(zipResult.outputPath).size,
+                    filename: path.basename(saveResult.filePath),
+                    path: saveResult.filePath,
+                    size: fs.statSync(saveResult.filePath).size,
                     createdAt: zipResult.createdAt
                 }
             };
@@ -109,7 +134,7 @@ class BackupService {
                         modified: stats.mtime
                     };
                 })
-                .sort((a, b) => b.modified - a.modified); // Most recent first
+                .sort((a, b) => b.modified - a.modified);
             
             return {
                 success: true,

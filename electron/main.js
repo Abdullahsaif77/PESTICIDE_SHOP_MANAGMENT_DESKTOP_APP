@@ -1,28 +1,27 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
-const registerProductIPC = require("./ipc/product.ipc")
+const { registerProductIPC } = require("./ipc/product.ipc")
 const { setupAuthIpc } = require("./ipc/user.ipc")
 const { setupShopIpc } = require("./ipc/shop.ipc")
 const { getBackUpIpc } = require("./ipc/backup.ipc")
 const fs = require("fs")
 
+
+
 const backUpFolderPath = path.join(__dirname, "backups");
 
-
-function BackupFolderExists(){
-  try{
-  if(!fs.existsSync(backUpFolderPath)){
-
-    fs.mkdirSync(backUpFolderPath , {recursive:true})
-    console.log('Backups folder created automatically at:', backUpFolderPath)
-  }else{
-    console.log('Backups folder already exists.');
+function BackupFolderExists() {
+  try {
+    if (!fs.existsSync(backUpFolderPath)) {
+      fs.mkdirSync(backUpFolderPath, { recursive: true })
+      console.log('Backups folder created automatically at:', backUpFolderPath)
+    } else {
+      console.log('Backups folder already exists.');
+    }
+  } catch (error) {
+    console.log("Error", error.message)
   }
-}catch(error){
-  console.log("Error",error.message)
 }
-}
-
 
 let mainWindow;
 
@@ -34,7 +33,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
-      nodeIntegration: false, 
+      nodeIntegration: false,
     },
   });
 
@@ -45,7 +44,6 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
-
 }
 
 // App lifecycle
@@ -57,17 +55,6 @@ app.whenReady().then(() => {
   BackupFolderExists();
   getBackUpIpc()
 
-   const result = productService.createProduct({
-    name: "Test Product",
-    category_id: 1,
-    unit_id: 1,
-    purchase_price: 100,
-    sale_price: 150,
-  });
-
-  console.log("CREATE RESULT:", result);
-
-  console.log("ALL PRODUCTS:", productService.getProduct());
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -77,6 +64,5 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
-    
   }
 });

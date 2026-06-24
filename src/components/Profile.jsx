@@ -322,25 +322,47 @@ const AdminControlCenter = ({ user, onUserUpdate }) => {
   };
 
   const handleRestoreBackup = async () => {
-    try {
-      // Show confirmation dialog
-      setConfirmModal({
-        isOpen: true,
-        title: "Restore Database",
-        message: "Are you sure you want to restore the database? This will replace the current database. An emergency backup will be created automatically.",
-        onConfirm: async () => {
-          setConfirmModal({ ...confirmModal, isOpen: false });
+  try {
+    // Show confirmation dialog first
+    setConfirmModal({
+      isOpen: true,
+      title: "Restore Database",
+      message: "Are you sure you want to restore the database? This will replace the current database. An emergency backup will be created automatically.",
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, isOpen: false });
+        
+        try {
+          setRestoreLoading(true);
+          setBackupMsg("");
           
-          // Since we don't have file picker yet, use a prompt or hardcoded path
-          // For now, we'll show a message that file picker is coming
-          showModal("info", "Coming Soon", "File picker for restore will be implemented in the next update.");
+          // Show file picker dialog using Electron's dialog
+          const result = await window.api.selectBackupFile();
+          
+          if (result.canceled) {
+            setRestoreLoading(false);
+            return;
+          }
+          
+          // Call the restore handler with the selected file path
+          const restoreResult = await window.api.restoreBackup(result.filePath);
+          
+          if (restoreResult.success) {
+            showModal("restore", "Restore Complete!", "Database restored successfully!");
+            // Optionally reload the app or refresh data
+          } else {
+            showModal("error", "Restore Failed", restoreResult.error || "Failed to restore backup");
+          }
+        } catch (err) {
+          showModal("error", "Restore Failed", err.message || "An error occurred");
+        } finally {
+          setRestoreLoading(false);
         }
-      });
-
-    } catch (err) {
-      showModal("error", "Restore Failed", err.message || "An error occurred");
-    }
-  };
+      }
+    });
+  } catch (err) {
+    showModal("error", "Restore Failed", err.message || "An error occurred");
+  }
+};
 
   const formatDate = (date) => {
     if (!date) return "N/A";
