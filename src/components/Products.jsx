@@ -456,7 +456,9 @@ export default function Products() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
         <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">Products Managment</h1>
+         <h1 className="text-2xl font-bold bg-gradient-to-r  from-slate-800 to-blue-500 bg-clip-text text-transparent">
+  Products Management
+</h1>
           <p className="text-xs text-slate-400 mt-0.5">Manage your product catalogue efficiently</p>
         </div>
         <div className="flex flex-wrap gap-2">

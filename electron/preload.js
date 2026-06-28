@@ -1,3 +1,4 @@
+// electron/preload.js
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
@@ -73,6 +74,39 @@ contextBridge.exposeInMainWorld("api", {
   getTransfersToWarehouse: (warehouseId) => ipcRenderer.invoke("transfer:getToWarehouse", warehouseId),
   getTransferStats: () => ipcRenderer.invoke("transfer:getStats"),
   getTransfersByDateRange: (startDate, endDate) => ipcRenderer.invoke("transfer:getByDateRange", startDate, endDate),
+
+  // --- Supplier Management ---
+  createSupplier: (data) => ipcRenderer.invoke("supplier:create", data),
+  getAllSuppliers: (filters) => ipcRenderer.invoke("supplier:getAll", filters),
+  getSupplierById: (id) => ipcRenderer.invoke("supplier:getById", id),
+  updateSupplier: (id, data) => ipcRenderer.invoke("supplier:update", id, data),
+  deleteSupplier: (id) => ipcRenderer.invoke("supplier:delete", id),
+  getActiveSuppliers: () => ipcRenderer.invoke("supplier:getActive"),
+  searchSuppliers: (query) => ipcRenderer.invoke("supplier:search", query),
+  getSupplierBalance: (id) => ipcRenderer.invoke("supplier:getBalance", id),
+  updateSupplierBalance: (id, amount) => ipcRenderer.invoke("supplier:updateBalance", id, amount),
+  getSupplierStats: () => ipcRenderer.invoke("supplier:getStats"),
+  getSuppliersWithHighBalance: (minBalance) => ipcRenderer.invoke("supplier:getHighBalance", minBalance),
+  getTopSuppliers: (limit) => ipcRenderer.invoke("supplier:getTop", limit),
+  getSupplierSummary: () => ipcRenderer.invoke("supplier:getSummary"),
+  exportSuppliers: (filters) => ipcRenderer.invoke("supplier:export", filters),
+  getSupplierPurchases: (id) => ipcRenderer.invoke("supplier:getPurchases", id),
+  getSupplierWithMostPurchases: () => ipcRenderer.invoke("supplier:getMostPurchases"),
+
+  // --- Customer Management ---
+  createCustomer: (data) => ipcRenderer.invoke("customer:create", data),
+  getAllCustomers: (filters) => ipcRenderer.invoke("customer:getAll", filters),
+  getCustomerById: (id) => ipcRenderer.invoke("customer:getById", id),
+  updateCustomer: (id, data) => ipcRenderer.invoke("customer:update", id, data),
+  deleteCustomer: (id) => ipcRenderer.invoke("customer:delete", id),
+  getActiveCustomers: () => ipcRenderer.invoke("customer:getActive"),
+  searchCustomers: (query) => ipcRenderer.invoke("customer:search", query),
+  getCustomerBalance: (id) => ipcRenderer.invoke("customer:getBalance", id),
+  updateCustomerBalance: (id, amount) => ipcRenderer.invoke("customer:updateBalance", id, amount),
+  getCustomerStats: () => ipcRenderer.invoke("customer:getStats"),
+  getTopCustomers: (limit) => ipcRenderer.invoke("customer:getTop", limit),
+  getCustomerWithSales: (id) => ipcRenderer.invoke("customer:getWithSales", id),
+  exportCustomers: (filters) => ipcRenderer.invoke("customer:export", filters),
 
   // --- Authentication & Profile Management ---
   login: (credentials) => ipcRenderer.invoke("auth:login", credentials),

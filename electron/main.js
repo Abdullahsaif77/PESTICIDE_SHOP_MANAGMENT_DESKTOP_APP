@@ -8,6 +8,8 @@ const { SetWareHouseIPC } = require("./ipc/warehouse.ipc")
 const { SetBatchIPC } = require("./ipc/batch.ipc")
 const { SetInventoryIPC } = require("./ipc/inventory.ipc")
 const { SetStockTransferIPC } = require("./ipc/stockTransfer.ipc")
+const { SetSupplierIPC } = require("./ipc/supplier.ipc")
+const { registerCustomerIPC } = require("./ipc/customer.ipc.js")
 const fs = require("fs")
 
 
@@ -63,6 +65,8 @@ app.whenReady().then(() => {
   SetBatchIPC()
   SetInventoryIPC()
   SetStockTransferIPC()
+  SetSupplierIPC()
+  registerCustomerIPC()
   
   BackupFolderExists();
 

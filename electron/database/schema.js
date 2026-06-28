@@ -1,3 +1,5 @@
+// electron/database/schema.js
+
 const schema = `
 -- ============================================
 -- CORE TABLES (Foundation)
@@ -64,7 +66,7 @@ CREATE TABLE IF NOT EXISTS batches (
     purchase_price REAL NOT NULL DEFAULT 0,
     sale_price REAL NOT NULL DEFAULT 0,
     quantity REAL NOT NULL DEFAULT 0,
-         DATETIME,
+    expiry_date DATETIME,  -- Fixed: Added column name
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -395,7 +397,7 @@ CREATE TABLE IF NOT EXISTS shop_settings (
 
 -- Products indexes
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
-
+CREATE INDEX IF NOT EXISTS idx_products_code ON products(code);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_unit ON products(unit_id);
 CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active);
@@ -411,7 +413,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_batch ON inventory(batch_id);
 
 -- Batches indexes
 CREATE INDEX IF NOT EXISTS idx_batches_product ON batches(product_id);
-CREATE INDEX IF NOT EXISTS idx_batches_expiry ON batches(expiry_date);
+CREATE INDEX IF NOT EXISTS idx_batches_expiry ON batches(expiry_date);  -- Now this will work
 CREATE INDEX IF NOT EXISTS idx_batches_is_active ON batches(is_active);
 
 -- Stock transfers indexes

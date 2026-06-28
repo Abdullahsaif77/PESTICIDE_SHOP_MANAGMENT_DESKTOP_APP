@@ -4,6 +4,9 @@ import Sidebar from '../components/Sidebar';
 import Profile from '../components/Profile';
 import Products from '../components/Products';
 import Warehouses from "../components/WareHouse"
+import Inventory from '../components/Inventory';
+import Suppliers from '../components/Supplier';
+import Customers from '../components/Customer';
 
 const Dashboard = ({ user, onLogout, onUserUpdate }) => {
   const navigate = useNavigate();
@@ -35,7 +38,12 @@ const Dashboard = ({ user, onLogout, onUserUpdate }) => {
         return (<Products/>)
 
       case 'inventory':
-        return <div className="bg-white p-6 rounded-2xl">Inventory</div>;
+        return (<Inventory/>)
+
+      case "suppliers":
+        return (<Suppliers/>)
+      case "customers":
+        return (<Customers/>)
 
       case 'sales':
         return <div className="bg-white p-6 rounded-2xl">Sales</div>;
