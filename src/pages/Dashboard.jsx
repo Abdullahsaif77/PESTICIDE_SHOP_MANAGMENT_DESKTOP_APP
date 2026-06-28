@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Profile from '../components/Profile';
 import Products from '../components/Products';
+import Warehouses from "../components/WareHouse"
 
 const Dashboard = ({ user, onLogout, onUserUpdate }) => {
   const navigate = useNavigate();
@@ -38,6 +39,8 @@ const Dashboard = ({ user, onLogout, onUserUpdate }) => {
 
       case 'sales':
         return <div className="bg-white p-6 rounded-2xl">Sales</div>;
+      case 'warehouses':
+        return <Warehouses/>
 
       case 'Admin Control Center':
         return (

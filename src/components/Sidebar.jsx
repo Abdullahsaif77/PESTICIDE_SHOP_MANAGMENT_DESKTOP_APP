@@ -10,7 +10,8 @@ import {
   ShoppingCart,
   Settings,
   User,
-  LogOut
+  LogOut,
+   Warehouse
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
@@ -26,6 +27,7 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
     { id: 'expenses', label: 'Expenses', icon: CreditCard },
     { id: 'suppliers', label: 'Suppliers', icon: Handshake },
     { id: 'purchases', label: 'Purchases', icon: ShoppingCart },
+    { id: 'warehouses', label: 'Warehouses', icon:  Warehouse },
   ];
 
   useEffect(() => {

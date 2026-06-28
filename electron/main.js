@@ -4,6 +4,10 @@ const { registerProductIPC } = require("./ipc/product.ipc")
 const { setupAuthIpc } = require("./ipc/user.ipc")
 const { setupShopIpc } = require("./ipc/shop.ipc")
 const { getBackUpIpc } = require("./ipc/backup.ipc")
+const { SetWareHouseIPC } = require("./ipc/warehouse.ipc")
+const { SetBatchIPC } = require("./ipc/batch.ipc")
+const { SetInventoryIPC } = require("./ipc/inventory.ipc")
+const { SetStockTransferIPC } = require("./ipc/stockTransfer.ipc")
 const fs = require("fs")
 
 
@@ -49,12 +53,18 @@ function createWindow() {
 // App lifecycle
 app.whenReady().then(() => {
   createWindow();
+  
+  // Register all IPC handlers
   registerProductIPC()
   setupAuthIpc();
   setupShopIpc();
-  BackupFolderExists();
   getBackUpIpc()
-
+  SetWareHouseIPC()
+  SetBatchIPC()
+  SetInventoryIPC()
+  SetStockTransferIPC()
+  
+  BackupFolderExists();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
