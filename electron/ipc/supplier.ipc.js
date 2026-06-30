@@ -4,6 +4,7 @@ const { ipcMain } = require("electron");
 function SetSupplierIPC() {
     console.log("Setting up supplier IPC handlers...");
 
+    // ==================== CRUD ====================
     // Create new supplier
     ipcMain.handle("supplier:create", async (event, data) => {
         try {
@@ -49,6 +50,7 @@ function SetSupplierIPC() {
         }
     });
 
+    // ==================== READ OPERATIONS ====================
     // Get active suppliers only
     ipcMain.handle("supplier:getActive", async () => {
         try {
@@ -67,6 +69,7 @@ function SetSupplierIPC() {
         }
     });
 
+    // ==================== BALANCE (Credit/Debit) ====================
     // Get supplier balance
     ipcMain.handle("supplier:getBalance", async (event, id) => {
         try {
@@ -76,7 +79,25 @@ function SetSupplierIPC() {
         }
     });
 
-    // Update supplier balance
+    // Update supplier credit
+    ipcMain.handle("supplier:updateCredit", async (event, id, amount) => {
+        try {
+            return await SupplierService.updateSupplierCredit(id, amount);
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Update supplier debit
+    ipcMain.handle("supplier:updateDebit", async (event, id, amount) => {
+        try {
+            return await SupplierService.updateSupplierDebit(id, amount);
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Update supplier balance (backward compatible)
     ipcMain.handle("supplier:updateBalance", async (event, id, amount) => {
         try {
             return await SupplierService.updateSupplierBalance(id, amount);
@@ -85,6 +106,7 @@ function SetSupplierIPC() {
         }
     });
 
+    // ==================== STATS ====================
     // Get supplier statistics
     ipcMain.handle("supplier:getStats", async () => {
         try {
@@ -121,6 +143,35 @@ function SetSupplierIPC() {
         }
     });
 
+    // ==================== ADDITIONAL HELPERS ====================
+    // Get suppliers with credit
+    ipcMain.handle("supplier:getWithCredit", async () => {
+        try {
+            return await SupplierService.getSuppliersWithCredit();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Get suppliers with debit
+    ipcMain.handle("supplier:getWithDebit", async () => {
+        try {
+            return await SupplierService.getSuppliersWithDebit();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Get suppliers with balance
+    ipcMain.handle("supplier:getWithBalance", async () => {
+        try {
+            return await SupplierService.getSuppliersWithBalance();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    // ==================== EXPORT ====================
     // Export suppliers
     ipcMain.handle("supplier:export", async (event, filters) => {
         try {
@@ -130,6 +181,7 @@ function SetSupplierIPC() {
         }
     });
 
+    // ==================== PURCHASE RELATED ====================
     // Get supplier purchases
     ipcMain.handle("supplier:getPurchases", async (event, id) => {
         try {

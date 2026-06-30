@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS batches (
     purchase_price REAL NOT NULL DEFAULT 0,
     sale_price REAL NOT NULL DEFAULT 0,
     quantity REAL NOT NULL DEFAULT 0,
-    expiry_date DATETIME,  -- Fixed: Added column name
+    expiry_date DATETIME,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -126,8 +126,9 @@ CREATE TABLE IF NOT EXISTS customers (
     phone TEXT,
     email TEXT,
     address TEXT,
-    cnic TEXT UNIQUE, -- National ID
-    balance REAL DEFAULT 0, -- Amount owed by customer
+    cnic TEXT UNIQUE,
+    credit REAL DEFAULT 0, -- Amount customer owes us (Customer's credit / our receivable)
+    debit REAL DEFAULT 0, -- Amount we owe customer (Customer's debit / our payable)
     credit_limit REAL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
     notes TEXT,
@@ -143,7 +144,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
     email TEXT,
     address TEXT,
     cnic TEXT UNIQUE,
-    balance REAL DEFAULT 0, -- Amount owed to supplier
+    credit REAL DEFAULT 0, -- Amount supplier owes us (Supplier's credit / our receivable)
+    debit REAL DEFAULT 0, -- Amount we owe supplier (Supplier's debit / our payable)
     is_active INTEGER NOT NULL DEFAULT 1,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -413,7 +415,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_batch ON inventory(batch_id);
 
 -- Batches indexes
 CREATE INDEX IF NOT EXISTS idx_batches_product ON batches(product_id);
-CREATE INDEX IF NOT EXISTS idx_batches_expiry ON batches(expiry_date);  -- Now this will work
+CREATE INDEX IF NOT EXISTS idx_batches_expiry ON batches(expiry_date);
 CREATE INDEX IF NOT EXISTS idx_batches_is_active ON batches(is_active);
 
 -- Stock transfers indexes

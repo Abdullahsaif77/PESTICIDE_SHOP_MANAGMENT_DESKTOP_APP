@@ -40,7 +40,10 @@ import {
   Activity,
   BadgeCheck,
   UserCheck,
-  UserX
+  UserX,
+  CreditCard as CreditIcon,
+  Receipt,
+  PiggyBank
 } from "lucide-react";
 
 // ==================== MOCK DATA ====================
@@ -52,7 +55,8 @@ const MOCK_CUSTOMERS = [
     email: "ali@example.com",
     address: "Johar Town, Lahore",
     cnic: "12345-1111111-1",
-    balance: 5000,
+    credit: 5000,
+    debit: 0,
     credit_limit: 10000,
     is_active: 1,
     sales_count: 12,
@@ -66,7 +70,8 @@ const MOCK_CUSTOMERS = [
     email: "sana@example.com",
     address: "Gulberg, Lahore",
     cnic: "12345-2222222-2",
-    balance: -2000,
+    credit: 0,
+    debit: 2000,
     credit_limit: 5000,
     is_active: 1,
     sales_count: 8,
@@ -80,7 +85,8 @@ const MOCK_CUSTOMERS = [
     email: "usman@example.com",
     address: "Model Town, Lahore",
     cnic: "12345-3333333-3",
-    balance: 0,
+    credit: 0,
+    debit: 0,
     credit_limit: 15000,
     is_active: 0,
     sales_count: 0,
@@ -94,7 +100,8 @@ const MOCK_CUSTOMERS = [
     email: "fatima@example.com",
     address: "Defence, Lahore",
     cnic: "12345-4444444-4",
-    balance: 12000,
+    credit: 12000,
+    debit: 0,
     credit_limit: 20000,
     is_active: 1,
     sales_count: 20,
@@ -108,7 +115,8 @@ const MOCK_CUSTOMERS = [
     email: "imran@example.com",
     address: "Bahria Town, Lahore",
     cnic: "12345-5555555-5",
-    balance: 3000,
+    credit: 3000,
+    debit: 0,
     credit_limit: 8000,
     is_active: 1,
     sales_count: 6,
@@ -122,7 +130,8 @@ const MOCK_CUSTOMERS = [
     email: "ayesha@example.com",
     address: "Garden Town, Lahore",
     cnic: "12345-6666666-6",
-    balance: -1000,
+    credit: 0,
+    debit: 1000,
     credit_limit: 3000,
     is_active: 1,
     sales_count: 4,
@@ -163,6 +172,8 @@ const MOCK_STATS = {
   total: 6,
   active: 5,
   inactive: 1,
+  totalCredit: 20000,
+  totalDebit: 3000,
   totalBalance: 17000,
   totalSales: 28,
   totalSalesAmount: 198000,
@@ -279,7 +290,9 @@ class CustomerAPI {
       return result;
     } catch (error) {
       const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      return { success: true, data: { balance: customer?.balance || 0 } };
+      const credit = customer?.credit || 0;
+      const debit = customer?.debit || 0;
+      return { success: true, data: { credit, debit, balance: credit - debit } };
     }
   }
 
@@ -290,8 +303,14 @@ class CustomerAPI {
     } catch (error) {
       const customer = MOCK_CUSTOMERS.find(c => c.id === id);
       if (customer) {
-        customer.balance = (customer.balance || 0) + amount;
-        return { success: true, data: { newBalance: customer.balance } };
+        if (amount >= 0) {
+          customer.credit = (customer.credit || 0) + amount;
+        } else {
+          customer.debit = (customer.debit || 0) + Math.abs(amount);
+        }
+        const credit = customer.credit || 0;
+        const debit = customer.debit || 0;
+        return { success: true, data: { credit, debit, balance: credit - debit } };
       }
       return { success: false, error: "Customer not found" };
     }
@@ -344,6 +363,59 @@ class CustomerAPI {
       return { success: true, data };
     }
   }
+
+  // New methods for credit/debit
+  async updateCustomerCredit(id, amount) {
+    try {
+      const result = await api.updateCustomerCredit(id, amount);
+      return result;
+    } catch (error) {
+      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
+      if (customer) {
+        customer.credit = (customer.credit || 0) + amount;
+        const credit = customer.credit || 0;
+        const debit = customer.debit || 0;
+        return { success: true, data: { credit, debit, balance: credit - debit } };
+      }
+      return { success: false, error: "Customer not found" };
+    }
+  }
+
+  async updateCustomerDebit(id, amount) {
+    try {
+      const result = await api.updateCustomerDebit(id, amount);
+      return result;
+    } catch (error) {
+      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
+      if (customer) {
+        customer.debit = (customer.debit || 0) + amount;
+        const credit = customer.credit || 0;
+        const debit = customer.debit || 0;
+        return { success: true, data: { credit, debit, balance: credit - debit } };
+      }
+      return { success: false, error: "Customer not found" };
+    }
+  }
+
+  async getCustomersWithCredit() {
+    try {
+      const result = await api.getCustomersWithCredit();
+      if (result.success) return result;
+      return { success: true, data: MOCK_CUSTOMERS.filter(c => (c.credit || 0) > 0) };
+    } catch (error) {
+      return { success: true, data: MOCK_CUSTOMERS.filter(c => (c.credit || 0) > 0) };
+    }
+  }
+
+  async getCustomersWithDebit() {
+    try {
+      const result = await api.getCustomersWithDebit();
+      if (result.success) return result;
+      return { success: true, data: MOCK_CUSTOMERS.filter(c => (c.debit || 0) > 0) };
+    } catch (error) {
+      return { success: true, data: MOCK_CUSTOMERS.filter(c => (c.debit || 0) > 0) };
+    }
+  }
 }
 
 const customerAPI = new CustomerAPI();
@@ -360,6 +432,8 @@ export default function Customers() {
     total: 0,
     active: 0,
     inactive: 0,
+    totalCredit: 0,
+    totalDebit: 0,
     totalBalance: 0,
     totalSales: 0,
     totalSalesAmount: 0,
@@ -375,7 +449,8 @@ export default function Customers() {
     address: "",
     cnic: "",
     notes: "",
-    balance: 0,
+    credit: 0,
+    debit: 0,
     credit_limit: 0,
     is_active: 1
   });
@@ -387,7 +462,7 @@ export default function Customers() {
   });
   const [balanceForm, setBalanceForm] = useState({
     amount: 0,
-    type: "add"
+    type: "credit" // credit or debit
   });
 
   const [notification, setNotification] = useState({
@@ -406,68 +481,70 @@ export default function Customers() {
   }, [customers, searchQuery, selectedStatus]);
 
   // ==================== DATA LOADING ====================
-  // ==================== DATA LOADING ====================
-const loadData = async () => {
-  setIsLoading(true);
-  try {
-    const customersResult = await customerAPI.getAllCustomers();
-    if (customersResult.success) {
-      setCustomers(customersResult.data || []);
-      if (customersResult.data && customersResult.data.length > 0) {
-        setIsUsingMock(customersResult.data[0].id > 1000 || customersResult.data[0].id === 1);
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const customersResult = await customerAPI.getAllCustomers();
+      if (customersResult.success) {
+        setCustomers(customersResult.data || []);
+        if (customersResult.data && customersResult.data.length > 0) {
+          setIsUsingMock(customersResult.data[0].id > 1000 || customersResult.data[0].id === 1);
+        }
+        if (customersResult.data && customersResult.data.length > 0) {
+          setSelectedCustomer(customersResult.data[0]);
+        }
+        
+        const data = customersResult.data || [];
+        const active = data.filter(c => c.is_active === 1).length;
+        const inactive = data.filter(c => c.is_active === 0).length;
+        const totalCredit = data.reduce((sum, c) => sum + (c.credit || 0), 0);
+        const totalDebit = data.reduce((sum, c) => sum + (c.debit || 0), 0);
+        const totalSales = data.reduce((sum, c) => sum + (c.sales_count || 0), 0);
+        const totalSalesAmount = data.reduce((sum, c) => sum + (c.total_sales || 0), 0);
+        const avgSalesPerCustomer = data.length > 0 ? totalSalesAmount / data.length : 0;
+        
+        setStats({
+          total: data.length,
+          active,
+          inactive,
+          totalCredit,
+          totalDebit,
+          totalBalance: totalCredit - totalDebit,
+          totalSales,
+          totalSalesAmount,
+          avgSalesPerCustomer
+        });
+      } else {
+        setStats({
+          total: MOCK_STATS.total || 0,
+          active: MOCK_STATS.active || 0,
+          inactive: MOCK_STATS.inactive || 0,
+          totalCredit: MOCK_STATS.totalCredit || 0,
+          totalDebit: MOCK_STATS.totalDebit || 0,
+          totalBalance: MOCK_STATS.totalBalance || 0,
+          totalSales: MOCK_STATS.totalSales || 0,
+          totalSalesAmount: MOCK_STATS.totalSalesAmount || 0,
+          avgSalesPerCustomer: MOCK_STATS.avgSalesPerCustomer || 0
+        });
       }
-      // Select first customer by default
-      if (customersResult.data && customersResult.data.length > 0) {
-        setSelectedCustomer(customersResult.data[0]);
-      }
-      
-      // Calculate stats from the data
-      const data = customersResult.data || [];
-      const active = data.filter(c => c.is_active === 1).length;
-      const inactive = data.filter(c => c.is_active === 0).length;
-      const totalBalance = data.reduce((sum, c) => sum + (c.balance || 0), 0);
-      const totalSales = data.reduce((sum, c) => sum + (c.sales_count || 0), 0);
-      const totalSalesAmount = data.reduce((sum, c) => sum + (c.total_sales || 0), 0);
-      const avgSalesPerCustomer = data.length > 0 ? totalSalesAmount / data.length : 0;
-      
-      setStats({
-        total: data.length,
-        active,
-        inactive,
-        totalBalance,
-        totalSales,
-        totalSalesAmount,
-        avgSalesPerCustomer
-      });
-    } else {
-      // Fallback to mock stats
+    } catch (err) {
+      console.error("Error loading customers:", err);
+      showNotification("error", "Failed to load customers");
       setStats({
         total: MOCK_STATS.total || 0,
         active: MOCK_STATS.active || 0,
         inactive: MOCK_STATS.inactive || 0,
+        totalCredit: MOCK_STATS.totalCredit || 0,
+        totalDebit: MOCK_STATS.totalDebit || 0,
         totalBalance: MOCK_STATS.totalBalance || 0,
         totalSales: MOCK_STATS.totalSales || 0,
         totalSalesAmount: MOCK_STATS.totalSalesAmount || 0,
         avgSalesPerCustomer: MOCK_STATS.avgSalesPerCustomer || 0
       });
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err) {
-    console.error("Error loading customers:", err);
-    showNotification("error", "Failed to load customers");
-    // Fallback to mock stats
-    setStats({
-      total: MOCK_STATS.total || 0,
-      active: MOCK_STATS.active || 0,
-      inactive: MOCK_STATS.inactive || 0,
-      totalBalance: MOCK_STATS.totalBalance || 0,
-      totalSales: MOCK_STATS.totalSales || 0,
-      totalSalesAmount: MOCK_STATS.totalSalesAmount || 0,
-      avgSalesPerCustomer: MOCK_STATS.avgSalesPerCustomer || 0
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   // ==================== FILTERS ====================
   const filterCustomers = () => {
@@ -521,6 +598,14 @@ const loadData = async () => {
       errors.cnic = "Invalid CNIC format (e.g., XXXXX-XXXXXXX-X)";
     }
 
+    if (form.credit && form.credit < 0) {
+      errors.credit = "Credit cannot be negative";
+    }
+
+    if (form.debit && form.debit < 0) {
+      errors.debit = "Debit cannot be negative";
+    }
+
     if (form.credit_limit && form.credit_limit < 0) {
       errors.credit_limit = "Credit limit cannot be negative";
     }
@@ -538,7 +623,8 @@ const loadData = async () => {
       address: "",
       cnic: "",
       notes: "",
-      balance: 0,
+      credit: 0,
+      debit: 0,
       credit_limit: 0,
       is_active: 1
     });
@@ -554,7 +640,8 @@ const loadData = async () => {
       address: customer.address || "",
       cnic: customer.cnic || "",
       notes: customer.notes || "",
-      balance: customer.balance || 0,
+      credit: customer.credit || 0,
+      debit: customer.debit || 0,
       credit_limit: customer.credit_limit || 0,
       is_active: customer.is_active || 1
     });
@@ -575,7 +662,8 @@ const loadData = async () => {
         address: form.address || null,
         cnic: form.cnic || null,
         notes: form.notes || null,
-        balance: form.balance || 0,
+        credit: form.credit || 0,
+        debit: form.debit || 0,
         credit_limit: form.credit_limit || 0
       };
 
@@ -629,7 +717,7 @@ const loadData = async () => {
 
   // ==================== BALANCE MANAGEMENT ====================
   const openBalanceModal = (customer) => {
-    setBalanceForm({ amount: 0, type: "add" });
+    setBalanceForm({ amount: 0, type: "credit" });
     setBalanceModal({ open: true, customer });
   };
 
@@ -642,13 +730,15 @@ const loadData = async () => {
 
     setIsLoading(true);
     try {
-      const amount = balanceForm.type === "add" 
-        ? parseFloat(balanceForm.amount) 
-        : -parseFloat(balanceForm.amount);
+      let result;
+      if (balanceForm.type === "credit") {
+        result = await customerAPI.updateCustomerCredit(balanceModal.customer.id, parseFloat(balanceForm.amount));
+      } else {
+        result = await customerAPI.updateCustomerDebit(balanceModal.customer.id, parseFloat(balanceForm.amount));
+      }
 
-      const result = await customerAPI.updateCustomerBalance(balanceModal.customer.id, amount);
       if (result.success) {
-        showNotification("success", `Balance updated successfully`);
+        showNotification("success", `${balanceForm.type.charAt(0).toUpperCase() + balanceForm.type.slice(1)} updated successfully`);
         await loadData();
         setBalanceModal({ open: false, customer: null });
       } else {
@@ -741,11 +831,11 @@ const loadData = async () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
         <div>
           <h1 className="text-xl font-bold bg-gradient-to-r from-slate-800 via-blue-700 to-indigo-600 bg-clip-text text-transparent">
-            Customers Managment
+            Customers Management
           </h1>
           <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
             <Users size={10} />
-            Manage customer relationships and balances
+            Manage customer relationships, credit, and debit
             {isUsingMock && (
               <span className="ml-2 text-[7px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
                 <Database size={8} />
@@ -768,14 +858,16 @@ const loadData = async () => {
             onClick={async () => {
               const result = await customerAPI.exportCustomers({ is_active: 1 });
               if (result.success && result.data) {
-                const headers = ["Name", "Phone", "Email", "Address", "CNIC", "Balance", "Credit Limit", "Status"];
+                const headers = ["Name", "Phone", "Email", "Address", "CNIC", "Credit", "Debit", "Balance", "Credit Limit", "Status"];
                 const rows = result.data.map(c => [
                   c.name || "",
                   c.phone || "",
                   c.email || "",
                   c.address || "",
                   c.cnic || "",
-                  c.balance || 0,
+                  c.credit || 0,
+                  c.debit || 0,
+                  (c.credit || 0) - (c.debit || 0),
                   c.credit_limit || 0,
                   c.is_active ? "Active" : "Inactive"
                 ]);
@@ -813,23 +905,33 @@ const loadData = async () => {
       </div>
 
       {/* ===== STATS CARDS ===== */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
         {[
           { label: "Total", value: stats.total || 0, icon: Users, color: "from-blue-500 to-indigo-600" },
           { label: "Active", value: stats.active || 0, icon: UserCheck, color: "from-emerald-500 to-teal-600" },
           { label: "Inactive", value: stats.inactive || 0, icon: UserX, color: "from-slate-500 to-slate-600" },
-          { label: "Total Balance", value: formatCurrency(stats.totalBalance), icon: Wallet, color: "from-amber-500 to-orange-600" },
-          { label: "Total Sales", value: stats.totalSales || 0, icon: ShoppingBag, color: "from-purple-500 to-pink-600" },
-          { label: "Avg Sales", value: formatCurrency(stats.avgSalesPerCustomer), icon: Activity, color: "from-cyan-500 to-blue-600" }
+          { label: "Total Credit", value: formatCurrency(stats.totalCredit), icon: CreditIcon, color: "from-amber-500 to-orange-600" },
+          { label: "Total Debit", value: formatCurrency(stats.totalDebit), icon: Receipt, color: "from-rose-500 to-red-600" },
+          { label: "Net Balance", value: formatCurrency(stats.totalBalance), icon: PiggyBank, color: "from-purple-500 to-pink-600" },
+          { label: "Total Sales", value: stats.totalSales || 0, icon: ShoppingBag, color: "from-cyan-500 to-blue-600" },
         ].map((item, index) => (
-          <div key={index} className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group">
+          <div key={index} className={`bg-white rounded-xl border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group ${
+            index >= 5 ? "hidden sm:block" : ""
+          }`}>
             <div className="flex items-center justify-between">
               <span className="text-[8px] text-slate-500 font-medium">{item.label}</span>
               <div className={`p-1 rounded-lg bg-gradient-to-br ${item.color} text-white shadow-lg`}>
                 <item.icon size={10} />
               </div>
             </div>
-            <p className={`text-sm font-bold ${item.label === "Total Balance" ? 'text-amber-600' : item.label === "Active" ? 'text-emerald-600' : item.label === "Avg Sales" ? 'text-cyan-600' : 'text-slate-800'} mt-0.5`}>
+            <p className={`text-sm font-bold ${
+              item.label === "Total Credit" ? 'text-amber-600' : 
+              item.label === "Total Debit" ? 'text-rose-600' : 
+              item.label === "Net Balance" ? 'text-purple-600' :
+              item.label === "Active" ? 'text-emerald-600' : 
+              item.label === "Avg Sales" ? 'text-cyan-600' : 
+              'text-slate-800'
+            } mt-0.5`}>
               {item.value}
             </p>
           </div>
@@ -844,13 +946,12 @@ const loadData = async () => {
           <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-slate-200/60 shadow-sm p-3 mb-3">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <div className="relative flex-1 w-full">
-                
                 <input
                   type="text"
                   placeholder="Search customers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-7.5 pr-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white transition-all duration-300"
+                  className="w-full pl-2.5 pr-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white transition-all duration-300"
                 />
                 {searchQuery && (
                   <button
@@ -934,8 +1035,9 @@ const loadData = async () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredCustomers.map((customer) => {
-                      const isPositive = customer.balance > 0;
-                      const isNegative = customer.balance < 0;
+                      const balance = (customer.credit || 0) - (customer.debit || 0);
+                      const isPositive = balance > 0;
+                      const isNegative = balance < 0;
                       const isSelected = selectedCustomer?.id === customer.id;
 
                       return (
@@ -973,7 +1075,7 @@ const loadData = async () => {
                                 isNegative ? 'text-emerald-600' : 
                                 'text-slate-600'
                               }`}>
-                                {formatCurrency(customer.balance)}
+                                {formatCurrency(balance)}
                               </span>
                             </div>
                           </td>
@@ -1080,13 +1182,21 @@ const loadData = async () => {
               </div>
 
               <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
-                <div className="bg-slate-50 rounded-lg p-2 text-center">
-                  <p className="text-[7px] text-slate-400 uppercase font-medium">Balance</p>
-                  <p className={`text-sm font-bold ${selectedCustomer.balance > 0 ? 'text-amber-600' : selectedCustomer.balance < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                    {formatCurrency(selectedCustomer.balance)}
+                <div className="bg-amber-50 rounded-lg p-2 text-center">
+                  <p className="text-[7px] text-amber-600 uppercase font-medium">Credit</p>
+                  <p className="text-sm font-bold text-amber-600">{formatCurrency(selectedCustomer.credit)}</p>
+                </div>
+                <div className="bg-rose-50 rounded-lg p-2 text-center">
+                  <p className="text-[7px] text-rose-600 uppercase font-medium">Debit</p>
+                  <p className="text-sm font-bold text-rose-600">{formatCurrency(selectedCustomer.debit)}</p>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-2 text-center col-span-2">
+                  <p className="text-[7px] text-purple-600 uppercase font-medium">Net Balance</p>
+                  <p className={`text-sm font-bold ${(selectedCustomer.credit || 0) > (selectedCustomer.debit || 0) ? 'text-amber-600' : (selectedCustomer.debit || 0) > (selectedCustomer.credit || 0) ? 'text-rose-600' : 'text-slate-600'}`}>
+                    {formatCurrency((selectedCustomer.credit || 0) - (selectedCustomer.debit || 0))}
                   </p>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-2 text-center">
+                <div className="bg-slate-50 rounded-lg p-2 text-center col-span-2">
                   <p className="text-[7px] text-slate-400 uppercase font-medium">Sales</p>
                   <p className="text-sm font-bold text-slate-800">{selectedCustomer.sales_count || 0}</p>
                 </div>
@@ -1265,38 +1375,66 @@ const loadData = async () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                    Balance
+                    Credit
                   </label>
                   <input
                     type="number"
-                    value={form.balance}
-                    onChange={(e) => setForm(prev => ({ ...prev, balance: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-300 bg-white"
-                    placeholder="0.00"
-                    step="0.01"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                    Credit Limit
-                  </label>
-                  <input
-                    type="number"
-                    value={form.credit_limit}
-                    onChange={(e) => setForm(prev => ({ ...prev, credit_limit: parseFloat(e.target.value) || 0 }))}
+                    value={form.credit}
+                    onChange={(e) => setForm(prev => ({ ...prev, credit: parseFloat(e.target.value) || 0 }))}
                     className={`w-full px-2.5 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-all duration-300 bg-white ${
-                      validationErrors.credit_limit
+                      validationErrors.credit
                         ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
                         : 'border-slate-200 focus:border-blue-400 focus:ring-blue-100'
                     }`}
                     placeholder="0.00"
                     step="0.01"
                   />
-                  {validationErrors.credit_limit && (
-                    <p className="text-[9px] text-red-500 mt-0.5">{validationErrors.credit_limit}</p>
+                  {validationErrors.credit && (
+                    <p className="text-[9px] text-red-500 mt-0.5">{validationErrors.credit}</p>
                   )}
                 </div>
+
+                <div>
+                  <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                    Debit
+                  </label>
+                  <input
+                    type="number"
+                    value={form.debit}
+                    onChange={(e) => setForm(prev => ({ ...prev, debit: parseFloat(e.target.value) || 0 }))}
+                    className={`w-full px-2.5 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-all duration-300 bg-white ${
+                      validationErrors.debit
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-blue-400 focus:ring-blue-100'
+                    }`}
+                    placeholder="0.00"
+                    step="0.01"
+                  />
+                  {validationErrors.debit && (
+                    <p className="text-[9px] text-red-500 mt-0.5">{validationErrors.debit}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                  Credit Limit
+                </label>
+                <input
+                  type="number"
+                  value={form.credit_limit}
+                  onChange={(e) => setForm(prev => ({ ...prev, credit_limit: parseFloat(e.target.value) || 0 }))}
+                  className={`w-full px-2.5 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-all duration-300 bg-white ${
+                    validationErrors.credit_limit
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200 focus:border-blue-400 focus:ring-blue-100'
+                  }`}
+                  placeholder="0.00"
+                  step="0.01"
+                />
+                {validationErrors.credit_limit && (
+                  <p className="text-[9px] text-red-500 mt-0.5">{validationErrors.credit_limit}</p>
+                )}
               </div>
 
               <div>
@@ -1372,7 +1510,7 @@ const loadData = async () => {
               <div>
                 <h3 className="text-base font-semibold text-slate-800">Update Balance</h3>
                 <p className="text-[10px] text-slate-500">
-                  {balanceModal.customer?.name} - Current: {formatCurrency(balanceModal.customer?.balance)}
+                  {balanceModal.customer?.name} - Credit: {formatCurrency(balanceModal.customer?.credit || 0)} | Debit: {formatCurrency(balanceModal.customer?.debit || 0)}
                 </p>
               </div>
             </div>
@@ -1387,8 +1525,8 @@ const loadData = async () => {
                   onChange={(e) => setBalanceForm(prev => ({ ...prev, type: e.target.value }))}
                   className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-300 bg-white"
                 >
-                  <option value="add">Add Balance (Customer owes us)</option>
-                  <option value="subtract">Subtract Balance (We owe customer)</option>
+                  <option value="credit">Credit (Customer owes us)</option>
+                  <option value="debit">Debit (We owe customer)</option>
                 </select>
               </div>
 

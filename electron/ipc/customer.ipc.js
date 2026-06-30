@@ -62,10 +62,26 @@ function registerCustomerIPC() {
         }
     });
 
-    // ==================== BALANCE ====================
+    // ==================== BALANCE (Credit/Debit) ====================
     ipcMain.handle('customer:getBalance', async (event, id) => {
         try {
             return await customerService.getCustomerBalance(id);
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('customer:updateCredit', async (event, id, amount) => {
+        try {
+            return await customerService.updateCustomerCredit(id, amount);
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('customer:updateDebit', async (event, id, amount) => {
+        try {
+            return await customerService.updateCustomerDebit(id, amount);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -99,6 +115,31 @@ function registerCustomerIPC() {
     ipcMain.handle('customer:getWithSales', async (event, id) => {
         try {
             return await customerService.getCustomerWithSales(id);
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    // ==================== ADDITIONAL HELPERS ====================
+    ipcMain.handle('customer:getWithCredit', async () => {
+        try {
+            return await customerService.getCustomersWithCredit();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('customer:getWithDebit', async () => {
+        try {
+            return await customerService.getCustomersWithDebit();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('customer:getWithBalance', async () => {
+        try {
+            return await customerService.getCustomersWithBalance();
         } catch (error) {
             return { success: false, error: error.message };
         }

@@ -5,11 +5,11 @@ const db = require("../database/database")
 class CustomerRepository {
     // ==================== CREATE ====================
     create(data) {
-        const { name, phone, email, address, cnic, balance = 0, credit_limit = 0, notes } = data;
+        const { name, phone, email, address, cnic, credit = 0, debit = 0, credit_limit = 0, notes } = data;
         
         const stmt = db.prepare(`
-            INSERT INTO customers (name, phone, email, address, cnic, balance, credit_limit, notes, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO customers (name, phone, email, address, cnic, credit, debit, credit_limit, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `);
         
         const result = stmt.run(
@@ -18,7 +18,8 @@ class CustomerRepository {
             email || null,
             address || null,
             cnic || null,
-            balance,
+            credit,
+            debit,
             credit_limit,
             notes || null
         );
@@ -28,7 +29,7 @@ class CustomerRepository {
 
     // ==================== READ ====================
     getAll(filters = {}) {
-        let query = 'SELECT * FROM customers WHERE 1=1';
+        let query = 'SELECT *, (credit - debit) as balance FROM customers WHERE 1=1';
         const params = [];
 
         if (filters.search) {
@@ -52,35 +53,36 @@ class CustomerRepository {
     }
 
     getById(id) {
-        const stmt = db.prepare('SELECT * FROM customers WHERE id = ?');
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM customers WHERE id = ?');
         return stmt.get(id) || null;
     }
 
     getByName(name) {
-        const stmt = db.prepare('SELECT * FROM customers WHERE LOWER(name) = LOWER(?)');
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM customers WHERE LOWER(name) = LOWER(?)');
         return stmt.get(name) || null;
     }
 
     getByPhone(phone) {
-        const stmt = db.prepare('SELECT * FROM customers WHERE phone = ?');
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM customers WHERE phone = ?');
         return stmt.get(phone) || null;
     }
 
     getByCNIC(cnic) {
-        const stmt = db.prepare('SELECT * FROM customers WHERE cnic = ?');
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM customers WHERE cnic = ?');
         return stmt.get(cnic) || null;
     }
 
     getActive() {
-        const stmt = db.prepare('SELECT * FROM customers WHERE is_active = 1 ORDER BY name ASC');
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM customers WHERE is_active = 1 ORDER BY name ASC');
         return stmt.all();
     }
 
     search(query) {
         const stmt = db.prepare(`
-            SELECT * FROM customers 
+            SELECT *, (credit - debit) as balance FROM customers 
             WHERE name LIKE ? OR phone LIKE ? OR email LIKE ? OR cnic LIKE ?
-            ORDER BY name ASC        `);
+            ORDER BY name ASC
+        `);
         const search = `%${query}%`;
         return stmt.all(search, search, search, search);
     }
@@ -90,7 +92,7 @@ class CustomerRepository {
         const updates = [];
         const params = [];
 
-        const fields = ['name', 'phone', 'email', 'address', 'cnic', 'balance', 'credit_limit', 'notes'];
+        const fields = ['name', 'phone', 'email', 'address', 'cnic', 'credit', 'debit', 'credit_limit', 'notes'];
         fields.forEach(field => {
             if (data[field] !== undefined) {
                 updates.push(`${field} = ?`);
@@ -146,16 +148,16 @@ class CustomerRepository {
         return deleteResult.changes > 0;
     }
 
-    // ==================== BALANCE ====================
+    // ==================== BALANCE (Credit/Debit) ====================
     getBalance(id) {
-        const stmt = db.prepare('SELECT balance FROM customers WHERE id = ?');
+        const stmt = db.prepare('SELECT credit, debit, (credit - debit) as balance FROM customers WHERE id = ?');
         return stmt.get(id);
     }
 
-    updateBalance(id, amount) {
+    updateCredit(id, amount) {
         const stmt = db.prepare(`
             UPDATE customers 
-            SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP 
+            SET credit = credit + ?, updated_at = CURRENT_TIMESTAMP 
             WHERE id = ?
         `);
         const result = stmt.run(amount, id);
@@ -165,6 +167,28 @@ class CustomerRepository {
         return this.getBalance(id);
     }
 
+    updateDebit(id, amount) {
+        const stmt = db.prepare(`
+            UPDATE customers 
+            SET debit = debit + ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        `);
+        const result = stmt.run(amount, id);
+        if (result.changes === 0) {
+            return null;
+        }
+        return this.getBalance(id);
+    }
+
+    updateBalance(id, amount) {
+        // For backward compatibility - updates credit (positive) or debit (negative)
+        if (amount >= 0) {
+            return this.updateCredit(id, amount);
+        } else {
+            return this.updateDebit(id, Math.abs(amount));
+        }
+    }
+
     // ==================== STATS ====================
     getStats() {
         const stmt = db.prepare(`
@@ -172,7 +196,9 @@ class CustomerRepository {
                 COUNT(*) as total,
                 SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
                 SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive,
-                COALESCE(SUM(balance), 0) as totalBalance
+                COALESCE(SUM(credit), 0) as totalCredit,
+                COALESCE(SUM(debit), 0) as totalDebit,
+                COALESCE(SUM(credit - debit), 0) as totalBalance
             FROM customers
         `);
         return stmt.get();
@@ -182,6 +208,7 @@ class CustomerRepository {
         const stmt = db.prepare(`
             SELECT 
                 c.*,
+                (c.credit - c.debit) as balance,
                 COUNT(s.id) as sale_count,
                 COALESCE(SUM(s.total_amount), 0) as total_sales
             FROM customers c
@@ -215,7 +242,7 @@ class CustomerRepository {
 
     // ==================== EXPORT ====================
     exportData(filters = {}) {
-        let query = 'SELECT id, name, phone, email, address, cnic, balance, is_active, created_at FROM customers WHERE 1=1';
+        let query = 'SELECT id, name, phone, email, address, cnic, credit, debit, (credit - debit) as balance, is_active, created_at FROM customers WHERE 1=1';
         const params = [];
 
         if (filters.is_active !== undefined) {
@@ -226,6 +253,27 @@ class CustomerRepository {
         query += ' ORDER BY name ASC';
         const stmt = db.prepare(query);
         return stmt.all(...params);
+    }
+
+    // ==================== ADDITIONAL HELPERS ====================
+    getCustomersWithCredit() {
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM customers WHERE credit > 0 ORDER BY credit DESC');
+        return stmt.all();
+    }
+
+    getCustomersWithDebit() {
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM customers WHERE debit > 0 ORDER BY debit DESC');
+        return stmt.all();
+    }
+
+    getCustomersWithBalance() {
+        const stmt = db.prepare(`
+            SELECT *, (credit - debit) as balance 
+            FROM customers 
+            WHERE credit != debit 
+            ORDER BY balance DESC
+        `);
+        return stmt.all();
     }
 }
 

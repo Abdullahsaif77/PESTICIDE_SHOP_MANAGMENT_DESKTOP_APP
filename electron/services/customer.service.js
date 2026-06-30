@@ -39,6 +39,15 @@ class CustomerService {
             throw new Error('Invalid CNIC format (e.g., XXXXX-XXXXXXX-X)');
         }
 
+        // Validate credit and debit
+        if (data.credit && data.credit < 0) {
+            throw new Error('Credit cannot be negative');
+        }
+
+        if (data.debit && data.debit < 0) {
+            throw new Error('Debit cannot be negative');
+        }
+
         // Prepare data
         const customerData = {
             name: data.name.trim(),
@@ -46,7 +55,8 @@ class CustomerService {
             email: data.email || null,
             address: data.address || null,
             cnic: data.cnic || null,
-            balance: data.balance || 0,
+            credit: data.credit || 0,
+            debit: data.debit || 0,
             credit_limit: data.credit_limit || 0,
             notes: data.notes || null
         };
@@ -157,9 +167,18 @@ class CustomerService {
             throw new Error('Invalid CNIC format (e.g., XXXXX-XXXXXXX-X)');
         }
 
+        // Validate credit and debit
+        if (data.credit && data.credit < 0) {
+            throw new Error('Credit cannot be negative');
+        }
+
+        if (data.debit && data.debit < 0) {
+            throw new Error('Debit cannot be negative');
+        }
+
         // Prepare update data
         const updateData = {};
-        const fields = ['name', 'phone', 'email', 'address', 'cnic', 'balance', 'credit_limit', 'notes', 'is_active'];
+        const fields = ['name', 'phone', 'email', 'address', 'cnic', 'credit', 'debit', 'credit_limit', 'notes', 'is_active'];
         fields.forEach(field => {
             if (data[field] !== undefined) {
                 updateData[field] = field === 'name' ? data[field].trim() : data[field];
@@ -200,7 +219,7 @@ class CustomerService {
         };
     }
 
-    // ==================== BALANCE ====================
+    // ==================== BALANCE (Credit/Debit) ====================
     getCustomerBalance(id) {
         if (!id || isNaN(id)) {
             throw new Error('Invalid customer ID');
@@ -215,21 +234,23 @@ class CustomerService {
             success: true,
             data: {
                 id,
-                balance: result.balance
+                credit: result.credit || 0,
+                debit: result.debit || 0,
+                balance: result.balance || 0
             }
         };
     }
 
-    updateCustomerBalance(id, amount) {
+    updateCustomerCredit(id, amount) {
         if (!id || isNaN(id)) {
             throw new Error('Invalid customer ID');
         }
 
-        if (!amount || isNaN(amount)) {
-            throw new Error('Invalid amount');
+        if (!amount || isNaN(amount) || amount <= 0) {
+            throw new Error('Amount must be greater than 0');
         }
 
-        const result = customerRepository.updateBalance(id, amount);
+        const result = customerRepository.updateCredit(id, amount);
         if (!result) {
             throw new Error('Customer not found');
         }
@@ -238,10 +259,57 @@ class CustomerService {
             success: true,
             data: {
                 id,
-                newBalance: result.balance
+                credit: result.credit,
+                debit: result.debit,
+                balance: result.balance
             },
-            message: 'Balance updated successfully'
+            message: 'Credit updated successfully'
         };
+    }
+
+    updateCustomerDebit(id, amount) {
+        if (!id || isNaN(id)) {
+            throw new Error('Invalid customer ID');
+        }
+
+        if (!amount || isNaN(amount) || amount <= 0) {
+            throw new Error('Amount must be greater than 0');
+        }
+
+        const result = customerRepository.updateDebit(id, amount);
+        if (!result) {
+            throw new Error('Customer not found');
+        }
+
+        return {
+            success: true,
+            data: {
+                id,
+                credit: result.credit,
+                debit: result.debit,
+                balance: result.balance
+            },
+            message: 'Debit updated successfully'
+        };
+    }
+
+    updateCustomerBalance(id, amount) {
+        // Backward compatible - positive amount adds to credit, negative adds to debit
+        if (!id || isNaN(id)) {
+            throw new Error('Invalid customer ID');
+        }
+
+        if (!amount || isNaN(amount)) {
+            throw new Error('Invalid amount');
+        }
+
+        if (amount > 0) {
+            return this.updateCustomerCredit(id, amount);
+        } else if (amount < 0) {
+            return this.updateCustomerDebit(id, Math.abs(amount));
+        } else {
+            throw new Error('Amount cannot be zero');
+        }
     }
 
     // ==================== STATS ====================
@@ -277,12 +345,41 @@ class CustomerService {
         };
     }
 
+    // ==================== ADDITIONAL HELPERS ====================
+    getCustomersWithCredit() {
+        const customers = customerRepository.getCustomersWithCredit();
+        return {
+            success: true,
+            data: customers,
+            count: customers.length
+        };
+    }
+
+    getCustomersWithDebit() {
+        const customers = customerRepository.getCustomersWithDebit();
+        return {
+            success: true,
+            data: customers,
+            count: customers.length
+        };
+    }
+
+    getCustomersWithBalance() {
+        const customers = customerRepository.getCustomersWithBalance();
+        return {
+            success: true,
+            data: customers,
+            count: customers.length
+        };
+    }
+
     // ==================== EXPORT ====================
     exportCustomers(filters = {}) {
         const data = customerRepository.exportData(filters);
         return {
             success: true,
-            data
+            data,
+            count: data.length
         };
     }
 }

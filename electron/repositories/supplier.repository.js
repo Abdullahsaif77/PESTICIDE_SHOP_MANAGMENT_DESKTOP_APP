@@ -9,10 +9,11 @@ class SupplierRepository {
                 email,
                 address,
                 cnic,
-                balance,
+                credit,
+                debit,
                 notes,
                 is_active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         return stmt.run(
@@ -21,7 +22,8 @@ class SupplierRepository {
             data.email || null,
             data.address || null,
             data.cnic || null,
-            data.balance || 0,
+            data.credit || 0,
+            data.debit || 0,
             data.notes || null,
             data.is_active !== undefined ? data.is_active : 1
         );
@@ -31,6 +33,7 @@ class SupplierRepository {
         let query = `
             SELECT 
                 s.*,
+                (s.credit - s.debit) as balance,
                 COUNT(p.id) as purchase_count,
                 SUM(p.total_amount) as total_purchases
             FROM suppliers s
@@ -56,11 +59,11 @@ class SupplierRepository {
             params.push(filters.is_active);
         }
         if (filters.min_balance) {
-            query += ' AND s.balance >= ?';
+            query += ' AND (s.credit - s.debit) >= ?';
             params.push(filters.min_balance);
         }
         if (filters.max_balance) {
-            query += ' AND s.balance <= ?';
+            query += ' AND (s.credit - s.debit) <= ?';
             params.push(filters.max_balance);
         }
 
@@ -74,6 +77,7 @@ class SupplierRepository {
         const stmt = db.prepare(`
             SELECT 
                 s.*,
+                (s.credit - s.debit) as balance,
                 COUNT(p.id) as purchase_count,
                 SUM(p.total_amount) as total_purchases,
                 SUM(p.paid_amount) as total_paid,
@@ -87,17 +91,17 @@ class SupplierRepository {
     }
 
     getByName(name) {
-        const stmt = db.prepare('SELECT * FROM suppliers WHERE LOWER(name) = LOWER(?)');
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM suppliers WHERE LOWER(name) = LOWER(?)');
         return stmt.get(name);
     }
 
     getByPhone(phone) {
-        const stmt = db.prepare('SELECT * FROM suppliers WHERE phone = ?');
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM suppliers WHERE phone = ?');
         return stmt.get(phone);
     }
 
     getByCNIC(cnic) {
-        const stmt = db.prepare('SELECT * FROM suppliers WHERE cnic = ?');
+        const stmt = db.prepare('SELECT *, (credit - debit) as balance FROM suppliers WHERE cnic = ?');
         return stmt.get(cnic);
     }
 
@@ -125,9 +129,13 @@ class SupplierRepository {
             updates.push('cnic = ?');
             params.push(data.cnic);
         }
-        if (data.balance !== undefined) {
-            updates.push('balance = ?');
-            params.push(data.balance);
+        if (data.credit !== undefined) {
+            updates.push('credit = ?');
+            params.push(data.credit);
+        }
+        if (data.debit !== undefined) {
+            updates.push('debit = ?');
+            params.push(data.debit);
         }
         if (data.notes !== undefined) {
             updates.push('notes = ?');
@@ -167,7 +175,7 @@ class SupplierRepository {
 
     getActive() {
         const stmt = db.prepare(`
-            SELECT * FROM suppliers 
+            SELECT *, (credit - debit) as balance FROM suppliers 
             WHERE is_active = 1 
             ORDER BY name ASC
         `);
@@ -177,7 +185,7 @@ class SupplierRepository {
     search(query) {
         const searchTerm = `%${query}%`;
         const stmt = db.prepare(`
-            SELECT * FROM suppliers 
+            SELECT *, (credit - debit) as balance FROM suppliers 
             WHERE is_active = 1 
             AND (
                 name LIKE ? OR 
@@ -195,6 +203,7 @@ class SupplierRepository {
         const stmt = db.prepare(`
             SELECT 
                 s.*,
+                (s.credit - s.debit) as balance,
                 COUNT(p.id) as purchase_count,
                 SUM(p.total_amount) as total_purchases,
                 SUM(p.paid_amount) as total_paid,
@@ -211,7 +220,9 @@ class SupplierRepository {
     getBalance(id) {
         const stmt = db.prepare(`
             SELECT 
-                balance,
+                credit,
+                debit,
+                (credit - debit) as balance,
                 (SELECT SUM(due_amount) FROM purchases WHERE supplier_id = ? AND status != 'cancelled') as pending_due
             FROM suppliers 
             WHERE id = ?
@@ -219,13 +230,31 @@ class SupplierRepository {
         return stmt.get(id, id);
     }
 
-    updateBalance(id, amount) {
+    updateCredit(id, amount) {
         const stmt = db.prepare(`
             UPDATE suppliers 
-            SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP 
+            SET credit = credit + ?, updated_at = CURRENT_TIMESTAMP 
             WHERE id = ?
         `);
         return stmt.run(amount, id);
+    }
+
+    updateDebit(id, amount) {
+        const stmt = db.prepare(`
+            UPDATE suppliers 
+            SET debit = debit + ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        `);
+        return stmt.run(amount, id);
+    }
+
+    updateBalance(id, amount) {
+        // Backward compatible - positive adds to credit, negative adds to debit
+        if (amount >= 0) {
+            return this.updateCredit(id, amount);
+        } else {
+            return this.updateDebit(id, Math.abs(amount));
+        }
     }
 
     // Additional helper methods
@@ -234,7 +263,10 @@ class SupplierRepository {
             SELECT 
                 COUNT(*) as total,
                 SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
-                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive
+                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive,
+                SUM(credit) as total_credit,
+                SUM(debit) as total_debit,
+                SUM(credit - debit) as total_balance
             FROM suppliers
         `);
         return stmt.get();
@@ -242,7 +274,7 @@ class SupplierRepository {
 
     getRecentSuppliers(limit = 10) {
         const stmt = db.prepare(`
-            SELECT * FROM suppliers 
+            SELECT *, (credit - debit) as balance FROM suppliers 
             WHERE is_active = 1 
             ORDER BY created_at DESC 
             LIMIT ?
@@ -254,10 +286,12 @@ class SupplierRepository {
         const stmt = db.prepare(`
             SELECT 
                 COUNT(DISTINCT s.id) as total_suppliers,
-                SUM(s.balance) as total_balance,
+                SUM(s.credit) as total_credit,
+                SUM(s.debit) as total_debit,
+                SUM(s.credit - s.debit) as total_balance,
                 COUNT(DISTINCT p.id) as total_purchases,
                 SUM(p.total_amount) as total_purchase_amount,
-                AVG(p.total_amount) as avg_purchase_amount
+                COALESCE(AVG(p.total_amount), 0) as avg_purchase_amount
             FROM suppliers s
             LEFT JOIN purchases p ON s.id = p.supplier_id AND p.status != 'cancelled'
             WHERE s.is_active = 1
@@ -267,8 +301,8 @@ class SupplierRepository {
 
     getSuppliersWithHighBalance(minBalance = 10000) {
         const stmt = db.prepare(`
-            SELECT * FROM suppliers 
-            WHERE is_active = 1 AND balance >= ?
+            SELECT *, (credit - debit) as balance FROM suppliers 
+            WHERE is_active = 1 AND (credit - debit) >= ?
             ORDER BY balance DESC
         `);
         return stmt.all(minBalance);
@@ -278,6 +312,7 @@ class SupplierRepository {
         const stmt = db.prepare(`
             SELECT 
                 s.*,
+                (s.credit - s.debit) as balance,
                 COUNT(p.id) as purchase_count,
                 SUM(p.total_amount) as total_purchases
             FROM suppliers s
@@ -295,6 +330,7 @@ class SupplierRepository {
         const stmt = db.prepare(`
             SELECT 
                 s.*,
+                (s.credit - s.debit) as balance,
                 COUNT(p.id) as purchase_count,
                 SUM(p.total_amount) as total_purchases
             FROM suppliers s
@@ -305,6 +341,34 @@ class SupplierRepository {
             LIMIT 1
         `);
         return stmt.get();
+    }
+
+    // Additional methods for credit/debit filtering
+    getSuppliersWithCredit() {
+        const stmt = db.prepare(`
+            SELECT *, (credit - debit) as balance FROM suppliers 
+            WHERE is_active = 1 AND credit > 0 
+            ORDER BY credit DESC
+        `);
+        return stmt.all();
+    }
+
+    getSuppliersWithDebit() {
+        const stmt = db.prepare(`
+            SELECT *, (credit - debit) as balance FROM suppliers 
+            WHERE is_active = 1 AND debit > 0 
+            ORDER BY debit DESC
+        `);
+        return stmt.all();
+    }
+
+    getSuppliersWithBalance() {
+        const stmt = db.prepare(`
+            SELECT *, (credit - debit) as balance FROM suppliers 
+            WHERE is_active = 1 AND credit != debit 
+            ORDER BY balance DESC
+        `);
+        return stmt.all();
     }
 }
 

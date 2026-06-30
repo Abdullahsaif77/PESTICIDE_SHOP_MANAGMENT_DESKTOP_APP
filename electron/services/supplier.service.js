@@ -50,6 +50,14 @@ class SupplierService {
                 return { success: false, error: `Supplier with name "${data.name}" already exists` };
             }
 
+            // Validation: Credit and Debit cannot be negative
+            if (data.credit !== undefined && data.credit < 0) {
+                return { success: false, error: 'Credit cannot be negative' };
+            }
+            if (data.debit !== undefined && data.debit < 0) {
+                return { success: false, error: 'Debit cannot be negative' };
+            }
+
             // Create supplier
             const result = await SupplierRepository.create({
                 name: data.name.trim(),
@@ -57,7 +65,8 @@ class SupplierService {
                 email: data.email || null,
                 address: data.address || null,
                 cnic: data.cnic || null,
-                balance: data.balance || 0,
+                credit: data.credit || 0,
+                debit: data.debit || 0,
                 notes: data.notes || null,
                 is_active: data.is_active !== undefined ? data.is_active : 1
             });
@@ -170,6 +179,14 @@ class SupplierService {
                 }
             }
 
+            // Validation: Credit and Debit cannot be negative
+            if (data.credit !== undefined && data.credit < 0) {
+                return { success: false, error: 'Credit cannot be negative' };
+            }
+            if (data.debit !== undefined && data.debit < 0) {
+                return { success: false, error: 'Debit cannot be negative' };
+            }
+
             // Update supplier
             const result = await SupplierRepository.update(id, data);
             if (result.changes === 0) {
@@ -251,6 +268,7 @@ class SupplierService {
         }
     }
 
+    // ==================== BALANCE (Credit/Debit) ====================
     async getSupplierBalance(id) {
         try {
             if (!id) {
@@ -265,7 +283,9 @@ class SupplierService {
             return {
                 success: true,
                 data: {
-                    current_balance: balance.balance || 0,
+                    credit: balance.credit || 0,
+                    debit: balance.debit || 0,
+                    balance: balance.balance || 0,
                     pending_due: balance.pending_due || 0
                 }
             };
@@ -274,7 +294,70 @@ class SupplierService {
         }
     }
 
+    async updateSupplierCredit(id, amount) {
+        try {
+            if (!id) {
+                return { success: false, error: 'Supplier ID is required' };
+            }
+
+            if (!amount || amount <= 0) {
+                return { success: false, error: 'Amount must be greater than 0' };
+            }
+
+            const existing = await SupplierRepository.getById(id);
+            if (!existing) {
+                return { success: false, error: 'Supplier not found' };
+            }
+
+            const result = await SupplierRepository.updateCredit(id, amount);
+            if (result.changes === 0) {
+                return { success: false, error: 'Failed to update credit' };
+            }
+
+            const balance = await SupplierRepository.getBalance(id);
+            return {
+                success: true,
+                data: balance,
+                message: `Credit updated successfully. New credit: ${balance.credit}`
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async updateSupplierDebit(id, amount) {
+        try {
+            if (!id) {
+                return { success: false, error: 'Supplier ID is required' };
+            }
+
+            if (!amount || amount <= 0) {
+                return { success: false, error: 'Amount must be greater than 0' };
+            }
+
+            const existing = await SupplierRepository.getById(id);
+            if (!existing) {
+                return { success: false, error: 'Supplier not found' };
+            }
+
+            const result = await SupplierRepository.updateDebit(id, amount);
+            if (result.changes === 0) {
+                return { success: false, error: 'Failed to update debit' };
+            }
+
+            const balance = await SupplierRepository.getBalance(id);
+            return {
+                success: true,
+                data: balance,
+                message: `Debit updated successfully. New debit: ${balance.debit}`
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
     async updateSupplierBalance(id, amount) {
+        // Backward compatible - positive adds to credit, negative adds to debit
         try {
             if (!id) {
                 return { success: false, error: 'Supplier ID is required' };
@@ -289,7 +372,13 @@ class SupplierService {
                 return { success: false, error: 'Supplier not found' };
             }
 
-            const result = await SupplierRepository.updateBalance(id, amount);
+            let result;
+            if (amount > 0) {
+                result = await SupplierRepository.updateCredit(id, amount);
+            } else {
+                result = await SupplierRepository.updateDebit(id, Math.abs(amount));
+            }
+
             if (result.changes === 0) {
                 return { success: false, error: 'Failed to update balance' };
             }
@@ -305,6 +394,7 @@ class SupplierService {
         }
     }
 
+    // ==================== STATS ====================
     async getSupplierStats() {
         try {
             const stats = await SupplierRepository.getSupplierStats();
@@ -312,6 +402,8 @@ class SupplierService {
                 success: true,
                 data: stats || {
                     total_suppliers: 0,
+                    total_credit: 0,
+                    total_debit: 0,
                     total_balance: 0,
                     total_purchases: 0,
                     total_purchase_amount: 0,
@@ -323,7 +415,7 @@ class SupplierService {
         }
     }
 
-    // Additional methods
+    // ==================== ADDITIONAL METHODS ====================
     async getSupplierPurchases(supplierId) {
         try {
             const db = require("../database/database");
@@ -377,9 +469,48 @@ class SupplierService {
         }
     }
 
+    // ==================== ADDITIONAL HELPER METHODS ====================
+    async getSuppliersWithCredit() {
+        try {
+            const suppliers = await SupplierRepository.getSuppliersWithCredit();
+            return {
+                success: true,
+                data: suppliers,
+                count: suppliers.length
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async getSuppliersWithDebit() {
+        try {
+            const suppliers = await SupplierRepository.getSuppliersWithDebit();
+            return {
+                success: true,
+                data: suppliers,
+                count: suppliers.length
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async getSuppliersWithBalance() {
+        try {
+            const suppliers = await SupplierRepository.getSuppliersWithBalance();
+            return {
+                success: true,
+                data: suppliers,
+                count: suppliers.length
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
     // ==================== HELPER VALIDATION METHODS ====================
     validatePhone(phone) {
-        // Pakistan phone number format: 03XX-XXXXXXX or 03XXXXXXXXX
         const phoneRegex = /^(03\d{2})-?\d{7}$/;
         return phoneRegex.test(phone);
     }
@@ -390,7 +521,6 @@ class SupplierService {
     }
 
     validateCNIC(cnic) {
-        // Pakistan CNIC format: XXXXX-XXXXXXX-X or XXXXXXXXXXXXX
         const cnicRegex = /^\d{5}-?\d{7}-?\d{1}$/;
         return cnicRegex.test(cnic);
     }
@@ -416,7 +546,9 @@ class SupplierService {
                     email: s.email,
                     address: s.address,
                     cnic: s.cnic,
-                    balance: s.balance,
+                    credit: s.credit || 0,
+                    debit: s.debit || 0,
+                    balance: (s.credit || 0) - (s.debit || 0),
                     notes: s.notes,
                     status: s.is_active ? 'Active' : 'Inactive'
                 })),

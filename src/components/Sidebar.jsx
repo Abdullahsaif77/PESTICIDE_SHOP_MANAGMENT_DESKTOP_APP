@@ -18,17 +18,17 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef(null);
 
-  const menuItems = [
+ const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'products', label: 'Products', icon: Package },
     { id: 'inventory', label: 'Inventory', icon: Boxes },
+    { id: 'warehouses', label: 'Warehouses', icon: Warehouse },
+    { id: 'purchases', label: 'Purchases', icon: ShoppingCart },
+    { id: 'suppliers', label: 'Suppliers', icon: Handshake },
     { id: 'sales', label: 'Sales', icon: TrendingUp },
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'expenses', label: 'Expenses', icon: CreditCard },
-    { id: 'suppliers', label: 'Suppliers', icon: Handshake },
-    { id: 'purchases', label: 'Purchases', icon: ShoppingCart },
-    { id: 'warehouses', label: 'Warehouses', icon:  Warehouse },
-  ];
+];
 
   useEffect(() => {
     const handleClickOutside = (event) => {

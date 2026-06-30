@@ -36,7 +36,10 @@ import {
   ArrowDownRight,
   CircleDot,
   Hash,
-  Link2
+  Link2,
+  CreditCard as CreditIcon,
+  Receipt,
+  PiggyBank
 } from "lucide-react";
 
 // ==================== MOCK DATA ====================
@@ -48,7 +51,8 @@ const MOCK_SUPPLIERS = [
     email: "abc@chemicals.com",
     address: "Industrial Zone, Lahore",
     cnic: "12345-1234567-1",
-    balance: 15000,
+    credit: 15000,
+    debit: 0,
     is_active: 1,
     purchase_count: 5,
     total_purchases: 125000,
@@ -61,7 +65,8 @@ const MOCK_SUPPLIERS = [
     email: "info@xyzpest.com",
     address: "Main Road, Faisalabad",
     cnic: "54321-7654321-2",
-    balance: 0,
+    credit: 0,
+    debit: 0,
     is_active: 1,
     purchase_count: 3,
     total_purchases: 45000,
@@ -74,7 +79,8 @@ const MOCK_SUPPLIERS = [
     email: "green@agro.com",
     address: "Garden Town, Multan",
     cnic: "98765-4321098-3",
-    balance: -5000,
+    credit: 0,
+    debit: 5000,
     is_active: 0,
     purchase_count: 0,
     total_purchases: 0,
@@ -87,7 +93,8 @@ const MOCK_SUPPLIERS = [
     email: "premium@fertilizers.com",
     address: "Sheikhupura Road",
     cnic: "11111-2222222-4",
-    balance: 25000,
+    credit: 25000,
+    debit: 0,
     is_active: 1,
     purchase_count: 8,
     total_purchases: 280000,
@@ -100,7 +107,8 @@ const MOCK_SUPPLIERS = [
     email: "safe@pest.com",
     address: "Johar Town, Lahore",
     cnic: "22222-3333333-5",
-    balance: 1000,
+    credit: 1000,
+    debit: 0,
     is_active: 1,
     purchase_count: 2,
     total_purchases: 12000,
@@ -113,7 +121,8 @@ const MOCK_SUPPLIERS = [
     email: "agro@solutions.com",
     address: "Gulberg, Lahore",
     cnic: "33333-4444444-6",
-    balance: -2000,
+    credit: 0,
+    debit: 2000,
     is_active: 1,
     purchase_count: 4,
     total_purchases: 68000,
@@ -157,6 +166,8 @@ const MOCK_STATS = {
   total: 6,
   active: 5,
   inactive: 1,
+  totalCredit: 41000,
+  totalDebit: 7000,
   totalBalance: 34000,
   totalPurchases: 18,
   avgPurchase: 40277.78
@@ -272,7 +283,9 @@ class SupplierAPI {
       return result;
     } catch (error) {
       const supplier = MOCK_SUPPLIERS.find(s => s.id === id);
-      return { success: true, data: { balance: supplier?.balance || 0 } };
+      const credit = supplier?.credit || 0;
+      const debit = supplier?.debit || 0;
+      return { success: true, data: { credit, debit, balance: credit - debit } };
     }
   }
 
@@ -283,8 +296,14 @@ class SupplierAPI {
     } catch (error) {
       const supplier = MOCK_SUPPLIERS.find(s => s.id === id);
       if (supplier) {
-        supplier.balance = (supplier.balance || 0) + amount;
-        return { success: true, data: { newBalance: supplier.balance } };
+        if (amount >= 0) {
+          supplier.credit = (supplier.credit || 0) + amount;
+        } else {
+          supplier.debit = (supplier.debit || 0) + Math.abs(amount);
+        }
+        const credit = supplier.credit || 0;
+        const debit = supplier.debit || 0;
+        return { success: true, data: { credit, debit, balance: credit - debit } };
       }
       return { success: false, error: "Supplier not found" };
     }
@@ -306,14 +325,17 @@ class SupplierAPI {
       if (result.success) return result;
       const active = MOCK_SUPPLIERS.filter(s => s.is_active === 1).length;
       const inactive = MOCK_SUPPLIERS.filter(s => s.is_active === 0).length;
-      const totalBalance = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.balance || 0), 0);
+      const totalCredit = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.credit || 0), 0);
+      const totalDebit = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.debit || 0), 0);
       return {
         success: true,
         data: {
           total: MOCK_SUPPLIERS.length,
           active,
           inactive,
-          totalBalance,
+          totalCredit,
+          totalDebit,
+          totalBalance: totalCredit - totalDebit,
           totalPurchases: MOCK_STATS.totalPurchases,
           avgPurchase: MOCK_STATS.avgPurchase
         }
@@ -321,14 +343,17 @@ class SupplierAPI {
     } catch (error) {
       const active = MOCK_SUPPLIERS.filter(s => s.is_active === 1).length;
       const inactive = MOCK_SUPPLIERS.filter(s => s.is_active === 0).length;
-      const totalBalance = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.balance || 0), 0);
+      const totalCredit = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.credit || 0), 0);
+      const totalDebit = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.debit || 0), 0);
       return {
         success: true,
         data: {
           total: MOCK_SUPPLIERS.length,
           active,
           inactive,
-          totalBalance,
+          totalCredit,
+          totalDebit,
+          totalBalance: totalCredit - totalDebit,
           totalPurchases: MOCK_STATS.totalPurchases,
           avgPurchase: MOCK_STATS.avgPurchase
         }
@@ -376,6 +401,8 @@ export default function Suppliers() {
     total: 0,
     active: 0,
     inactive: 0,
+    totalCredit: 0,
+    totalDebit: 0,
     totalBalance: 0,
     totalPurchases: 0,
     avgPurchase: 0
@@ -390,7 +417,8 @@ export default function Suppliers() {
     address: "",
     cnic: "",
     notes: "",
-    balance: 0,
+    credit: 0,
+    debit: 0,
     is_active: 1
   });
   const [validationErrors, setValidationErrors] = useState({});
@@ -401,7 +429,7 @@ export default function Suppliers() {
   });
   const [balanceForm, setBalanceForm] = useState({
     amount: 0,
-    type: "add"
+    type: "credit"
   });
 
   const [detailModal, setDetailModal] = useState({
@@ -501,6 +529,14 @@ export default function Suppliers() {
       errors.cnic = "Invalid CNIC format (e.g., XXXXX-XXXXXXX-X)";
     }
 
+    if (form.credit && form.credit < 0) {
+      errors.credit = "Credit cannot be negative";
+    }
+
+    if (form.debit && form.debit < 0) {
+      errors.debit = "Debit cannot be negative";
+    }
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -514,7 +550,8 @@ export default function Suppliers() {
       address: "",
       cnic: "",
       notes: "",
-      balance: 0,
+      credit: 0,
+      debit: 0,
       is_active: 1
     });
     setValidationErrors({});
@@ -529,7 +566,8 @@ export default function Suppliers() {
       address: supplier.address || "",
       cnic: supplier.cnic || "",
       notes: supplier.notes || "",
-      balance: supplier.balance || 0,
+      credit: supplier.credit || 0,
+      debit: supplier.debit || 0,
       is_active: supplier.is_active || 1
     });
     setValidationErrors({});
@@ -549,7 +587,8 @@ export default function Suppliers() {
         address: form.address || null,
         cnic: form.cnic || null,
         notes: form.notes || null,
-        balance: form.balance || 0
+        credit: form.credit || 0,
+        debit: form.debit || 0
       };
 
       let result;
@@ -602,7 +641,7 @@ export default function Suppliers() {
 
   // ==================== BALANCE MANAGEMENT ====================
   const openBalanceModal = (supplier) => {
-    setBalanceForm({ amount: 0, type: "add" });
+    setBalanceForm({ amount: 0, type: "credit" });
     setBalanceModal({ open: true, supplier });
   };
 
@@ -615,13 +654,15 @@ export default function Suppliers() {
 
     setIsLoading(true);
     try {
-      const amount = balanceForm.type === "add" 
-        ? parseFloat(balanceForm.amount) 
-        : -parseFloat(balanceForm.amount);
+      let result;
+      if (balanceForm.type === "credit") {
+        result = await supplierAPI.updateSupplierBalance(balanceModal.supplier.id, parseFloat(balanceForm.amount));
+      } else {
+        result = await supplierAPI.updateSupplierBalance(balanceModal.supplier.id, -parseFloat(balanceForm.amount));
+      }
 
-      const result = await supplierAPI.updateSupplierBalance(balanceModal.supplier.id, amount);
       if (result.success) {
-        showNotification("success", `Balance updated successfully`);
+        showNotification("success", `${balanceForm.type.charAt(0).toUpperCase() + balanceForm.type.slice(1)} updated successfully`);
         await loadData();
         setBalanceModal({ open: false, supplier: null });
       } else {
@@ -665,14 +706,16 @@ export default function Suppliers() {
     try {
       const result = await supplierAPI.exportSuppliers({ is_active: 1 });
       if (result.success && result.data) {
-        const headers = ["Name", "Phone", "Email", "Address", "CNIC", "Balance", "Status"];
+        const headers = ["Name", "Phone", "Email", "Address", "CNIC", "Credit", "Debit", "Balance", "Status"];
         const rows = result.data.map(s => [
           s.name || "",
           s.phone || "",
           s.email || "",
           s.address || "",
           s.cnic || "",
-          s.balance || 0,
+          s.credit || 0,
+          s.debit || 0,
+          (s.credit || 0) - (s.debit || 0),
           s.is_active ? "Active" : "Inactive"
         ]);
 
@@ -780,7 +823,7 @@ export default function Suppliers() {
           </h1>
           <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
             <Building2 size={10} />
-            Manage supplier relationships and balances
+            Manage supplier relationships, credit, and debit
             {isUsingMock && (
               <span className="ml-2 text-[7px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
                 <Database size={8} />
@@ -820,18 +863,29 @@ export default function Suppliers() {
           { label: "Total", value: stats.total || 0, icon: Users, color: "from-indigo-500 to-purple-600" },
           { label: "Active", value: stats.active || 0, icon: CheckCircle, color: "from-emerald-500 to-teal-600" },
           { label: "Inactive", value: stats.inactive || 0, icon: X, color: "from-slate-500 to-slate-600" },
-          { label: "Total Balance", value: formatCurrency(stats.totalBalance), icon: Wallet, color: "from-amber-500 to-orange-600" },
+          { label: "Total Credit", value: formatCurrency(stats.totalCredit), icon: CreditIcon, color: "from-amber-500 to-orange-600" },
+          { label: "Total Debit", value: formatCurrency(stats.totalDebit), icon: Receipt, color: "from-rose-500 to-red-600" },
+          { label: "Net Balance", value: formatCurrency(stats.totalBalance), icon: PiggyBank, color: "from-purple-500 to-pink-600" },
           { label: "Purchases", value: stats.totalPurchases || 0, icon: TrendingUp, color: "from-blue-500 to-cyan-600" },
-          { label: "Avg Purchase", value: formatCurrency(stats.avgPurchase), icon: BarChart3, color: "from-purple-500 to-pink-600" }
+          { label: "Avg Purchase", value: formatCurrency(stats.avgPurchase), icon: BarChart3, color: "from-cyan-500 to-blue-600" }
         ].map((item, index) => (
-          <div key={index} className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group">
+          <div key={index} className={`bg-white rounded-xl border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group ${
+            index >= 6 ? "hidden sm:block" : ""
+          }`}>
             <div className="flex items-center justify-between">
               <span className="text-[8px] text-slate-500 font-medium">{item.label}</span>
               <div className={`p-1 rounded-lg bg-gradient-to-br ${item.color} text-white shadow-lg`}>
                 <item.icon size={10} />
               </div>
             </div>
-            <p className={`text-sm font-bold ${item.label === "Total Balance" ? 'text-amber-600' : item.label === "Active" ? 'text-emerald-600' : item.label === "Avg Purchase" ? 'text-purple-600' : 'text-slate-800'} mt-0.5`}>
+            <p className={`text-sm font-bold ${
+              item.label === "Total Credit" ? 'text-amber-600' : 
+              item.label === "Total Debit" ? 'text-rose-600' : 
+              item.label === "Net Balance" ? 'text-purple-600' :
+              item.label === "Active" ? 'text-emerald-600' : 
+              item.label === "Avg Purchase" ? 'text-cyan-600' : 
+              'text-slate-800'
+            } mt-0.5`}>
               {item.value}
             </p>
           </div>
@@ -922,8 +976,9 @@ export default function Suppliers() {
           {filteredSuppliers.map((supplier, index) => {
             const avatarColor = getAvatarColor(index);
             const initials = getInitials(supplier.name);
-            const isPositive = supplier.balance > 0;
-            const isNegative = supplier.balance < 0;
+            const balance = (supplier.credit || 0) - (supplier.debit || 0);
+            const isPositive = balance > 0;
+            const isNegative = balance < 0;
 
             return (
               <div
@@ -987,7 +1042,7 @@ export default function Suppliers() {
                             isNegative ? 'text-emerald-600' : 
                             'text-slate-600'
                           }`}>
-                            {formatCurrency(supplier.balance)}
+                            {formatCurrency(balance)}
                           </p>
                         </div>
                       </div>
@@ -1184,6 +1239,50 @@ export default function Suppliers() {
                 />
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                    Credit
+                  </label>
+                  <input
+                    type="number"
+                    value={form.credit}
+                    onChange={(e) => setForm(prev => ({ ...prev, credit: parseFloat(e.target.value) || 0 }))}
+                    className={`w-full px-2.5 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-all duration-300 bg-white ${
+                      validationErrors.credit
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-indigo-400 focus:ring-indigo-100'
+                    }`}
+                    placeholder="0.00"
+                    step="0.01"
+                  />
+                  {validationErrors.credit && (
+                    <p className="text-[9px] text-red-500 mt-0.5">{validationErrors.credit}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                    Debit
+                  </label>
+                  <input
+                    type="number"
+                    value={form.debit}
+                    onChange={(e) => setForm(prev => ({ ...prev, debit: parseFloat(e.target.value) || 0 }))}
+                    className={`w-full px-2.5 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-all duration-300 bg-white ${
+                      validationErrors.debit
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-indigo-400 focus:ring-indigo-100'
+                    }`}
+                    placeholder="0.00"
+                    step="0.01"
+                  />
+                  {validationErrors.debit && (
+                    <p className="text-[9px] text-red-500 mt-0.5">{validationErrors.debit}</p>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
                   Notes
@@ -1257,7 +1356,7 @@ export default function Suppliers() {
               <div>
                 <h3 className="text-base font-semibold text-slate-800">Update Balance</h3>
                 <p className="text-[10px] text-slate-500">
-                  {balanceModal.supplier?.name} - Current: {formatCurrency(balanceModal.supplier?.balance)}
+                  {balanceModal.supplier?.name} - Credit: {formatCurrency(balanceModal.supplier?.credit || 0)} | Debit: {formatCurrency(balanceModal.supplier?.debit || 0)}
                 </p>
               </div>
             </div>
@@ -1272,8 +1371,8 @@ export default function Suppliers() {
                   onChange={(e) => setBalanceForm(prev => ({ ...prev, type: e.target.value }))}
                   className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-300 bg-white"
                 >
-                  <option value="add">Add Balance (Supplier owes us)</option>
-                  <option value="subtract">Subtract Balance (We owe supplier)</option>
+                  <option value="credit">Credit (Supplier owes us)</option>
+                  <option value="debit">Debit (We owe supplier)</option>
                 </select>
               </div>
 
@@ -1336,22 +1435,20 @@ export default function Suppliers() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 mb-3">
-              <div className="bg-slate-50 rounded-lg p-2.5">
-                <p className="text-[7px] text-slate-400 uppercase font-medium flex items-center gap-1">
-                  <Wallet size={9} />
-                  Balance
-                </p>
-                <p className={`text-base font-bold ${(detailModal.supplier?.balance || 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                  {formatCurrency(detailModal.supplier?.balance)}
-                </p>
+            <div className="grid grid-cols-3 gap-2.5 mb-3">
+              <div className="bg-amber-50 rounded-lg p-2.5">
+                <p className="text-[7px] text-amber-600 uppercase font-medium">Credit</p>
+                <p className="text-sm font-bold text-amber-600">{formatCurrency(detailModal.supplier?.credit)}</p>
               </div>
-              <div className="bg-slate-50 rounded-lg p-2.5">
-                <p className="text-[7px] text-slate-400 uppercase font-medium flex items-center gap-1">
-                  <FileText size={9} />
-                  Total Purchases
+              <div className="bg-rose-50 rounded-lg p-2.5">
+                <p className="text-[7px] text-rose-600 uppercase font-medium">Debit</p>
+                <p className="text-sm font-bold text-rose-600">{formatCurrency(detailModal.supplier?.debit)}</p>
+              </div>
+              <div className="bg-purple-50 rounded-lg p-2.5">
+                <p className="text-[7px] text-purple-600 uppercase font-medium">Balance</p>
+                <p className={`text-sm font-bold ${(detailModal.supplier?.credit || 0) > (detailModal.supplier?.debit || 0) ? 'text-amber-600' : (detailModal.supplier?.debit || 0) > (detailModal.supplier?.credit || 0) ? 'text-rose-600' : 'text-slate-600'}`}>
+                  {formatCurrency((detailModal.supplier?.credit || 0) - (detailModal.supplier?.debit || 0))}
                 </p>
-                <p className="text-base font-bold text-slate-800">{detailModal.supplier?.purchase_count || 0}</p>
               </div>
             </div>
 
