@@ -10,6 +10,10 @@ const { SetInventoryIPC } = require("./ipc/inventory.ipc")
 const { SetStockTransferIPC } = require("./ipc/stockTransfer.ipc")
 const { SetSupplierIPC } = require("./ipc/supplier.ipc")
 const { registerCustomerIPC } = require("./ipc/customer.ipc.js")
+const { registerPurchaseIPC } = require("./ipc/purchase.ipc.js")
+const { registerSalesIPC } = require("./ipc/sales.ipc.js")
+const { registerLedgerIPC } = require("./ipc/ledger.ipc.js")
+const { registerPDFIPC } = require('./ipc/pdf.ipc');
 const fs = require("fs")
 
 
@@ -67,6 +71,10 @@ app.whenReady().then(() => {
   SetStockTransferIPC()
   SetSupplierIPC()
   registerCustomerIPC()
+  registerPurchaseIPC()
+  registerSalesIPC()
+  registerLedgerIPC()
+  registerPDFIPC();
   
   BackupFolderExists();
 

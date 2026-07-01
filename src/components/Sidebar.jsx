@@ -11,7 +11,8 @@ import {
   Settings,
   User,
   LogOut,
-   Warehouse
+   Warehouse,
+   BookOpen
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
@@ -27,6 +28,7 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
     { id: 'suppliers', label: 'Suppliers', icon: Handshake },
     { id: 'sales', label: 'Sales', icon: TrendingUp },
     { id: 'customers', label: 'Customers', icon: Users },
+    { id: 'ledger', label: 'Ledger (Khata)', icon: BookOpen },
     { id: 'expenses', label: 'Expenses', icon: CreditCard },
 ];
 

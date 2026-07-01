@@ -7,6 +7,9 @@ import Warehouses from "../components/WareHouse"
 import Inventory from '../components/Inventory';
 import Suppliers from '../components/Supplier';
 import Customers from '../components/Customer';
+import Purchases from '../components/Purchase';
+import Sales from '../components/Sales';
+import Ledger from '../components/Ledger';
 
 const Dashboard = ({ user, onLogout, onUserUpdate }) => {
   const navigate = useNavigate();
@@ -39,11 +42,21 @@ const Dashboard = ({ user, onLogout, onUserUpdate }) => {
 
       case 'inventory':
         return (<Inventory/>)
+        
+      case 'purchases':
+        return (<Purchases/>) 
 
       case "suppliers":
         return (<Suppliers/>)
+
+      case "sales":
+        return (<Sales/>)
+
       case "customers":
         return (<Customers/>)
+
+      case "ledger":
+        return (<Ledger/>)
 
       case 'sales':
         return <div className="bg-white p-6 rounded-2xl">Sales</div>;

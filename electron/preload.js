@@ -1,4 +1,3 @@
-// electron/preload.js
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
@@ -117,6 +116,41 @@ contextBridge.exposeInMainWorld("api", {
   getCustomersWithDebit: () => ipcRenderer.invoke("customer:getWithDebit"),
   getCustomersWithBalance: () => ipcRenderer.invoke("customer:getWithBalance"),
   exportCustomers: (filters) => ipcRenderer.invoke("customer:export", filters),
+
+  // --- Purchase Management ---
+  createPurchase: (data) => ipcRenderer.invoke("purchase:create", data),
+  getAllPurchases: (filters) => ipcRenderer.invoke("purchase:getAll", filters),
+  getPurchaseById: (id) => ipcRenderer.invoke("purchase:getById", id),
+  getPurchaseByNumber: (number) => ipcRenderer.invoke("purchase:getByNumber", number),
+  getPurchasesBySupplier: (supplierId) => ipcRenderer.invoke("purchase:getBySupplier", supplierId),
+  updatePurchase: (id, data) => ipcRenderer.invoke("purchase:update", id, data),
+  updatePurchaseStatus: (id, status) => ipcRenderer.invoke("purchase:updateStatus", id, status),
+  deletePurchase: (id) => ipcRenderer.invoke("purchase:delete", id),
+  getPurchaseStats: (filters) => ipcRenderer.invoke("purchase:getStats", filters),
+  generatePurchaseNumber: () => ipcRenderer.invoke("purchase:generateNumber"),
+
+  // --- Sales Management ---
+  createSale: (data) => ipcRenderer.invoke("sale:create", data),
+  getAllSales: (filters) => ipcRenderer.invoke("sale:getAll", filters),
+  getSaleById: (id) => ipcRenderer.invoke("sale:getById", id),
+  getSaleByInvoice: (number) => ipcRenderer.invoke("sale:getByInvoice", number),
+  getSalesByCustomer: (customerId) => ipcRenderer.invoke("sale:getByCustomer", customerId),
+  updateSale: (id, data) => ipcRenderer.invoke("sale:update", id, data),
+  updateSaleStatus: (id, status) => ipcRenderer.invoke("sale:updateStatus", id, status),
+  deleteSale: (id) => ipcRenderer.invoke("sale:delete", id),
+  getSaleStats: (filters) => ipcRenderer.invoke("sale:getStats", filters),
+  generateInvoiceNumber: () => ipcRenderer.invoke("sale:generateNumber"),
+
+  // --- Ledger Management ---
+  createLedgerEntry: (data) => ipcRenderer.invoke("ledger:create", data),
+  getAllLedger: (filters) => ipcRenderer.invoke("ledger:getAll", filters),
+  getLedgerById: (id) => ipcRenderer.invoke("ledger:getById", id),
+  getCustomerLedger: (customerId, filters) => ipcRenderer.invoke("ledger:getCustomer", customerId, filters),
+  getSupplierLedger: (supplierId, filters) => ipcRenderer.invoke("ledger:getSupplier", supplierId, filters),
+  getCustomerBalance: (customerId) => ipcRenderer.invoke("ledger:getCustomerBalance", customerId),
+  getSupplierBalance: (supplierId) => ipcRenderer.invoke("ledger:getSupplierBalance", supplierId),
+  getLedgerStats: (filters) => ipcRenderer.invoke("ledger:getStats", filters),
+  deleteLedgerEntry: (id) => ipcRenderer.invoke("ledger:delete", id),
 
   // --- Authentication & Profile Management ---
   login: (credentials) => ipcRenderer.invoke("auth:login", credentials),
