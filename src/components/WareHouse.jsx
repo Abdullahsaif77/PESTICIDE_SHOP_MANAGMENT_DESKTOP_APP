@@ -1,182 +1,17 @@
 // src/pages/Warehouses/Warehouses.jsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Search, Plus, Edit3, Trash2, X, Package, 
   MapPin, Home, AlertCircle, CheckCircle, Eye,
   Building2, TrendingUp, TrendingDown, ArrowRightLeft,
   ChevronDown, ChevronRight, Filter, Calendar,
   Layers, Box, Warehouse as WarehouseIcon, 
-  BarChart3, CircleDot, Truck, Zap
+  BarChart3, CircleDot, Truck, Zap, Loader2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-// ==================== MOCK DATA ====================
-const MOCK_WAREHOUSES = [
-  { id: 1, name: "Main Warehouse", location: "Ground Floor, Building A", status: "active", created_at: "2024-01-15" },
-  { id: 2, name: "Branch Warehouse", location: "First Floor, Building B", status: "active", created_at: "2024-02-20" },
-  { id: 3, name: "Storage Facility", location: "Industrial Area", status: "active", created_at: "2024-03-10" },
-  { id: 4, name: "Distribution Center", location: "Highway Road", status: "maintenance", created_at: "2024-04-05" },
-];
-
-const MOCK_INVENTORY = {
-  1: [
-    { 
-      product_id: 1, 
-      name: "Pesticide X", 
-      code: "PST-001", 
-      category: "Insecticides", 
-      quantity: 150, 
-      reserved_quantity: 10,
-      unit: "L",
-      sale_price: 450,
-      reorder_level: 20,
-      batches: [
-        { id: 1, batch_number: "BATCH-001", quantity: 100, expiry_date: "2025-12-31" },
-        { id: 2, batch_number: "BATCH-002", quantity: 50, expiry_date: "2026-06-15" }
-      ]
-    },
-    { 
-      product_id: 2, 
-      name: "Herbicide Y", 
-      code: "HRB-002", 
-      category: "Herbicides", 
-      quantity: 75, 
-      reserved_quantity: 5,
-      unit: "kg",
-      sale_price: 320,
-      reorder_level: 15,
-      batches: [
-        { id: 3, batch_number: "BATCH-003", quantity: 75, expiry_date: "2025-09-20" }
-      ]
-    },
-    { 
-      product_id: 3, 
-      name: "Fungicide Z", 
-      code: "FNG-003", 
-      category: "Fungicides", 
-      quantity: 5, 
-      reserved_quantity: 0,
-      unit: "L",
-      sale_price: 280,
-      reorder_level: 25,
-      batches: [
-        { id: 4, batch_number: "BATCH-004", quantity: 5, expiry_date: "2025-07-10" }
-      ]
-    },
-    { 
-      product_id: 4, 
-      name: "Rodenticide R", 
-      code: "RDT-004", 
-      category: "Rodenticides", 
-      quantity: 0, 
-      reserved_quantity: 0,
-      unit: "kg",
-      sale_price: 550,
-      reorder_level: 10,
-      batches: []
-    },
-    { 
-      product_id: 5, 
-      name: "Fertilizer F", 
-      code: "FRT-005", 
-      category: "Fertilizers", 
-      quantity: 200, 
-      reserved_quantity: 0,
-      unit: "kg",
-      sale_price: 180,
-      reorder_level: 50,
-      batches: [
-        { id: 5, batch_number: "BATCH-005", quantity: 200, expiry_date: "2026-03-01" }
-      ]
-    },
-  ],
-  2: [
-    { 
-      product_id: 1, 
-      name: "Pesticide X", 
-      code: "PST-001", 
-      category: "Insecticides", 
-      quantity: 60, 
-      reserved_quantity: 0,
-      unit: "L",
-      sale_price: 450,
-      reorder_level: 20,
-      batches: [
-        { id: 6, batch_number: "BATCH-006", quantity: 60, expiry_date: "2026-02-28" }
-      ]
-    },
-    { 
-      product_id: 3, 
-      name: "Fungicide Z", 
-      code: "FNG-003", 
-      category: "Fungicides", 
-      quantity: 30, 
-      reserved_quantity: 0,
-      unit: "L",
-      sale_price: 280,
-      reorder_level: 25,
-      batches: [
-        { id: 7, batch_number: "BATCH-007", quantity: 30, expiry_date: "2025-08-15" }
-      ]
-    },
-    { 
-      product_id: 4, 
-      name: "Rodenticide R", 
-      code: "RDT-004", 
-      category: "Rodenticides", 
-      quantity: 10, 
-      reserved_quantity: 0,
-      unit: "kg",
-      sale_price: 550,
-      reorder_level: 10,
-      batches: [
-        { id: 8, batch_number: "BATCH-008", quantity: 10, expiry_date: "2025-11-30" }
-      ]
-    },
-  ],
-  3: [
-    { 
-      product_id: 2, 
-      name: "Herbicide Y", 
-      code: "HRB-002", 
-      category: "Herbicides", 
-      quantity: 120, 
-      reserved_quantity: 0,
-      unit: "kg",
-      sale_price: 320,
-      reorder_level: 15,
-      batches: [
-        { id: 9, batch_number: "BATCH-009", quantity: 120, expiry_date: "2025-10-10" }
-      ]
-    },
-    { 
-      product_id: 5, 
-      name: "Fertilizer F", 
-      code: "FRT-005", 
-      category: "Fertilizers", 
-      quantity: 300, 
-      reserved_quantity: 0,
-      unit: "kg",
-      sale_price: 180,
-      reorder_level: 50,
-      batches: [
-        { id: 10, batch_number: "BATCH-010", quantity: 300, expiry_date: "2026-01-15" }
-      ]
-    },
-  ],
-  4: [],
-};
-
-const api = window.api || {
-  createWarehouse: async (data) => ({ success: false, error: 'API not available' }),
-  getActiveOnlyWarehouses: async () => ({ success: true, data: [] }),
-  getWarehouseById: async (id) => ({ success: false, error: 'API not available' }),
-  updateWarehouse: async (id, data) => ({ success: false, error: 'API not available' }),
-  deleteWarehouse: async (id) => ({ success: false, error: 'API not available' }),
-  getDetailedWarehouseInventory: async (id) => ({ success: true, data: [] }),
-  createTransfer: async (data) => ({ success: false, error: 'API not available' }),
-};
+const api = window.api || {};
 
 export default function Warehouses() {
   const navigate = useNavigate();
@@ -186,14 +21,12 @@ export default function Warehouses() {
   const [filteredWarehouses, setFilteredWarehouses] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [useMockData, setUseMockData] = useState(true); // Toggle for mock data
   
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
   const [inventory, setInventory] = useState([]);
   const [filteredInventory, setFilteredInventory] = useState([]);
   const [stockSearch, setStockSearch] = useState("");
   const [expandedRows, setExpandedRows] = useState({});
-  const [viewMode, setViewMode] = useState("grid");
   
   const [modal, setModal] = useState({ open: false, mode: "add", data: null });
   const [form, setForm] = useState({ name: "", location: "", status: "active" });
@@ -221,10 +54,33 @@ export default function Warehouses() {
     action: ""
   });
 
+  // Refs for auto-focus
+  const nameInputRef = useRef(null);
+
   // ==================== EFFECTS ====================
   useEffect(() => {
     loadWarehouses();
   }, []);
+
+  // Auto-focus when modal opens
+  useEffect(() => {
+    if (modal.open && nameInputRef.current) {
+      setTimeout(() => {
+        nameInputRef.current.focus();
+      }, 100);
+    }
+  }, [modal.open]);
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!modal.open) {
+      const timeoutId = setTimeout(() => {
+        setForm({ name: "", location: "", status: "active" });
+        setValidationErrors({});
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [modal.open]);
 
   useEffect(() => {
     filterWarehouses();
@@ -244,22 +100,14 @@ export default function Warehouses() {
   const loadWarehouses = async () => {
     setIsLoading(true);
     try {
-      if (useMockData) {
-        // Use mock data
-        setWarehouses(MOCK_WAREHOUSES);
-        if (MOCK_WAREHOUSES.length > 0) {
-          setSelectedWarehouse(MOCK_WAREHOUSES[0]);
-        }
-        setIsLoading(false);
-        return;
-      }
-
       const result = await api.getActiveOnlyWarehouses();
       if (result.success) {
         setWarehouses(result.data || []);
         if (result.data && result.data.length > 0) {
           setSelectedWarehouse(result.data[0]);
         }
+      } else {
+        showNotification("error", result.error || "Failed to load warehouses");
       }
     } catch (err) {
       console.error("Error loading warehouses:", err);
@@ -272,17 +120,10 @@ export default function Warehouses() {
   const loadWarehouseInventory = async (warehouseId) => {
     setIsLoading(true);
     try {
-      if (useMockData) {
-        // Use mock inventory
-        const mockInventory = MOCK_INVENTORY[warehouseId] || [];
-        setInventory(mockInventory);
-        setIsLoading(false);
-        return;
-      }
-
       const result = await api.getDetailedWarehouseInventory(warehouseId);
       if (result.success) {
         setInventory(result.data || []);
+        console.log("Detail of Warehouse" , result)
       } else {
         showNotification("error", result.error || "Failed to load inventory");
       }
@@ -383,32 +224,33 @@ export default function Warehouses() {
 
     setIsLoading(true);
     try {
+      let result;
       if (modal.mode === "add") {
-        // Add to mock data
-        const newWarehouse = {
-          id: Date.now(),
-          name: form.name,
-          location: form.location || "",
-          status: form.status,
-          created_at: new Date().toISOString()
-        };
-        setWarehouses(prev => [...prev, newWarehouse]);
-        setSelectedWarehouse(newWarehouse);
-        showSuccessModal("added", form.name);
-        setModal({ open: false, mode: "add", data: null });
-        setSearchQuery("");
+        result = await api.createWarehouse(form);
+        if (result.success) {
+          showSuccessModal("added", form.name);
+          // Close modal first
+          setModal({ open: false, mode: "add", data: null });
+          setValidationErrors({});
+          await loadWarehouses();
+          setSearchQuery("");
+        } else {
+          showNotification("error", result.error || "Failed to create warehouse");
+        }
       } else {
-        // Update mock data
-        setWarehouses(prev => prev.map(w => 
-          w.id === modal.data.id ? { ...w, name: form.name, location: form.location, status: form.status } : w
-        ));
-        setSelectedWarehouse(prev => prev && prev.id === modal.data.id ? { ...prev, name: form.name, location: form.location, status: form.status } : prev);
-        showSuccessModal("updated", form.name);
-        setModal({ open: false, mode: "add", data: null });
+        result = await api.updateWarehouse(modal.data.id, form);
+        if (result.success) {
+          showSuccessModal("updated", form.name);
+          setModal({ open: false, mode: "add", data: null });
+          setValidationErrors({});
+          await loadWarehouses();
+        } else {
+          showNotification("error", result.error || "Failed to update warehouse");
+        }
       }
     } catch (err) {
       console.error("Failed saving warehouse:", err);
-      showNotification("error", err.message || 'An error occurred');
+      showNotification("error", err.message || "An error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -418,14 +260,20 @@ export default function Warehouses() {
     if (confirm(`Deactivate warehouse "${name}"?`)) {
       setIsLoading(true);
       try {
-        setWarehouses(prev => prev.filter(w => w.id !== id));
-        if (selectedWarehouse?.id === id) {
-          setSelectedWarehouse(warehouses[0] || null);
+        const result = await api.deleteWarehouse(id);
+        if (result.success) {
+          showSuccessModal("deleted", name);
+          // Close modal and reset
+          setModal({ open: false, mode: "add", data: null });
+          setValidationErrors({});
+          setForm({ name: "", location: "", status: "active" });
+          await loadWarehouses();
+        } else {
+          showNotification("error", result.error || "Failed to deactivate warehouse");
         }
-        showSuccessModal("deleted", name);
       } catch (err) {
         console.error("Failed deleting warehouse:", err);
-        showNotification("error", err.message || 'An error occurred');
+        showNotification("error", err.message || "An error occurred");
       } finally {
         setIsLoading(false);
       }
@@ -470,41 +318,24 @@ export default function Warehouses() {
 
     setIsLoading(true);
     try {
-      // Update mock inventory
-      const fromWarehouseId = selectedWarehouse.id;
-      const toWarehouseId = parseInt(transferForm.toWarehouseId);
-      const productId = transferModal.product.product_id || transferModal.product.id;
-      const quantityNum = parseFloat(transferForm.quantity);
+      const transferData = {
+        product_id: transferModal.product.product_id || transferModal.product.id,
+        from_warehouse_id: selectedWarehouse.id,
+        to_warehouse_id: parseInt(transferForm.toWarehouseId),
+        quantity: quantity,
+        batch_id: transferModal.product.batch_id || null,
+        notes: transferForm.notes || ""
+      };
 
-      // Remove from source
-      setInventory(prev => prev.map(item => {
-        if ((item.product_id || item.id) === productId) {
-          return { ...item, quantity: item.quantity - quantityNum };
-        }
-        return item;
-      }));
-
-      // Add to destination (mock)
-      const destInventory = MOCK_INVENTORY[toWarehouseId] || [];
-      const existingProduct = destInventory.find(item => (item.product_id || item.id) === productId);
-      
-      if (existingProduct) {
-        // Update existing product in destination
-        MOCK_INVENTORY[toWarehouseId] = destInventory.map(item => {
-          if ((item.product_id || item.id) === productId) {
-            return { ...item, quantity: item.quantity + quantityNum };
-          }
-          return item;
-        });
+      const result = await api.createTransfer(transferData);
+      if (result.success) {
+        showNotification("success", `Transferred ${quantity} units successfully!`);
+        setTransferModal({ open: false, product: null });
+        await loadWarehouseInventory(selectedWarehouse.id);
+        await loadWarehouses();
       } else {
-        // Add new product to destination
-        const productToAdd = { ...transferModal.product, quantity: quantityNum };
-        MOCK_INVENTORY[toWarehouseId] = [...destInventory, productToAdd];
+        showNotification("error", result.error || "Failed to create transfer");
       }
-
-      showNotification("success", `Transferred ${quantityNum} units successfully!`);
-      setTransferModal({ open: false, product: null });
-      await loadWarehouseInventory(selectedWarehouse.id);
     } catch (err) {
       console.error("Transfer error:", err);
       showNotification("error", err.message || "Failed to create transfer");
@@ -640,22 +471,13 @@ export default function Warehouses() {
             Manage warehouses, track inventory, and transfer stock
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setUseMockData(!useMockData)}
-            className={`text-xs px-2 py-1 rounded-lg border ${
-              useMockData ? 'bg-amber-50 border-amber-200 text-amber-600' : 'bg-slate-50 border-slate-200 text-slate-500'
-            }`}
-          >
-          </button>
-          <button
-            onClick={openAddModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
-          >
-            <Plus size={14} />
-            Add Warehouse
-          </button>
-        </div>
+        <button
+          onClick={openAddModal}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+        >
+          <Plus size={14} />
+          Add Warehouse
+        </button>
       </div>
 
       {/* ===== WAREHOUSE CARDS (Top Row) ===== */}
@@ -881,7 +703,7 @@ export default function Warehouses() {
             {isLoading ? (
               <div className="p-8 text-center">
                 <div className="inline-flex items-center gap-2 text-slate-400">
-                  <span className="w-3 h-3 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                   Loading inventory...
                 </div>
               </div>
@@ -896,128 +718,132 @@ export default function Warehouses() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider w-8"></th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Product</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Category</th>
-                      <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Qty</th>
-                      <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Price</th>
-                      <th className="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Action</th>
-                    </tr>
-                  </thead>
+  <tr>
+    <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider w-8"></th>
+    <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Code</th>
+    <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+    <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Category</th>
+    <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Qty</th>
+    <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Price</th>
+    <th className="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+    <th className="px-3 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Action</th>
+  </tr>
+</thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredInventory.map((item) => {
-                      const stockStatus = getStockStatus(item.quantity, item.reorder_level);
-                      const hasBatches = item.batches && item.batches.length > 0;
-                      const isExpanded = expandedRows[item.product_id || item.id];
+  {filteredInventory.map((item) => {
+    const stockStatus = getStockStatus(item.quantity, item.reorder_level);
+    const hasBatches = item.batches && item.batches.length > 0;
+    const isExpanded = expandedRows[item.product_code || item.id];
 
-                      return (
-                        <React.Fragment key={item.product_id || item.id}>
-                          <tr className={`hover:bg-slate-50/70 transition-colors ${
-                            item.quantity <= 0 ? 'bg-red-50/30' : 
-                            item.quantity <= (item.reorder_level || 0) ? 'bg-amber-50/30' : ''
+    return (
+      <React.Fragment key={item.product_code || item.id}>
+       <tr className={`hover:bg-slate-50/70 transition-colors ${
+  item.quantity <= 0 ? 'bg-red-50/30' : 
+  item.quantity <= (item.reorder_level || 0) ? 'bg-amber-50/30' : ''
+}`}>
+  <td className="px-3 py-2">
+    {hasBatches && (
+      <button
+        onClick={() => toggleRowExpand(item.product_code || item.id)}
+        className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      </button>
+    )}
+  </td>
+  <td className="px-3 py-2">
+    <span className="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+      {item.product_code || 'N/A'}
+    </span>
+  </td>
+  <td className="px-3 py-2">
+    <div>
+      <span className="text-xs font-medium text-slate-800">{item.product_name}</span>
+      {item.unit && (
+        <span className="text-[9px] text-slate-400 ml-1">({item.unit})</span>
+      )}
+    </div>
+  </td>
+  <td className="px-3 py-2 hidden sm:table-cell">
+    <span className="text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+      {item.category_name || 'Uncategorized'}
+    </span>
+  </td>
+  <td className="px-3 py-2 text-right font-medium text-xs">
+    <span className={`${item.quantity <= 0 ? 'text-red-600' : 'text-slate-700'}`}>
+      {item.quantity?.toFixed(1) || '0.0'}
+    </span>
+  </td>
+  <td className="px-3 py-2 text-right text-xs text-slate-600 hidden md:table-cell">
+    ₨{item.sale_price?.toFixed(2) || '0.00'}
+  </td>
+  <td className="px-3 py-2 text-center">
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded-full border ${stockStatus.color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${
+        stockStatus.label === "In Stock" ? "bg-emerald-500" :
+        stockStatus.label === "Low Stock" ? "bg-amber-500" : "bg-red-500"
+      }`} />
+      {stockStatus.label}
+    </span>
+  </td>
+  <td className="px-3 py-2 text-center">
+    <button
+      onClick={() => openTransferModal(item)}
+      disabled={item.quantity <= 0}
+      className={`p-1.5 rounded-lg transition-all group relative ${
+        item.quantity > 0 
+          ? 'hover:bg-blue-50 text-slate-400 hover:text-blue-600 hover:shadow-md' 
+          : 'text-slate-300 cursor-not-allowed opacity-50'
+      }`}
+      title={item.quantity > 0 ? "Transfer Stock" : "No stock to transfer"}
+    >
+      <Truck size={15} className="group-hover:scale-110 transition-transform" />
+      {item.quantity > 0 && (
+        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+      )}
+    </button>
+  </td>
+</tr>
+        {isExpanded && hasBatches && (
+          <tr>
+            <td colSpan="7" className="px-3 py-3 bg-slate-50/80">
+              <div className="ml-4">
+                <h4 className="text-[10px] font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
+                  <Layers size={12} />
+                  Batches
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {item.batches.map((batch) => (
+                    <div key={batch.id} className="bg-white rounded-lg border border-slate-200 p-2 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[10px] font-semibold text-slate-700">{batch.batch_number}</p>
+                          <p className="text-[9px] text-slate-500">Qty: {batch.quantity}</p>
+                        </div>
+                        {batch.expiry_date && (
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
+                            new Date(batch.expiry_date) < new Date() 
+                              ? "bg-red-100 text-red-600" 
+                              : new Date(batch.expiry_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                              ? "bg-amber-100 text-amber-600"
+                              : "bg-emerald-100 text-emerald-600"
                           }`}>
-                            <td className="px-3 py-2">
-                              {hasBatches && (
-                                <button
-                                  onClick={() => toggleRowExpand(item.product_id || item.id)}
-                                  className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                                >
-                                  {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                </button>
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              <div>
-                                <span className="text-xs font-medium text-slate-800">{item.name}</span>
-                                {item.code && (
-                                  <span className="text-[9px] text-slate-400 block">#{item.code}</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 hidden sm:table-cell">
-                              <span className="text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                                {item.category || 'Uncategorized'}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-right font-medium text-xs">
-                              <span className={`${item.quantity <= 0 ? 'text-red-600' : 'text-slate-700'}`}>
-                                {item.quantity.toFixed(1)}
-                              </span>
-                              <span className="text-[9px] text-slate-400 ml-0.5">{item.unit || ''}</span>
-                            </td>
-                            <td className="px-3 py-2 text-right text-xs text-slate-600 hidden md:table-cell">
-                              ₨{item.sale_price?.toFixed(2) || '0.00'}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded-full border ${stockStatus.color}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${
-                                  stockStatus.label === "In Stock" ? "bg-emerald-500" :
-                                  stockStatus.label === "Low Stock" ? "bg-amber-500" : "bg-red-500"
-                                }`} />
-                                {stockStatus.label}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              {/* Transfer Button - Always visible with tooltip */}
-                              <button
-                                onClick={() => openTransferModal(item)}
-                                disabled={item.quantity <= 0}
-                                className={`p-1.5 rounded-lg transition-all group relative ${
-                                  item.quantity > 0 
-                                    ? 'hover:bg-blue-50 text-slate-400 hover:text-blue-600 hover:shadow-md' 
-                                    : 'text-slate-300 cursor-not-allowed opacity-50'
-                                }`}
-                                title={item.quantity > 0 ? "Transfer Stock" : "No stock to transfer"}
-                              >
-                                <Truck size={15} className="group-hover:scale-110 transition-transform" />
-                                {item.quantity > 0 && (
-                                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                                )}
-                              </button>
-                            </td>
-                          </tr>
-                          {isExpanded && hasBatches && (
-                            <tr>
-                              <td colSpan="7" className="px-3 py-3 bg-slate-50/80">
-                                <div className="ml-4">
-                                  <h4 className="text-[10px] font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
-                                    <Layers size={12} />
-                                    Batches
-                                  </h4>
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                    {item.batches.map((batch) => (
-                                      <div key={batch.id} className="bg-white rounded-lg border border-slate-200 p-2 shadow-sm hover:shadow-md transition-shadow">
-                                        <div className="flex justify-between items-start">
-                                          <div>
-                                            <p className="text-[10px] font-semibold text-slate-700">{batch.batch_number}</p>
-                                            <p className="text-[9px] text-slate-500">Qty: {batch.quantity}</p>
-                                          </div>
-                                          {batch.expiry_date && (
-                                            <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
-                                              new Date(batch.expiry_date) < new Date() 
-                                                ? "bg-red-100 text-red-600" 
-                                                : new Date(batch.expiry_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-                                                ? "bg-amber-100 text-amber-600"
-                                                : "bg-emerald-100 text-emerald-600"
-                                            }`}>
-                                              <Calendar size={8} className="inline mr-0.5" />
-                                              {new Date(batch.expiry_date).toLocaleDateString()}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
+                            <Calendar size={8} className="inline mr-0.5" />
+                            {new Date(batch.expiry_date).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
+  })}
+</tbody>
                 </table>
               </div>
             )}
@@ -1037,7 +863,15 @@ export default function Warehouses() {
 
       {/* ===== WAREHOUSE CRUD MODAL ===== */}
       {modal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" 
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setModal({ open: false, mode: "add", data: null });
+            }
+          }}
+        >
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5 animate-scale-in relative">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-t-xl" />
             <button
@@ -1068,6 +902,7 @@ export default function Warehouses() {
                   Warehouse Name *
                 </label>
                 <input
+                  ref={nameInputRef}
                   type="text"
                   value={form.name}
                   onChange={(e) => handleFieldChange('name', e.target.value)}
@@ -1077,6 +912,7 @@ export default function Warehouses() {
                       : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
                   }`}
                   placeholder="Enter warehouse name"
+                  disabled={isLoading}
                 />
                 {validationErrors.name && (
                   <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.name}</p>
@@ -1093,6 +929,7 @@ export default function Warehouses() {
                   onChange={(e) => handleFieldChange('location', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
                   placeholder="Enter location address"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -1104,6 +941,7 @@ export default function Warehouses() {
                   value={form.status}
                   onChange={(e) => handleFieldChange('status', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
+                  disabled={isLoading}
                 >
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
@@ -1116,6 +954,7 @@ export default function Warehouses() {
                   type="button"
                   onClick={() => setModal({ open: false, mode: "add", data: null })}
                   className="px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  disabled={isLoading}
                 >
                   Cancel
                 </button>
@@ -1134,7 +973,15 @@ export default function Warehouses() {
 
       {/* ===== TRANSFER MODAL ===== */}
       {transferModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" 
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setTransferModal({ open: false, product: null });
+            }
+          }}
+        >
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5 animate-scale-in relative">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-xl" />
             <button
@@ -1169,6 +1016,7 @@ export default function Warehouses() {
                   onChange={(e) => setTransferForm(prev => ({ ...prev, toWarehouseId: e.target.value }))}
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all bg-slate-50 focus:bg-white"
                   required
+                  disabled={isLoading}
                 >
                   <option value="">Select warehouse...</option>
                   {warehouses
@@ -1196,6 +1044,7 @@ export default function Warehouses() {
                     min="0.01"
                     step="0.01"
                     required
+                    disabled={isLoading}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                     Max: {transferModal.product?.quantity || 0}
@@ -1213,6 +1062,7 @@ export default function Warehouses() {
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all bg-slate-50 focus:bg-white resize-none"
                   placeholder="Add transfer notes..."
                   rows="2"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -1221,6 +1071,7 @@ export default function Warehouses() {
                   type="button"
                   onClick={() => setTransferModal({ open: false, product: null })}
                   className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  disabled={isLoading}
                 >
                   Cancel
                 </button>

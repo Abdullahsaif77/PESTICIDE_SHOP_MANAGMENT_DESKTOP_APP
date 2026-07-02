@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Search, Plus, Edit3, Trash2, ChevronDown, X, CheckCircle, Package, Tag, Box, AlertCircle } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, Plus, Edit3, Trash2, ChevronDown, X, CheckCircle, Package, Tag, Box, AlertCircle, Loader2 } from "lucide-react";
 
 const api = window.api || {
   getProducts: async () => [],
@@ -33,6 +33,7 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   const [productModal, setProductModal] = useState({ open: false, mode: "add", data: null });
   const [categoryModal, setCategoryModal] = useState({ open: false, mode: "add", data: null });
@@ -61,11 +62,43 @@ export default function Products() {
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
   const [unitForm, setUnitForm] = useState({ name: "", short_name: "" });
 
+  const nameInputRef = useRef(null);
+
   useEffect(() => {
     refreshData();
   }, []);
 
-  // Frontend search filter
+  // Auto-focus when modal opens
+  useEffect(() => {
+    if (productModal.open && nameInputRef.current) {
+      setTimeout(() => {
+        nameInputRef.current.focus();
+      }, 100);
+    }
+  }, [productModal.open]);
+
+  // Reset form when modal closes - but only when it actually closes
+  useEffect(() => {
+    if (!productModal.open) {
+      const timeoutId = setTimeout(() => {
+        setProductForm({
+          name: "",
+          code: "",
+          brand: "",
+          category_id: "",
+          unit_id: "",
+          purchase_price: 0,
+          sale_price: 0,
+          barcode: "",
+          description: ""
+        });
+        setValidationErrors({});
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [productModal.open]);
+
+  // Frontend search filter - runs whenever products, searchQuery, or selectedCategoryId changes
   useEffect(() => {
     filterProducts();
   }, [products, searchQuery, selectedCategoryId]);
@@ -78,13 +111,36 @@ export default function Products() {
         api.getUnits(),
         api.getProducts()
       ]);
+      
       setCategories(cats || []);
       setUnits(unitsData || []);
       setProducts(prods || []);
+      // Reset search after refresh
+      setSearchQuery("");
+      setSelectedCategory("All Categories");
+      setSelectedCategoryId(null);
     } catch (err) {
       console.error("Data fetch error:", err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const refreshCategories = async () => {
+    try {
+      const cats = await api.getCategories();
+      setCategories(cats || []);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+    }
+  };
+
+  const refreshUnits = async () => {
+    try {
+      const unitsData = await api.getUnits();
+      setUnits(unitsData || []);
+    } catch (err) {
+      console.error("Error fetching units:", err);
     }
   };
 
@@ -96,7 +152,7 @@ export default function Products() {
       filtered = filtered.filter(p => p.category_id === selectedCategoryId);
     }
 
-    // Filter by search query (frontend)
+    // Filter by search query
     if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(p => 
@@ -108,6 +164,27 @@ export default function Products() {
     }
 
     setFilteredProducts(filtered);
+  };
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    // The filter will run automatically via useEffect
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+  };
+
+  const handleCategorySelect = (category) => {
+    setIsCategoryDropdownOpen(false);
+    if (category === "All Categories") {
+      setSelectedCategory("All Categories");
+      setSelectedCategoryId(null);
+    } else {
+      setSelectedCategory(category.name);
+      setSelectedCategoryId(category.id);
+    }
   };
 
   const showSuccessModal = (type, action, name = "") => {
@@ -139,26 +216,6 @@ export default function Products() {
     setTimeout(() => {
       setSuccessModal({ show: false, message: "", type: "product", action: "" });
     }, 3000);
-  };
-
-  const handleCategorySelect = async (category) => {
-    setIsCategoryDropdownOpen(false);
-    if (category === "All Categories") {
-      setSelectedCategory("All Categories");
-      setSelectedCategoryId(null);
-    } else {
-      setSelectedCategory(category.name);
-      setSelectedCategoryId(category.id);
-    }
-    // Filter will run automatically via useEffect
-  };
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-  };
-
-  const clearSearch = () => {
-    setSearchQuery("");
   };
 
   const validateProductForm = () => {
@@ -228,6 +285,13 @@ export default function Products() {
       description: product.description || ""
     });
     setValidationErrors({});
+    
+    if (!product.id) {
+      console.error('Product has no ID!', product);
+      alert('Error: Product ID not found');
+      return;
+    }
+    
     setProductModal({ open: true, mode: "edit", data: product });
   };
 
@@ -245,19 +309,49 @@ export default function Products() {
     
     setIsLoading(true);
     try {
+      const productData = {
+        name: productForm.name,
+        code: productForm.code || null,
+        brand: productForm.brand || null,
+        category_id: productForm.category_id,
+        unit_id: productForm.unit_id,
+        purchase_price: productForm.purchase_price,
+        sale_price: productForm.sale_price,
+        barcode: productForm.barcode || null,
+        description: productForm.description || null
+      };
+      
+      let result;
       if (productModal.mode === "add") {
-        await api.addProduct(productForm);
-        showSuccessModal("product", "added", productForm.name);
+        result = await api.addProduct(productData);
+        
+        if (result.success) {
+          showSuccessModal("product", "added", productForm.name);
+          setProductModal({ open: false, mode: "add", data: null });
+          setValidationErrors({});
+          await refreshData();
+          setSearchQuery("");
+        } else {
+          console.error('Product creation failed:', result.error);
+          alert(result.error || 'Failed to add product');
+        }
       } else {
-        await api.updateProduct(productModal.data.id, productForm);
-        showSuccessModal("product", "updated", productForm.name);
+        result = await api.updateProduct(productModal.data.id, productData);
+        
+        if (result.success) {
+          showSuccessModal("product", "updated", productForm.name);
+          setProductModal({ open: false, mode: "add", data: null });
+          setValidationErrors({});
+          await refreshData();
+          setSearchQuery("");
+        } else {
+          console.error('Product update failed:', result.error);
+          alert(result.error || 'Failed to update product');
+        }
       }
-      setProductModal({ open: false, mode: "add", data: null });
-      setValidationErrors({});
-      await refreshData();
-      setSearchQuery(""); // Clear search after adding/updating
     } catch (err) {
       console.error("Failed saving product:", err);
+      alert(err.message || 'An error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -269,7 +363,11 @@ export default function Products() {
       try {
         await api.deleteProduct(id);
         showSuccessModal("product", "deleted", name);
+        
+        setProductModal({ open: false, mode: "add", data: null });
+        setValidationErrors({});
         await refreshData();
+        setSearchQuery("");
       } catch (err) {
         console.error("Failed deleting product:", err);
       } finally {
@@ -279,14 +377,14 @@ export default function Products() {
   };
 
   const openCategoryManager = () => {
-    setCategoryForm({ name: "" });
+    setCategoryForm({ name: "", description: "" });
     setCategoryModal({ open: true, mode: "add", data: null });
   };
 
   const handleEditCategory = async (cat) => {
     try {
       const target = await api.getCategoryById(cat.id);
-      setCategoryForm({ name: target.name || ""});
+      setCategoryForm({ name: target.name || "", description: target.description || "" });
       setCategoryModal({ open: true, mode: "edit", data: cat });
     } catch (err) {
       console.error("Failed fetching category info:", err);
@@ -304,9 +402,11 @@ export default function Products() {
         await api.updateCategory(categoryModal.data.id, categoryForm);
         showSuccessModal("category", "updated", categoryForm.name);
       }
-      setCategoryForm({ name: ""});
+      setCategoryForm({ name: "", description: "" });
       setCategoryModal({ open: false, mode: "add", data: null });
+      await refreshCategories();
       await refreshData();
+      setSearchQuery("");
     } catch (err) {
       console.error("Failed saving category:", err);
     } finally {
@@ -324,7 +424,9 @@ export default function Products() {
           setSelectedCategoryId(null);
         }
         showSuccessModal("category", "deleted", name);
+        await refreshCategories();
         await refreshData();
+        setSearchQuery("");
       } catch (err) {
         console.error("Failed deleting category:", err);
       } finally {
@@ -332,6 +434,7 @@ export default function Products() {
       }
     }
   };
+
 
   const openUnitManager = () => {
     setUnitForm({ name: "", short_name: "" });
@@ -361,7 +464,9 @@ export default function Products() {
       }
       setUnitForm({ name: "", short_name: "" });
       setUnitModal({ open: false, mode: "add", data: null });
+      await refreshUnits();
       await refreshData();
+      setSearchQuery("");
     } catch (err) {
       console.error("Failed saving unit:", err);
     } finally {
@@ -375,7 +480,9 @@ export default function Products() {
       try {
         await api.deleteUnit(id);
         showSuccessModal("unit", "deleted", name);
+        await refreshUnits();
         await refreshData();
+        setSearchQuery("");
       } catch (err) {
         console.error("Failed deleting unit:", err);
       } finally {
@@ -456,9 +563,9 @@ export default function Products() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
         <div>
-         <h1 className="text-2xl font-bold bg-gradient-to-r  from-slate-800 to-blue-500 bg-clip-text text-transparent">
-  Products Management
-</h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-blue-500 bg-clip-text text-transparent">
+            Products Management
+          </h1>
           <p className="text-xs text-slate-400 mt-0.5">Manage your product catalogue efficiently</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -542,7 +649,7 @@ export default function Products() {
         <div className="text-xs text-slate-400 font-medium whitespace-nowrap">
           {isLoading ? (
             <span className="inline-flex items-center gap-2">
-              <span className="w-3 h-3 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
               Loading...
             </span>
           ) : (
@@ -572,7 +679,7 @@ export default function Products() {
                 <tr>
                   <td colSpan="8" className="py-8 text-center">
                     <div className="flex items-center justify-center gap-2 text-slate-400">
-                      <span className="w-4 h-4 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
+                      <Loader2 size={16} className="animate-spin" />
                       <span className="text-xs">Loading products...</span>
                     </div>
                   </td>
@@ -639,10 +746,21 @@ export default function Products() {
 
       {/* PRODUCT MODAL */}
       {productModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" 
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setProductModal({ open: false, mode: "add", data: null });
+            }
+          }}
+        >
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-5 animate-scale-in relative max-h-[90vh] overflow-y-auto">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-t-xl" />
-            <button onClick={() => setProductModal({ open: false, mode: "add", data: null })} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors">
+            <button 
+              onClick={() => setProductModal({ open: false, mode: "add", data: null })} 
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+            >
               <X size={18} />
             </button>
             <h3 className="text-lg font-semibold text-slate-800 mt-2 mb-4">
@@ -665,6 +783,7 @@ export default function Products() {
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Product Name *</label>
                   <input 
+                    ref={nameInputRef}
                     type="text" 
                     required 
                     value={productForm.name} 
@@ -676,6 +795,7 @@ export default function Products() {
                     }`}
                     placeholder="Enter product name"
                     data-error={!!validationErrors.name}
+                    disabled={isLoading}
                   />
                   {validationErrors.name && (
                     <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.name}</p>
@@ -689,6 +809,7 @@ export default function Products() {
                     onChange={(e) => handleFieldChange('code', e.target.value)} 
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="e.g. PRD-001"
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -700,6 +821,7 @@ export default function Products() {
                   onChange={(e) => handleFieldChange('brand', e.target.value)} 
                   className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
                   placeholder="e.g. Apple"
+                  disabled={isLoading}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -715,6 +837,7 @@ export default function Products() {
                         : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
                     }`}
                     data-error={!!validationErrors.category_id}
+                    disabled={isLoading}
                   >
                     <option value="">Select Category</option>
                     {categories.map((c) => (
@@ -737,6 +860,7 @@ export default function Products() {
                         : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
                     }`}
                     data-error={!!validationErrors.unit_id}
+                    disabled={isLoading}
                   >
                     <option value="">Select Unit</option>
                     {units.map((u) => (
@@ -764,6 +888,7 @@ export default function Products() {
                     }`}
                     placeholder="0.00"
                     data-error={!!validationErrors.purchase_price}
+                    disabled={isLoading}
                   />
                   {validationErrors.purchase_price && (
                     <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.purchase_price}</p>
@@ -784,6 +909,7 @@ export default function Products() {
                     }`}
                     placeholder="0.00"
                     data-error={!!validationErrors.sale_price}
+                    disabled={isLoading}
                   />
                   {validationErrors.sale_price && (
                     <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.sale_price}</p>
@@ -799,15 +925,35 @@ export default function Products() {
                     onChange={(e) => handleFieldChange('barcode', e.target.value)} 
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="Enter barcode"
+                    disabled={isLoading}
                   />
                 </div>
                 <div>
-                
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</label>
+                  <textarea 
+                    rows="2" 
+                    value={productForm.description} 
+                    onChange={(e) => handleFieldChange('description', e.target.value)} 
+                    className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white resize-none"
+                    placeholder="Product description..."
+                    disabled={isLoading}
+                  />
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setProductModal({ open: false, mode: "add", data: null })} className="px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
-                <button type="submit" disabled={isLoading} className="px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-all hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700">
+                <button 
+                  type="button" 
+                  onClick={() => setProductModal({ open: false, mode: "add", data: null })} 
+                  className="px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isLoading} 
+                  className="px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-all hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+                >
                   {isLoading ? 'Saving...' : 'Save Product'}
                 </button>
               </div>
@@ -818,7 +964,15 @@ export default function Products() {
 
       {/* CATEGORY MODAL */}
       {categoryModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" 
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setCategoryModal({ open: false, mode: "add", data: null });
+            }
+          }}
+        >
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-5 animate-scale-in relative flex gap-5">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-t-xl" />
             <button onClick={() => setCategoryModal({ open: false, mode: "add", data: null })} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors">
@@ -839,6 +993,7 @@ export default function Products() {
                     onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} 
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="e.g. Electronics"
+                    disabled={isLoading}
                   />
                 </div>
                 <div>
@@ -849,6 +1004,7 @@ export default function Products() {
                     onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} 
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all bg-slate-50 focus:bg-white resize-none"
                     placeholder="Optional description..."
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="flex gap-2 justify-end">
@@ -889,7 +1045,15 @@ export default function Products() {
 
       {/* UNIT MODAL */}
       {unitModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" 
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setUnitModal({ open: false, mode: "add", data: null });
+            }
+          }}
+        >
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-5 animate-scale-in relative flex gap-5">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600 rounded-t-xl" />
             <button onClick={() => setUnitModal({ open: false, mode: "add", data: null })} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors">
@@ -910,10 +1074,19 @@ export default function Products() {
                     onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })} 
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="e.g. Kilogram"
+                    disabled={isLoading}
                   />
                 </div>
                 <div>
-                
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Short Name</label>
+                  <input 
+                    type="text" 
+                    value={unitForm.short_name} 
+                    onChange={(e) => setUnitForm({ ...unitForm, short_name: e.target.value })} 
+                    className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all bg-slate-50 focus:bg-white"
+                    placeholder="e.g. kg"
+                    disabled={isLoading}
+                  />
                 </div>
                 <div className="flex gap-2 justify-end">
                   {unitModal.mode === "edit" && (

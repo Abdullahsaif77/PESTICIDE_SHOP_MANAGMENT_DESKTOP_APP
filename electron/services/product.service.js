@@ -26,27 +26,70 @@ class ProductService {
     }
 
     createProduct(data) {
-        const { 
-            name, category_id, unit_id, purchase_price, sale_price,
-            code, brand, barcode, description, stock_quantity, reorder_level
-        } = data
-        
-        if (!name) throw new Error("Name required")
-        if (!category_id) throw new Error("Category is required")
-        if (!unit_id) throw new Error("Unit is required")
-        if (!purchase_price || purchase_price <= 0) throw new Error("Purchase price invalid")
-        if (!sale_price || sale_price <= 0) throw new Error("Sale price invalid")
+    const { 
+        name, category_id, unit_id, purchase_price, sale_price,
+        code, brand, barcode, description, stock_quantity, reorder_level
+    } = data
+    
+    if (!name) throw new Error("Name required")
+    if (!category_id) throw new Error("Category is required")
+    if (!unit_id) throw new Error("Unit is required")
+    if (!purchase_price || purchase_price <= 0) throw new Error("Purchase price invalid")
+    if (!sale_price || sale_price <= 0) throw new Error("Sale price invalid")
 
-        return ProductRepository.create(
-            name, category_id, unit_id, purchase_price, sale_price,
-            code, brand, barcode, description, stock_quantity || 0, reorder_level || 0
-        )
+    const product = ProductRepository.create(
+        name, category_id, unit_id, purchase_price, sale_price,
+        code, brand, barcode, description, stock_quantity || 0, reorder_level || 0
+    )
+    
+    // Return consistent format
+    return {
+        success: true,
+        data: product,
+        message: 'Product created successfully'
     }
+}
 
-    updateProduct(id, data) {
-        if (!id) throw new Error("Product ID required")
-        return ProductRepository.update(id, data)
+
+    // electron/services/product.service.js
+
+updateProduct(id, data) {
+    if (!id) throw new Error("Product ID required")
+    
+    // Check if product exists
+    const existing = ProductRepository.getById(id);
+    if (!existing) {
+        throw new Error("Product not found");
     }
+    
+    // Check for duplicate code (if provided and changed)
+    if (data.code) {
+        const existingByCode = ProductRepository.getByCode(data.code);
+        if (existingByCode && existingByCode.id !== id) {
+            throw new Error(`Product code "${data.code}" already exists`);
+        }
+    }
+    
+    // Check for duplicate barcode (if provided and changed)
+    if (data.barcode) {
+        const existingByBarcode = ProductRepository.getByBarcode(data.barcode);
+        if (existingByBarcode && existingByBarcode.id !== id) {
+            throw new Error(`Barcode "${data.barcode}" already exists`);
+        }
+    }
+    
+    const product = ProductRepository.update(id, data);
+    if (!product) {
+        throw new Error("Failed to update product");
+    }
+    
+    // Return consistent format
+    return {
+        success: true,
+        data: product,
+        message: 'Product updated successfully'
+    };
+}
 
     deleteProduct(id) {
         if (!id) throw new Error("Product ID required")
@@ -76,10 +119,15 @@ class ProductService {
 
     // --- CATEGORY METHODS ---
     createCategory(data) {
-        const { name } = data
-        if (!name) throw new Error("Category name required")
-        return ProductRepository.createCategory(name)
+    const { name, description } = data
+    if (!name) throw new Error("Category name required")
+    const category = ProductRepository.createCategory(name, description || null)
+    return {
+        success: true,
+        data: category,
+        message: 'Category created successfully'
     }
+}
 
     getCategories() {
         return ProductRepository.getAllCategories()
@@ -102,10 +150,15 @@ class ProductService {
 
     // --- UNIT METHODS ---
     createUnit(data) {
-        const { name } = data
-        if (!name) throw new Error("Unit name required")
-        return ProductRepository.createUnit(name)
+    const { name, short_name } = data
+    if (!name) throw new Error("Unit name required")
+    const unit = ProductRepository.createUnit(name, short_name || null)
+    return {
+        success: true,
+        data: unit,
+        message: 'Unit created successfully'
     }
+}
 
     getUnits() {
         return ProductRepository.getAllUnits()

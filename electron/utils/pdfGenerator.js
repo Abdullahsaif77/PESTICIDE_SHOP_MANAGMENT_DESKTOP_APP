@@ -1,241 +1,533 @@
-// electron/utils/pdfGenerator.js
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron');
+const { app, dialog, BrowserWindow } = require('electron');
+
+const { jsPDF } = require('jspdf');
+const autoTable = require('jspdf-autotable').default || require('jspdf-autotable');
+
+// ==================== THEME ====================
+const THEME = {
+    primary: [5, 150, 105],
+    primaryDark: [4, 120, 87],
+    primaryLight: [209, 250, 229],
+    slate800: [30, 41, 59],
+    slate500: [100, 116, 139],
+    slate400: [148, 163, 184],
+    slate200: [226, 232, 240],
+    slate100: [241, 245, 249],
+    slate50: [248, 250, 252],
+    white: [255, 255, 255],
+    red: [220, 38, 38],
+    green: [22, 163, 74],
+    amber: [217, 119, 6],
+};
+
+// ==================== HELPERS ====================
+function drawLogo(doc, cx, cy, size) {
+    const r = size / 2;
+    doc.setFillColor(...THEME.white);
+    doc.circle(cx, cy, r, 'F');
+    doc.setFillColor(...THEME.primary);
+    doc.circle(cx, cy, r - 0.6, 'F');
+
+    doc.setFillColor(...THEME.white);
+    const w = size * 0.34;
+    const h = size * 0.62;
+    doc.lines(
+        [
+            [w / 2, h / 2],
+            [-w / 2, h / 2],
+            [-w / 2, -h / 2],
+        ],
+        cx, cy - h / 2,
+        [1, 1], 'F', true
+    );
+    doc.setDrawColor(...THEME.primary);
+    doc.setLineWidth(0.4);
+    doc.line(cx, cy - h / 2 + 1, cx, cy + h / 2 - 1);
+}
+
+function formatMoney(shopData, value) {
+    const currency = shopData?.currency && shopData.currency !== "PKR"
+        ? shopData.currency
+        : "Rs.";
+
+    const amount = Number(value || 0);
+
+    return `${currency} ${amount.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })}`;
+}
+
+function drawHeader(doc, { title, docNumberLabel, docNumber, date }, shopData) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const headerHeight = 38;
+
+    doc.setFillColor(...THEME.primary);
+    doc.rect(0, 0, pageWidth, headerHeight, 'F');
+    doc.setFillColor(...THEME.primaryDark);
+    doc.rect(0, headerHeight - 1.4, pageWidth, 1.4, 'F');
+
+    drawLogo(doc, 18, headerHeight / 2, 13);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(17);
+    doc.setTextColor(...THEME.white);
+    doc.text(shopData.shop_name || 'My Shop', 28, headerHeight / 2 - 3);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...THEME.primaryLight);
+    if (shopData.address) {
+        doc.text(shopData.address, 28, headerHeight / 2 + 3.5, { maxWidth: pageWidth * 0.45 });
+    }
+
+    const contactBits = [];
+    if (shopData.phone) contactBits.push(`Tel: ${shopData.phone}`);
+    if (shopData.email) contactBits.push(shopData.email);
+    if (contactBits.length) {
+        doc.text(contactBits.join('   |   '), 28, headerHeight / 2 + 8.5);
+    }
+
+    const cardW = 62;
+    const cardX = pageWidth - 20 - cardW;
+    const cardY = 8;
+    const cardH = headerHeight - 16;
+    doc.setFillColor(...THEME.white);
+    doc.roundedRect(cardX, cardY, cardW, cardH, 2, 2, 'F');
+
+    doc.setTextColor(...THEME.primaryDark);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(title, cardX + cardW / 2, cardY + 7, { align: 'center' });
+
+    doc.setDrawColor(...THEME.slate200);
+    doc.setLineWidth(0.2);
+    doc.line(cardX + 6, cardY + 9.5, cardX + cardW - 6, cardY + 9.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.6);
+    doc.setTextColor(...THEME.slate500);
+    doc.text(docNumberLabel, cardX + 6, cardY + 14.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...THEME.slate800);
+    doc.text(docNumber, cardX + cardW - 6, cardY + 14.5, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...THEME.slate500);
+    doc.text('Date', cardX + 6, cardY + 19);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...THEME.slate800);
+    doc.text(date, cardX + cardW - 6, cardY + 19, { align: 'right' });
+
+    return headerHeight;
+}
+
+function drawStatusBadge(doc, x, y, status) {
+    const colorMap = {
+        completed: THEME.green,
+        paid: THEME.green,
+        pending: THEME.amber,
+        cancelled: THEME.red,
+    };
+    const c = colorMap[(status || '').toLowerCase()] || THEME.slate500;
+    const label = (status || 'PENDING').toUpperCase();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    const textW = doc.getTextWidth(label);
+    const padX = 3;
+    const w = textW + padX * 2;
+    const h = 5.2;
+    doc.setFillColor(c[0], c[1], c[2]);
+    doc.roundedRect(x - w, y - h + 1.3, w, h, 1.2, 1.2, 'F');
+    doc.setTextColor(...THEME.white);
+    doc.text(label, x - w / 2, y, { align: 'center' });
+}
+
+function drawInfoCard(doc, x, y, w, h, heading, lines) {
+    doc.setFillColor(...THEME.slate50);
+    doc.setDrawColor(...THEME.slate200);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...THEME.primaryDark);
+    doc.text(heading.toUpperCase(), x + 5, y + 6.5);
+
+    doc.setDrawColor(...THEME.primary);
+    doc.setLineWidth(0.5);
+    doc.line(x + 5, y + 8.5, x + 18, y + 8.5);
+
+    let ly = y + 14;
+    lines.forEach((line, i) => {
+        if (!line) return;
+        if (i === 0) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.5);
+            doc.setTextColor(...THEME.slate800);
+        } else {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.3);
+            doc.setTextColor(...THEME.slate500);
+        }
+        doc.text(line, x + 5, ly, { maxWidth: w - 10 });
+        ly += i === 0 ? 6 : 5;
+    });
+}
+
+function drawTable(doc, startY, headers, rows, colStyles) {
+    autoTable(doc, {
+        startY,
+        head: [headers],
+        body: rows,
+        theme: 'plain',
+        styles: {
+            font: 'helvetica',
+            fontSize: 8.7,
+            textColor: THEME.slate800,
+            cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
+            lineColor: THEME.slate200,
+            lineWidth: 0.15,
+        },
+        headStyles: {
+            fillColor: THEME.primary,
+            textColor: THEME.white,
+            fontStyle: 'bold',
+            fontSize: 8.3,
+            halign: 'center',
+            cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
+        },
+        alternateRowStyles: {
+            fillColor: THEME.slate50,
+        },
+        columnStyles: colStyles,
+        margin: { left: 20, right: 20 },
+        tableWidth: 'auto',
+        pageBreak: 'auto',
+        horizontalPageBreak: false,
+        horizontalPageBreakBehavior: 'avoid',
+    });
+    return doc.lastAutoTable.finalY;
+}
+
+function drawSummary(doc, x, y, w, rows, totalRow, dueRow) {
+    const lineH = 6.5;
+    const padding = 8;
+    const h = padding * 2 + rows.length * lineH + 4 + lineH + 5 + lineH * 2 + 3;
+
+    doc.setFillColor(...THEME.slate50);
+    doc.setDrawColor(...THEME.slate200);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(x, y, w, h, 3, 3, 'FD');
+
+    let cy = y + padding + 2;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.6);
+
+    const labelX = x + padding;
+    const valueX = x + w - padding;
+
+    rows.forEach(([label, value]) => {
+        doc.setTextColor(...THEME.slate500);
+        doc.text(label, labelX, cy);
+        doc.setTextColor(...THEME.slate800);
+        doc.text(value, valueX, cy, { align: 'right' });
+        cy += lineH;
+    });
+
+    cy += 1.5;
+    doc.setDrawColor(...THEME.slate200);
+    doc.setLineWidth(0.3);
+    doc.line(x + padding, cy, x + w - padding, cy);
+    cy += 6.5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(...THEME.primaryDark);
+    doc.text(totalRow[0], labelX, cy);
+    doc.text(totalRow[1], valueX, cy, { align: 'right' });
+    cy += lineH + 2;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.6);
+    doc.setTextColor(...THEME.slate500);
+    doc.text('Paid', labelX, cy);
+    doc.setTextColor(...THEME.slate800);
+    doc.text(dueRow.paid, valueX, cy, { align: 'right' });
+    cy += lineH;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...(dueRow.isDue ? THEME.red : THEME.green));
+    doc.text('Balance Due', labelX, cy);
+    doc.text(dueRow.due, valueX, cy, { align: 'right' });
+
+    return y + h;
+}
+
+function drawFooter(doc, shopData, notes) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const footerY = pageHeight - 22;
+
+    doc.setDrawColor(...THEME.slate200);
+    doc.setLineWidth(0.3);
+    doc.line(20, footerY - 8, pageWidth - 20, footerY - 8);
+
+    if (notes) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...THEME.slate800);
+        doc.text('Notes:', 20, footerY - 3);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...THEME.slate500);
+        doc.text(notes, 40, footerY - 3, { maxWidth: pageWidth - 60 });
+    }
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8.2);
+    doc.setTextColor(...THEME.primaryDark);
+    doc.text('Thank you for your business!', pageWidth / 2, footerY + 5, { align: 'center' });
+
+    const metaBits = [];
+    if (shopData.license_number) metaBits.push(`License #: ${shopData.license_number}`);
+    if (shopData.gst_number) metaBits.push(`GST #: ${shopData.gst_number}`);
+    if (metaBits.length) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.3);
+        doc.setTextColor(...THEME.slate400);
+        doc.text(metaBits.join('   |   '), pageWidth / 2, footerY + 10, { align: 'center' });
+    }
+}
 
 class PDFGenerator {
-    generateSaleInvoice(saleData, shopData, items) {
-        const { jsPDF } = require('jspdf');
-        require('jspdf-autotable');
-        
+    // ==================== GENERATE PURCHASE PDF ====================
+    generatePurchasePDF(purchaseData, shopData, items, supplierData) {
         const doc = new jsPDF('p', 'mm', 'a4');
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
-        
-        // Colors
-        const primaryColor = [34, 197, 94]; // Emerald
-        const textColor = [30, 41, 59]; // Slate-800
-        const secondaryColor = [100, 116, 139]; // Slate-500
-        
-        // ===== HEADER =====
-        // Shop Logo/Name
-        doc.setFontSize(22);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.text(shopData.shop_name || 'My Shop', 20, 25);
-        
-        // Shop Details
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-        let shopY = 32;
-        
-        if (shopData.address) {
-            doc.text(`Address: ${shopData.address}`, 20, shopY);
-            shopY += 6;
-        }
-        if (shopData.phone) {
-            doc.text(`Phone: ${shopData.phone}`, 20, shopY);
-            shopY += 6;
-        }
-        if (shopData.email) {
-            doc.text(`Email: ${shopData.email}`, 20, shopY);
-            shopY += 6;
-        }
-        if (shopData.license_number) {
-            doc.text(`License #: ${shopData.license_number}`, 20, shopY);
-            shopY += 6;
-        }
-        if (shopData.gst_number) {
-            doc.text(`GST #: ${shopData.gst_number}`, 20, shopY);
-            shopY += 6;
-        }
-        
-        // ===== INVOICE TITLE =====
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-        doc.text('SALE INVOICE', pageWidth - 60, 25);
-        
-        // Invoice Details (Right side)
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Invoice #: ${saleData.invoice_number || 'N/A'}`, pageWidth - 60, 35);
-        doc.text(`Date: ${new Date(saleData.sale_date).toLocaleDateString()}`, pageWidth - 60, 42);
-        doc.text(`Status: ${(saleData.status || 'completed').toUpperCase()}`, pageWidth - 60, 49);
-        
-        // ===== DIVIDER LINE =====
-        doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.setLineWidth(0.5);
-        doc.line(20, shopY + 10, pageWidth - 20, shopY + 10);
-        
-        // ===== CUSTOMER INFO =====
-        let yPos = shopY + 20;
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-        doc.text('Bill To:', 20, yPos);
-        
-        yPos += 7;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-        
-        if (saleData.customer_name) {
-            doc.text(`Name: ${saleData.customer_name}`, 20, yPos);
-            yPos += 5;
-        }
-        if (saleData.customer_phone) {
-            doc.text(`Phone: ${saleData.customer_phone}`, 20, yPos);
-            yPos += 5;
-        }
-        if (saleData.customer_address) {
-            doc.text(`Address: ${saleData.customer_address}`, 20, yPos);
-            yPos += 5;
-        }
-        
-        // ===== TABLE HEADER =====
-        yPos = Math.max(yPos + 10, 95);
-        const tableHeaders = ['#', 'Item', 'Qty', 'Price', 'Total'];
+
+        const headerHeight = drawHeader(doc, {
+            title: 'PURCHASE ORDER',
+            docNumberLabel: 'PO Number',
+            docNumber: purchaseData.purchase_number || 'N/A',
+            date: new Date(purchaseData.purchase_date).toLocaleDateString('en-GB'),
+        }, shopData);
+
+        drawStatusBadge(doc, pageWidth - 20, headerHeight + 8, purchaseData.status);
+
+        const infoY = headerHeight + 10;
+        const infoW = (pageWidth - 40 - 6) / 2;
+
+        drawInfoCard(doc, 20, infoY, infoW, 30, 'Supplier', [
+            supplierData?.name || 'N/A',
+            supplierData?.phone ? `Tel: ${supplierData.phone}` : null,
+            supplierData?.address || null,
+        ].filter(Boolean));
+
+        drawInfoCard(doc, 20 + infoW + 6, infoY, infoW, 30, 'Warehouse', [
+            purchaseData.warehouse_name || 'N/A',
+            'Destination for received stock',
+        ]);
+
+        const tableStartY = infoY + 30 + 8;
+        const tableHeaders = ['#', 'Product', 'Qty', 'Unit Price', 'Total'];
         const tableData = items.map((item, index) => [
             index + 1,
-            `${item.product_name}${item.product_code ? ` (${item.product_code})` : ''}`,
+            `${item.product_name}${item.product_code ? `\n${item.product_code}` : ''}`,
             item.quantity.toFixed(2),
-            `${shopData.currency || '₨'}${item.sale_price.toFixed(2)}`,
-            `${shopData.currency || '₨'}${item.total.toFixed(2)}`
+            formatMoney(shopData, item.purchase_price),
+            formatMoney(shopData, item.total),
         ]);
-        
-        doc.autoTable({
-            startY: yPos,
-            head: [tableHeaders],
-            body: tableData,
-            theme: 'grid',
-            headStyles: {
-                fillColor: primaryColor,
-                textColor: [255, 255, 255],
-                fontSize: 9,
-                fontStyle: 'bold',
-                halign: 'center'
-            },
-            bodyStyles: {
-                fontSize: 9,
-                textColor: textColor
-            },
-            columnStyles: {
-                0: { cellWidth: 15, halign: 'center' },
-                1: { cellWidth: 80 },
-                2: { cellWidth: 30, halign: 'right' },
-                3: { cellWidth: 35, halign: 'right' },
-                4: { cellWidth: 35, halign: 'right' }
-            },
-            margin: { left: 20, right: 20 }
+
+        // Total column widths should sum to ~170mm (210mm - 20mm - 20mm)
+        const finalY = drawTable(doc, tableStartY, tableHeaders, tableData, {
+            0: { cellWidth: 12, halign: 'center', textColor: THEME.slate400 },
+            1: { cellWidth: 68, halign: 'left' },
+            2: { cellWidth: 25, halign: 'center' },
+            3: { cellWidth: 35, halign: 'right' },
+            4: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
         });
-        
-        // ===== SUMMARY =====
-        const finalY = doc.lastAutoTable.finalY + 10;
-        
-        // Summary box
-        const summaryX = pageWidth - 80;
-        const summaryWidth = 60;
+
+        const summaryW = 82;
+        const summaryX = pageWidth - 20 - summaryW;
+        const dueAmount = (purchaseData.total_amount || 0) - (purchaseData.paid_amount || 0);
+        const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0);
+
+        let blockY = finalY + 10;
         const summaryHeight = 75;
-        const summaryY = finalY;
-        
-        doc.setDrawColor(200, 200, 200);
-        doc.setFillColor(248, 250, 252);
-        doc.roundedRect(summaryX, summaryY, summaryWidth, summaryHeight, 2, 2, 'FD');
-        
-        let summaryPosY = summaryY + 8;
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-        
-        doc.text('Subtotal:', summaryX + 10, summaryPosY);
-        doc.text(`${shopData.currency || '₨'}${(saleData.subtotal || 0).toFixed(2)}`, summaryX + summaryWidth - 10, summaryPosY, { align: 'right' });
-        
-        summaryPosY += 7;
-        doc.text('Discount:', summaryX + 10, summaryPosY);
-        doc.text(`-${shopData.currency || '₨'}${(saleData.discount || 0).toFixed(2)}`, summaryX + summaryWidth - 10, summaryPosY, { align: 'right' });
-        
-        summaryPosY += 7;
-        doc.text('Tax:', summaryX + 10, summaryPosY);
-        doc.text(`+${shopData.currency || '₨'}${(saleData.tax || 0).toFixed(2)}`, summaryX + summaryWidth - 10, summaryPosY, { align: 'right' });
-        
-        summaryPosY += 10;
-        doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.line(summaryX + 10, summaryPosY, summaryX + summaryWidth - 10, summaryPosY);
-        
-        summaryPosY += 7;
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-        doc.text('Total:', summaryX + 10, summaryPosY);
-        doc.text(`${shopData.currency || '₨'}${(saleData.total_amount || 0).toFixed(2)}`, summaryX + summaryWidth - 10, summaryPosY, { align: 'right' });
-        
-        summaryPosY += 8;
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-        doc.text('Paid:', summaryX + 10, summaryPosY);
-        doc.text(`${shopData.currency || '₨'}${(saleData.paid_amount || 0).toFixed(2)}`, summaryX + summaryWidth - 10, summaryPosY, { align: 'right' });
-        
-        summaryPosY += 7;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        const dueAmount = (saleData.total_amount || 0) - (saleData.paid_amount || 0);
-        const dueColor = dueAmount > 0 ? [220, 38, 38] : [34, 197, 94];
-        doc.setTextColor(dueColor[0], dueColor[1], dueColor[2]);
-        doc.text('Due:', summaryX + 10, summaryPosY);
-        doc.text(`${shopData.currency || '₨'}${dueAmount.toFixed(2)}`, summaryX + summaryWidth - 10, summaryPosY, { align: 'right' });
-        
-        // ===== PAYMENT INFO =====
-        const paymentY = Math.max(summaryY + summaryHeight + 10, finalY + 75);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-        doc.text('Payment Details:', 20, paymentY);
-        
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-        doc.text(`Method: ${(saleData.payment_method || 'cash').toUpperCase()}`, 20, paymentY + 6);
-        doc.text(`Date: ${new Date(saleData.sale_date).toLocaleDateString()}`, 20, paymentY + 12);
-        
-        // ===== NOTES =====
-        if (saleData.notes) {
-            const notesY = paymentY + 20;
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-            doc.text('Notes:', 20, notesY);
-            
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-            doc.text(saleData.notes, 20, notesY + 6);
+
+        if (blockY + summaryHeight + 25 > pageHeight - 25) {
+            doc.addPage();
+            blockY = 20;
         }
-        
-        // ===== FOOTER =====
-        const footerY = pageHeight - 20;
+
+        drawSummary(doc, summaryX, blockY, summaryW,
+            [
+                ['Subtotal', formatMoney(shopData, subtotal)],
+                ['Discount', `- ${formatMoney(shopData, purchaseData.discount || 0)}`],
+                ['Tax', `+ ${formatMoney(shopData, purchaseData.tax || 0)}`],
+            ],
+            ['Total', formatMoney(shopData, purchaseData.total_amount || subtotal)],
+            {
+                paid: formatMoney(shopData, purchaseData.paid_amount || 0),
+                due: formatMoney(shopData, dueAmount),
+                isDue: dueAmount > 0
+            }
+        );
+
+        const paymentY = blockY + 6;
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor(150, 150, 150);
-        doc.text('Thank you for your business!', pageWidth / 2, footerY, { align: 'center' });
-        
-        if (shopData.license_number) {
-            doc.text(`License #: ${shopData.license_number}`, pageWidth / 2, footerY - 5, { align: 'center' });
-        }
-        
+        doc.setTextColor(...THEME.slate800);
+        doc.text('Payment Method', 20, paymentY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...THEME.slate500);
+        doc.text((purchaseData.payment_method || 'cash').toUpperCase(), 20, paymentY + 5);
+
+        drawFooter(doc, shopData, purchaseData.notes);
+
         return doc;
     }
-    
-    async generateAndSave(saleData, items) {
+
+    // ==================== GENERATE SALE PDF ====================
+    generateSaleInvoice(saleData, shopData, items) {
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        const headerHeight = drawHeader(doc, {
+            title: 'SALE INVOICE',
+            docNumberLabel: 'Invoice Number',
+            docNumber: saleData.invoice_number || 'N/A',
+            date: new Date(saleData.sale_date).toLocaleDateString('en-GB'),
+        }, shopData);
+
+        drawStatusBadge(doc, pageWidth - 20, headerHeight + 8, saleData.status);
+
+        const infoY = headerHeight + 10;
+        const infoW = (pageWidth - 40 - 6) / 2;
+
+        drawInfoCard(doc, 20, infoY, infoW, 30, 'Bill To', [
+            saleData.customer_name || 'Walk-in Customer',
+            saleData.customer_phone ? `Tel: ${saleData.customer_phone}` : null,
+            saleData.customer_address || null,
+        ].filter(Boolean));
+
+        drawInfoCard(doc, 20 + infoW + 6, infoY, infoW, 30, 'Payment', [
+            (saleData.payment_method || 'cash').toUpperCase(),
+            `Status: ${(saleData.status || 'completed').toUpperCase()}`,
+        ]);
+
+        const tableStartY = infoY + 30 + 8;
+        const tableHeaders = ['#', 'Item', 'Qty', 'Unit Price', 'Total'];
+        const tableData = items.map((item, index) => [
+            index + 1,
+            `${item.product_name}${item.product_code ? `\n${item.product_code}` : ''}`,
+            item.quantity.toFixed(2),
+            formatMoney(shopData, item.sale_price),
+            formatMoney(shopData, item.total),
+        ]);
+
+        const finalY = drawTable(doc, tableStartY, tableHeaders, tableData, {
+            0: { cellWidth: 12, halign: 'center', textColor: THEME.slate400 },
+            1: { cellWidth: 68, halign: 'left' },
+            2: { cellWidth: 25, halign: 'center' },
+            3: { cellWidth: 35, halign: 'right' },
+            4: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
+        });
+
+        const summaryW = 82;
+        const summaryX = pageWidth - 20 - summaryW;
+        const dueAmount = (saleData.total_amount || 0) - (saleData.paid_amount || 0);
+        const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0);
+
+        let blockY = finalY + 10;
+        const summaryHeight = 75;
+
+        if (blockY + summaryHeight + 25 > pageHeight - 25) {
+            doc.addPage();
+            blockY = 20;
+        }
+
+        drawSummary(doc, summaryX, blockY, summaryW,
+            [
+                ['Subtotal', formatMoney(shopData, subtotal)],
+                ['Discount', `- ${formatMoney(shopData, saleData.discount || 0)}`],
+                ['Tax', `+ ${formatMoney(shopData, saleData.tax || 0)}`],
+            ],
+            ['Total', formatMoney(shopData, saleData.total_amount || subtotal)],
+            {
+                paid: formatMoney(shopData, saleData.paid_amount || 0),
+                due: formatMoney(shopData, dueAmount),
+                isDue: dueAmount > 0
+            }
+        );
+
+        drawFooter(doc, shopData, saleData.notes);
+
+        return doc;
+    }
+
+    // ==================== SAVE PURCHASE PDF WITH DIALOG ====================
+    async generateAndSavePurchase(purchaseData, items, window = null) {
         try {
-            // Get shop data
             const db = require('../database/database');
             const shopStmt = db.prepare('SELECT * FROM shop_settings WHERE id = 1');
             const shopData = shopStmt.get() || {};
-            
-            // Get customer data if exists
+
+            let supplierData = null;
+            if (purchaseData.supplier_id) {
+                const supplierStmt = db.prepare('SELECT * FROM suppliers WHERE id = ?');
+                supplierData = supplierStmt.get(purchaseData.supplier_id);
+            }
+
+            let warehouseName = 'N/A';
+            if (purchaseData.warehouse_id) {
+                const warehouseStmt = db.prepare('SELECT name FROM warehouses WHERE id = ?');
+                const warehouse = warehouseStmt.get(purchaseData.warehouse_id);
+                if (warehouse) warehouseName = warehouse.name;
+            }
+
+            const fullPurchaseData = {
+                ...purchaseData,
+                warehouse_name: warehouseName
+            };
+
+            const doc = this.generatePurchasePDF(fullPurchaseData, shopData, items, supplierData);
+            const pdfBuffer = doc.output('arraybuffer');
+
+            const result = await dialog.showSaveDialog(window || BrowserWindow.getFocusedWindow(), {
+                title: 'Save Purchase Order',
+                defaultPath: path.join(
+                    app.getPath('documents'),
+                    `Purchase_${purchaseData.purchase_number || 'purchase'}_${new Date().toISOString().replace(/[:.]/g, '-')}.pdf`
+                ),
+                filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+            });
+
+            if (!result.canceled && result.filePath) {
+                fs.writeFileSync(result.filePath, Buffer.from(pdfBuffer));
+                console.log(`✅ PDF saved: ${result.filePath}`);
+                return { success: true, path: result.filePath, filename: path.basename(result.filePath) };
+            } else {
+                return { success: false, canceled: true, message: 'Save canceled by user' };
+            }
+        } catch (error) {
+            console.error('PDF generation error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    // ==================== SAVE SALE PDF WITH DIALOG ====================
+    async generateAndSave(saleData, items, window = null) {
+        try {
+            const db = require('../database/database');
+            const shopStmt = db.prepare('SELECT * FROM shop_settings WHERE id = 1');
+            const shopData = shopStmt.get() || {};
+
             let customerName = 'Walk-in Customer';
             let customerPhone = '';
             let customerAddress = '';
@@ -248,25 +540,33 @@ class PDFGenerator {
                     customerAddress = customer.address || '';
                 }
             }
-            
-            // Prepare sale data
+
             const fullSaleData = {
                 ...saleData,
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 customer_address: customerAddress
             };
-            
+
             const doc = this.generateSaleInvoice(fullSaleData, shopData, items);
-            
-            // Save PDF
-            const downloadsPath = app.getPath('documents');
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `Invoice_${saleData.invoice_number || 'sale'}_${timestamp}.pdf`;
-            const filePath = path.join(downloadsPath, filename);
-            
-            doc.save(filePath);
-            return { success: true, path: filePath, filename };
+            const pdfBuffer = doc.output('arraybuffer');
+
+            const result = await dialog.showSaveDialog(window || BrowserWindow.getFocusedWindow(), {
+                title: 'Save Invoice',
+                defaultPath: path.join(
+                    app.getPath('documents'),
+                    `Invoice_${saleData.invoice_number || 'sale'}_${new Date().toISOString().replace(/[:.]/g, '-')}.pdf`
+                ),
+                filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+            });
+
+            if (!result.canceled && result.filePath) {
+                fs.writeFileSync(result.filePath, Buffer.from(pdfBuffer));
+                console.log(`✅ PDF saved: ${result.filePath}`);
+                return { success: true, path: result.filePath, filename: path.basename(result.filePath) };
+            } else {
+                return { success: false, canceled: true, message: 'Save canceled by user' };
+            }
         } catch (error) {
             console.error('PDF generation error:', error);
             return { success: false, error: error.message };

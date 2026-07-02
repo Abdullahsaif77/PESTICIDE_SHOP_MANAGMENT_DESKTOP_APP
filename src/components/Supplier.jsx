@@ -39,356 +39,11 @@ import {
   Link2,
   CreditCard as CreditIcon,
   Receipt,
-  PiggyBank
+  PiggyBank,
+  Loader2
 } from "lucide-react";
 
-// ==================== MOCK DATA ====================
-const MOCK_SUPPLIERS = [
-  {
-    id: 1,
-    name: "ABC Chemicals",
-    phone: "0300-1234567",
-    email: "abc@chemicals.com",
-    address: "Industrial Zone, Lahore",
-    cnic: "12345-1234567-1",
-    credit: 15000,
-    debit: 0,
-    is_active: 1,
-    purchase_count: 5,
-    total_purchases: 125000,
-    created_at: "2024-01-15"
-  },
-  {
-    id: 2,
-    name: "XYZ Pesticides",
-    phone: "0300-7654321",
-    email: "info@xyzpest.com",
-    address: "Main Road, Faisalabad",
-    cnic: "54321-7654321-2",
-    credit: 0,
-    debit: 0,
-    is_active: 1,
-    purchase_count: 3,
-    total_purchases: 45000,
-    created_at: "2024-02-20"
-  },
-  {
-    id: 3,
-    name: "Green Agro Supplies",
-    phone: "0300-9876543",
-    email: "green@agro.com",
-    address: "Garden Town, Multan",
-    cnic: "98765-4321098-3",
-    credit: 0,
-    debit: 5000,
-    is_active: 0,
-    purchase_count: 0,
-    total_purchases: 0,
-    created_at: "2024-03-10"
-  },
-  {
-    id: 4,
-    name: "Premium Fertilizers",
-    phone: "0300-5555555",
-    email: "premium@fertilizers.com",
-    address: "Sheikhupura Road",
-    cnic: "11111-2222222-4",
-    credit: 25000,
-    debit: 0,
-    is_active: 1,
-    purchase_count: 8,
-    total_purchases: 280000,
-    created_at: "2024-04-05"
-  },
-  {
-    id: 5,
-    name: "Safe Pest Control",
-    phone: "0300-4444444",
-    email: "safe@pest.com",
-    address: "Johar Town, Lahore",
-    cnic: "22222-3333333-5",
-    credit: 1000,
-    debit: 0,
-    is_active: 1,
-    purchase_count: 2,
-    total_purchases: 12000,
-    created_at: "2024-05-12"
-  },
-  {
-    id: 6,
-    name: "Agro Solutions",
-    phone: "0300-3333333",
-    email: "agro@solutions.com",
-    address: "Gulberg, Lahore",
-    cnic: "33333-4444444-6",
-    credit: 0,
-    debit: 2000,
-    is_active: 1,
-    purchase_count: 4,
-    total_purchases: 68000,
-    created_at: "2024-06-18"
-  }
-];
-
-const MOCK_PURCHASES = {
-  1: [
-    { id: 1, purchase_number: "PO-001", total_amount: 32000, paid_amount: 32000, due_amount: 0, purchase_date: "2024-01-20" },
-    { id: 2, purchase_number: "PO-002", total_amount: 45000, paid_amount: 30000, due_amount: 15000, purchase_date: "2024-02-15" },
-    { id: 3, purchase_number: "PO-003", total_amount: 28000, paid_amount: 20000, due_amount: 8000, purchase_date: "2024-03-10" },
-    { id: 4, purchase_number: "PO-004", total_amount: 12000, paid_amount: 12000, due_amount: 0, purchase_date: "2024-04-05" },
-    { id: 5, purchase_number: "PO-005", total_amount: 8000, paid_amount: 8000, due_amount: 0, purchase_date: "2024-05-20" }
-  ],
-  2: [
-    { id: 6, purchase_number: "PO-006", total_amount: 18000, paid_amount: 18000, due_amount: 0, purchase_date: "2024-02-01" },
-    { id: 7, purchase_number: "PO-007", total_amount: 15000, paid_amount: 10000, due_amount: 5000, purchase_date: "2024-03-15" },
-    { id: 8, purchase_number: "PO-008", total_amount: 12000, paid_amount: 12000, due_amount: 0, purchase_date: "2024-06-10" }
-  ],
-  4: [
-    { id: 9, purchase_number: "PO-009", total_amount: 45000, paid_amount: 45000, due_amount: 0, purchase_date: "2024-04-10" },
-    { id: 10, purchase_number: "PO-010", total_amount: 68000, paid_amount: 50000, due_amount: 18000, purchase_date: "2024-05-15" },
-    { id: 11, purchase_number: "PO-011", total_amount: 52000, paid_amount: 52000, due_amount: 0, purchase_date: "2024-06-20" },
-    { id: 12, purchase_number: "PO-012", total_amount: 35000, paid_amount: 25000, due_amount: 10000, purchase_date: "2024-07-05" },
-    { id: 13, purchase_number: "PO-013", total_amount: 80000, paid_amount: 80000, due_amount: 0, purchase_date: "2024-08-01" }
-  ],
-  5: [
-    { id: 14, purchase_number: "PO-014", total_amount: 7000, paid_amount: 7000, due_amount: 0, purchase_date: "2024-05-20" },
-    { id: 15, purchase_number: "PO-015", total_amount: 5000, paid_amount: 5000, due_amount: 0, purchase_date: "2024-07-01" }
-  ],
-  6: [
-    { id: 16, purchase_number: "PO-016", total_amount: 22000, paid_amount: 22000, due_amount: 0, purchase_date: "2024-06-20" },
-    { id: 17, purchase_number: "PO-017", total_amount: 18000, paid_amount: 10000, due_amount: 8000, purchase_date: "2024-07-15" },
-    { id: 18, purchase_number: "PO-018", total_amount: 15000, paid_amount: 15000, due_amount: 0, purchase_date: "2024-08-10" },
-    { id: 19, purchase_number: "PO-019", total_amount: 13000, paid_amount: 8000, due_amount: 5000, purchase_date: "2024-09-01" }
-  ]
-};
-
-const MOCK_STATS = {
-  total: 6,
-  active: 5,
-  inactive: 1,
-  totalCredit: 41000,
-  totalDebit: 7000,
-  totalBalance: 34000,
-  totalPurchases: 18,
-  avgPurchase: 40277.78
-};
-
-// ==================== API WRAPPER ====================
 const api = window.api || {};
-
-class SupplierAPI {
-  async createSupplier(data) {
-    try {
-      const result = await api.createSupplier(data);
-      return result;
-    } catch (error) {
-      const newSupplier = {
-        id: Date.now(),
-        ...data,
-        is_active: 1,
-        purchase_count: 0,
-        total_purchases: 0,
-        created_at: new Date().toISOString()
-      };
-      MOCK_SUPPLIERS.unshift(newSupplier);
-      return { success: true, data: newSupplier };
-    }
-  }
-
-  async getAllSuppliers(filters = {}) {
-    try {
-      const result = await api.getAllSuppliers(filters);
-      if (result.success && result.data.length > 0) {
-        return result;
-      }
-      return { success: true, data: MOCK_SUPPLIERS };
-    } catch (error) {
-      return { success: true, data: MOCK_SUPPLIERS };
-    }
-  }
-
-  async getSupplierById(id) {
-    try {
-      const result = await api.getSupplierById(id);
-      if (result.success) return result;
-      const supplier = MOCK_SUPPLIERS.find(s => s.id === id);
-      return { success: true, data: supplier };
-    } catch (error) {
-      const supplier = MOCK_SUPPLIERS.find(s => s.id === id);
-      return { success: true, data: supplier };
-    }
-  }
-
-  async updateSupplier(id, data) {
-    try {
-      const result = await api.updateSupplier(id, data);
-      return result;
-    } catch (error) {
-      const index = MOCK_SUPPLIERS.findIndex(s => s.id === id);
-      if (index !== -1) {
-        MOCK_SUPPLIERS[index] = { ...MOCK_SUPPLIERS[index], ...data };
-        return { success: true, data: MOCK_SUPPLIERS[index] };
-      }
-      return { success: false, error: "Supplier not found" };
-    }
-  }
-
-  async deleteSupplier(id) {
-    try {
-      const result = await api.deleteSupplier(id);
-      return result;
-    } catch (error) {
-      const index = MOCK_SUPPLIERS.findIndex(s => s.id === id);
-      if (index !== -1) {
-        MOCK_SUPPLIERS[index].is_active = 0;
-        return { success: true, message: "Supplier deactivated" };
-      }
-      return { success: false, error: "Supplier not found" };
-    }
-  }
-
-  async getActiveSuppliers() {
-    try {
-      const result = await api.getActiveSuppliers();
-      if (result.success) return result;
-      return { success: true, data: MOCK_SUPPLIERS.filter(s => s.is_active === 1) };
-    } catch (error) {
-      return { success: true, data: MOCK_SUPPLIERS.filter(s => s.is_active === 1) };
-    }
-  }
-
-  async searchSuppliers(query) {
-    try {
-      const result = await api.searchSuppliers(query);
-      if (result.success) return result;
-      const filtered = MOCK_SUPPLIERS.filter(s =>
-        s.name?.toLowerCase().includes(query.toLowerCase()) ||
-        s.phone?.includes(query) ||
-        s.email?.toLowerCase().includes(query)
-      );
-      return { success: true, data: filtered };
-    } catch (error) {
-      const filtered = MOCK_SUPPLIERS.filter(s =>
-        s.name?.toLowerCase().includes(query.toLowerCase()) ||
-        s.phone?.includes(query) ||
-        s.email?.toLowerCase().includes(query)
-      );
-      return { success: true, data: filtered };
-    }
-  }
-
-  async getSupplierBalance(id) {
-    try {
-      const result = await api.getSupplierBalance(id);
-      return result;
-    } catch (error) {
-      const supplier = MOCK_SUPPLIERS.find(s => s.id === id);
-      const credit = supplier?.credit || 0;
-      const debit = supplier?.debit || 0;
-      return { success: true, data: { credit, debit, balance: credit - debit } };
-    }
-  }
-
-  async updateSupplierBalance(id, amount) {
-    try {
-      const result = await api.updateSupplierBalance(id, amount);
-      return result;
-    } catch (error) {
-      const supplier = MOCK_SUPPLIERS.find(s => s.id === id);
-      if (supplier) {
-        if (amount >= 0) {
-          supplier.credit = (supplier.credit || 0) + amount;
-        } else {
-          supplier.debit = (supplier.debit || 0) + Math.abs(amount);
-        }
-        const credit = supplier.credit || 0;
-        const debit = supplier.debit || 0;
-        return { success: true, data: { credit, debit, balance: credit - debit } };
-      }
-      return { success: false, error: "Supplier not found" };
-    }
-  }
-
-  async getSupplierStats() {
-    try {
-      const result = await api.getSupplierStats();
-      if (result.success) return result;
-      return { success: true, data: MOCK_STATS };
-    } catch (error) {
-      return { success: true, data: MOCK_STATS };
-    }
-  }
-
-  async getSupplierSummary() {
-    try {
-      const result = await api.getSupplierSummary();
-      if (result.success) return result;
-      const active = MOCK_SUPPLIERS.filter(s => s.is_active === 1).length;
-      const inactive = MOCK_SUPPLIERS.filter(s => s.is_active === 0).length;
-      const totalCredit = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.credit || 0), 0);
-      const totalDebit = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.debit || 0), 0);
-      return {
-        success: true,
-        data: {
-          total: MOCK_SUPPLIERS.length,
-          active,
-          inactive,
-          totalCredit,
-          totalDebit,
-          totalBalance: totalCredit - totalDebit,
-          totalPurchases: MOCK_STATS.totalPurchases,
-          avgPurchase: MOCK_STATS.avgPurchase
-        }
-      };
-    } catch (error) {
-      const active = MOCK_SUPPLIERS.filter(s => s.is_active === 1).length;
-      const inactive = MOCK_SUPPLIERS.filter(s => s.is_active === 0).length;
-      const totalCredit = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.credit || 0), 0);
-      const totalDebit = MOCK_SUPPLIERS.reduce((sum, s) => sum + (s.debit || 0), 0);
-      return {
-        success: true,
-        data: {
-          total: MOCK_SUPPLIERS.length,
-          active,
-          inactive,
-          totalCredit,
-          totalDebit,
-          totalBalance: totalCredit - totalDebit,
-          totalPurchases: MOCK_STATS.totalPurchases,
-          avgPurchase: MOCK_STATS.avgPurchase
-        }
-      };
-    }
-  }
-
-  async getSupplierPurchases(id) {
-    try {
-      const result = await api.getSupplierPurchases(id);
-      if (result.success && result.data.length > 0) {
-        return result;
-      }
-      const purchases = MOCK_PURCHASES[id] || [];
-      return { success: true, data: purchases };
-    } catch (error) {
-      const purchases = MOCK_PURCHASES[id] || [];
-      return { success: true, data: purchases };
-    }
-  }
-
-  async exportSuppliers(filters = {}) {
-    try {
-      const result = await api.exportSuppliers(filters);
-      if (result.success) return result;
-      const data = MOCK_SUPPLIERS.filter(s => filters.is_active === undefined || s.is_active === filters.is_active);
-      return { success: true, data };
-    } catch (error) {
-      const data = MOCK_SUPPLIERS.filter(s => filters.is_active === undefined || s.is_active === filters.is_active);
-      return { success: true, data };
-    }
-  }
-}
-
-const supplierAPI = new SupplierAPI();
 
 export default function Suppliers() {
   // ==================== STATE ====================
@@ -407,7 +62,6 @@ export default function Suppliers() {
     totalPurchases: 0,
     avgPurchase: 0
   });
-  const [isUsingMock, setIsUsingMock] = useState(true);
 
   const [modal, setModal] = useState({ open: false, mode: "add", data: null });
   const [form, setForm] = useState({
@@ -447,6 +101,20 @@ export default function Suppliers() {
   // ==================== EFFECTS ====================
   useEffect(() => {
     loadData();
+    
+    // Auto-refresh when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('🔄 Suppliers page visible, refreshing data...');
+        loadData();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -457,17 +125,19 @@ export default function Suppliers() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const suppliersResult = await supplierAPI.getAllSuppliers();
+      const [suppliersResult, summaryResult] = await Promise.all([
+        api.getAllSuppliers(),
+        api.getSupplierSummary()
+      ]);
+
       if (suppliersResult.success) {
         setSuppliers(suppliersResult.data || []);
-        if (suppliersResult.data && suppliersResult.data.length > 0) {
-          setIsUsingMock(suppliersResult.data[0].id > 1000 || suppliersResult.data[0].id === 1);
-        }
+        console.log(`✅ Loaded ${suppliersResult.data?.length || 0} suppliers`);
       }
 
-      const summaryResult = await supplierAPI.getSupplierSummary();
       if (summaryResult.success) {
         setStats(summaryResult.data);
+        console.log('📊 Supplier stats loaded:', summaryResult.data);
       }
     } catch (err) {
       console.error("Error loading suppliers:", err);
@@ -593,12 +263,12 @@ export default function Suppliers() {
 
       let result;
       if (modal.mode === "add") {
-        result = await supplierAPI.createSupplier(data);
+        result = await api.createSupplier(data);
         if (result.success) {
           showNotification("success", `Supplier "${form.name}" created successfully`);
         }
       } else {
-        result = await supplierAPI.updateSupplier(modal.data.id, data);
+        result = await api.updateSupplier(modal.data.id, data);
         if (result.success) {
           showNotification("success", `Supplier "${form.name}" updated successfully`);
         }
@@ -623,7 +293,7 @@ export default function Suppliers() {
     if (confirm(`Deactivate supplier "${name}"?`)) {
       setIsLoading(true);
       try {
-        const result = await supplierAPI.deleteSupplier(id);
+        const result = await api.deleteSupplier(id);
         if (result.success) {
           showNotification("success", `Supplier "${name}" deactivated successfully`);
           await loadData();
@@ -656,9 +326,9 @@ export default function Suppliers() {
     try {
       let result;
       if (balanceForm.type === "credit") {
-        result = await supplierAPI.updateSupplierBalance(balanceModal.supplier.id, parseFloat(balanceForm.amount));
+        result = await api.updateSupplierCredit(balanceModal.supplier.id, parseFloat(balanceForm.amount));
       } else {
-        result = await supplierAPI.updateSupplierBalance(balanceModal.supplier.id, -parseFloat(balanceForm.amount));
+        result = await api.updateSupplierDebit(balanceModal.supplier.id, parseFloat(balanceForm.amount));
       }
 
       if (result.success) {
@@ -681,8 +351,8 @@ export default function Suppliers() {
     setIsLoading(true);
     try {
       const [detailResult, purchasesResult] = await Promise.all([
-        supplierAPI.getSupplierById(supplier.id),
-        supplierAPI.getSupplierPurchases(supplier.id)
+        api.getSupplierById(supplier.id),
+        api.getSupplierPurchases(supplier.id)
       ]);
 
       const supplierData = detailResult.success ? detailResult.data : supplier;
@@ -704,7 +374,7 @@ export default function Suppliers() {
   // ==================== EXPORT ====================
   const handleExport = async () => {
     try {
-      const result = await supplierAPI.exportSuppliers({ is_active: 1 });
+      const result = await api.exportSuppliers({ is_active: 1 });
       if (result.success && result.data) {
         const headers = ["Name", "Phone", "Email", "Address", "CNIC", "Credit", "Debit", "Balance", "Status"];
         const rows = result.data.map(s => [
@@ -783,6 +453,39 @@ export default function Suppliers() {
     return colors[id % colors.length];
   };
 
+  // ==================== GET BALANCE DISPLAY ====================
+  const getBalanceDisplay = (supplier) => {
+    const credit = supplier.credit || 0;
+    const debit = supplier.debit || 0;
+    const balance = credit - debit;
+
+    if (balance > 0) {
+      return {
+        text: `Supplier owes us ₨${balance.toFixed(2)}`,
+        color: "text-amber-600",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+        icon: <ArrowUpRight size={14} className="text-amber-500" />
+      };
+    } else if (balance < 0) {
+      return {
+        text: `We owe supplier ₨${Math.abs(balance).toFixed(2)}`,
+        color: "text-rose-600",
+        bg: "bg-rose-50",
+        border: "border-rose-200",
+        icon: <ArrowDownRight size={14} className="text-rose-500" />
+      };
+    } else {
+      return {
+        text: "Balance Settled",
+        color: "text-emerald-600",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+        icon: <CheckCircle size={14} className="text-emerald-500" />
+      };
+    }
+  };
+
   // ==================== RENDER ====================
   return (
     <div className="p-3 sm:p-4 bg-gradient-to-br from-indigo-50/50 via-white to-emerald-50/30 min-h-screen">
@@ -824,12 +527,6 @@ export default function Suppliers() {
           <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
             <Building2 size={10} />
             Manage supplier relationships, credit, and debit
-            {isUsingMock && (
-              <span className="ml-2 text-[7px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
-                <Database size={8} />
-                Mock Data
-              </span>
-            )}
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -865,9 +562,7 @@ export default function Suppliers() {
           { label: "Inactive", value: stats.inactive || 0, icon: X, color: "from-slate-500 to-slate-600" },
           { label: "Total Credit", value: formatCurrency(stats.totalCredit), icon: CreditIcon, color: "from-amber-500 to-orange-600" },
           { label: "Total Debit", value: formatCurrency(stats.totalDebit), icon: Receipt, color: "from-rose-500 to-red-600" },
-          { label: "Net Balance", value: formatCurrency(stats.totalBalance), icon: PiggyBank, color: "from-purple-500 to-pink-600" },
-          { label: "Purchases", value: stats.totalPurchases || 0, icon: TrendingUp, color: "from-blue-500 to-cyan-600" },
-          { label: "Avg Purchase", value: formatCurrency(stats.avgPurchase), icon: BarChart3, color: "from-cyan-500 to-blue-600" }
+          { label: "Net Balance", value: formatCurrency(stats.totalBalance), icon: PiggyBank, color: "from-purple-500 to-pink-600" }
         ].map((item, index) => (
           <div key={index} className={`bg-white rounded-xl border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group ${
             index >= 6 ? "hidden sm:block" : ""
@@ -883,7 +578,6 @@ export default function Suppliers() {
               item.label === "Total Debit" ? 'text-rose-600' : 
               item.label === "Net Balance" ? 'text-purple-600' :
               item.label === "Active" ? 'text-emerald-600' : 
-              item.label === "Avg Purchase" ? 'text-cyan-600' : 
               'text-slate-800'
             } mt-0.5`}>
               {item.value}
@@ -931,7 +625,7 @@ export default function Suppliers() {
           <div className="text-[10px] text-slate-400 font-medium whitespace-nowrap">
             {isLoading ? (
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+                <Loader2 size={10} className="animate-spin" />
                 Loading...
               </span>
             ) : (
@@ -948,7 +642,7 @@ export default function Suppliers() {
       {isLoading && !suppliers.length ? (
         <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-8 text-center">
           <div className="inline-flex items-center gap-2 text-slate-400">
-            <span className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+            <Loader2 size={16} className="animate-spin" />
             <span className="text-xs">Loading suppliers...</span>
           </div>
         </div>
@@ -976,9 +670,9 @@ export default function Suppliers() {
           {filteredSuppliers.map((supplier, index) => {
             const avatarColor = getAvatarColor(index);
             const initials = getInitials(supplier.name);
-            const balance = (supplier.credit || 0) - (supplier.debit || 0);
-            const isPositive = balance > 0;
-            const isNegative = balance < 0;
+            const balanceDisplay = getBalanceDisplay(supplier);
+            const credit = supplier.credit || 0;
+            const debit = supplier.debit || 0;
 
             return (
               <div
@@ -1030,65 +724,66 @@ export default function Suppliers() {
                     )}
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <p className="text-[7px] text-slate-400 uppercase font-medium">Balance</p>
-                        <div className="flex items-center gap-0.5">
-                          {isPositive && <ArrowUpRight size={10} className="text-amber-500" />}
-                          {isNegative && <ArrowDownRight size={10} className="text-emerald-500" />}
-                          <p className={`text-xs font-bold ${
-                            isPositive ? 'text-amber-600' : 
-                            isNegative ? 'text-emerald-600' : 
-                            'text-slate-600'
-                          }`}>
-                            {formatCurrency(balance)}
-                          </p>
+                  {/* ===== BALANCE DISPLAY ===== */}
+                  <div className="mt-2 pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wallet size={12} className="text-slate-400" />
+                        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-medium border ${balanceDisplay.bg} ${balanceDisplay.color} ${balanceDisplay.border}`}>
+                          {balanceDisplay.icon}
+                          <span>{balanceDisplay.text}</span>
                         </div>
                       </div>
-                      {supplier.purchase_count > 0 && (
-                        <div>
-                          <p className="text-[7px] text-slate-400 uppercase font-medium">Purchases</p>
-                          <p className="text-xs font-bold text-slate-700">{supplier.purchase_count}</p>
-                        </div>
-                      )}
-                      {supplier.total_purchases > 0 && (
-                        <div>
-                          <p className="text-[7px] text-slate-400 uppercase font-medium">Total</p>
-                          <p className="text-xs font-bold text-slate-700">{formatCurrency(supplier.total_purchases)}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        onClick={() => openDetailModal(supplier)}
-                        className="p-1 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
-                        title="View Details"
-                      >
-                        <Eye size={12} />
-                      </button>
-                      <button
-                        onClick={() => openBalanceModal(supplier)}
-                        className="p-1 rounded hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors"
-                        title="Update Balance"
-                      >
-                        <Wallet size={12} />
-                      </button>
-                      <button
-                        onClick={() => openEditModal(supplier)}
-                        className="p-1 rounded hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
-                        title="Edit"
-                      >
-                        <Edit3 size={12} />
-                      </button>
-                      {supplier.is_active === 1 && (
+                      <div className="flex items-center gap-0.5">
                         <button
-                          onClick={() => handleDelete(supplier.id, supplier.name)}
-                          className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                          title="Deactivate"
+                          onClick={() => openDetailModal(supplier)}
+                          className="p-1 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
+                          title="View Details"
                         >
-                          <Trash2 size={12} />
+                          <Eye size={12} />
                         </button>
+                        <button
+                          onClick={() => openBalanceModal(supplier)}
+                          className="p-1 rounded hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors"
+                          title="Update Balance"
+                        >
+                          <Wallet size={12} />
+                        </button>
+                        <button
+                          onClick={() => openEditModal(supplier)}
+                          className="p-1 rounded hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit3 size={12} />
+                        </button>
+                        {supplier.is_active === 1 && (
+                          <button
+                            onClick={() => handleDelete(supplier.id, supplier.name)}
+                            className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Deactivate"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* ===== Credit/Debit Breakdown ===== */}
+                    <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-slate-50">
+                      {credit > 0 && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] text-amber-600 font-medium">Credit:</span>
+                          <span className="text-[9px] font-semibold text-amber-600">{formatCurrency(credit)}</span>
+                        </div>
+                      )}
+                      {debit > 0 && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] text-rose-600 font-medium">Debit:</span>
+                          <span className="text-[9px] font-semibold text-rose-600">{formatCurrency(debit)}</span>
+                        </div>
+                      )}
+                      {credit === 0 && debit === 0 && (
+                        <span className="text-[8px] text-slate-400">No transactions yet</span>
                       )}
                     </div>
                   </div>
@@ -1242,7 +937,7 @@ export default function Suppliers() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                    Credit
+                    Credit (Supplier owes us)
                   </label>
                   <input
                     type="number"
@@ -1263,7 +958,7 @@ export default function Suppliers() {
 
                 <div>
                   <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                    Debit
+                    Debit (We owe supplier)
                   </label>
                   <input
                     type="number"

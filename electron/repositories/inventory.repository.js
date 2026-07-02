@@ -10,7 +10,8 @@ class InventoryRepository {
                 quantity,
                 reserved_quantity,
                 min_stock,
-                max_stock
+                max_stock,
+
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
 
@@ -44,17 +45,27 @@ class InventoryRepository {
         return stmt.all(productId);
     }
 
-    getByWarehouse(warehouseId) {
-        const stmt = db.prepare(`
-            SELECT i.*, p.name as product_name, p.code as product_code, b.batch_number
-            FROM inventory i
-            LEFT JOIN products p ON i.product_id = p.id
-            LEFT JOIN batches b ON i.batch_id = b.id
-            WHERE i.warehouse_id = ?
-            ORDER BY p.name ASC
-        `);
-        return stmt.all(warehouseId);
-    }
+   getByWarehouse(warehouseId) {
+    const stmt = db.prepare(`
+        SELECT 
+            i.*,
+            p.name as product_name,
+            p.code as product_code,
+            c.name as category_name,
+            c.id as category_id,
+            u.abbreviation as unit,
+            b.batch_number,
+            b.expiry_date
+        FROM inventory i
+        LEFT JOIN products p ON i.product_id = p.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        LEFT JOIN units u ON p.unit_id = u.id
+        LEFT JOIN batches b ON i.batch_id = b.id
+        WHERE i.warehouse_id = ?
+        ORDER BY p.name ASC
+    `);
+    return stmt.all(warehouseId);
+}
 
     getByProductAndWarehouse(productId, warehouseId) {
         const stmt = db.prepare(`
@@ -212,26 +223,31 @@ class InventoryRepository {
     }
 
     // Get inventory with product details for a specific warehouse
-    getDetailedWarehouseInventory(warehouseId) {
-        const stmt = db.prepare(`
-            SELECT 
-                i.*,
-                p.name as product_name,
-                p.code as product_code,
-                p.sale_price,
-                p.purchase_price,
-                b.batch_number,
-                b.expiry_date,
-                (i.quantity - i.reserved_quantity) as available_quantity
-            FROM inventory i
-            LEFT JOIN products p ON i.product_id = p.id
-            LEFT JOIN batches b ON i.batch_id = b.id
-            WHERE i.warehouse_id = ?
-            AND i.quantity > 0
-            ORDER BY p.name ASC
-        `);
-        return stmt.all(warehouseId);
-    }
+   getDetailedWarehouseInventory(warehouseId) {
+    const stmt = db.prepare(`
+        SELECT 
+            i.*,
+            p.name as product_name,
+            p.code as product_code,
+            p.sale_price,
+            p.purchase_price,
+            c.name as category_name,
+            c.id as category_id,
+            u.abbreviation as unit,
+            b.batch_number,
+            b.expiry_date,
+            (i.quantity - i.reserved_quantity) as available_quantity
+        FROM inventory i
+        LEFT JOIN products p ON i.product_id = p.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        LEFT JOIN units u ON p.unit_id = u.id
+        LEFT JOIN batches b ON i.batch_id = b.id
+        WHERE i.warehouse_id = ?
+        AND i.quantity > 0
+        ORDER BY p.name ASC
+    `);
+    return stmt.all(warehouseId);
+}
 }
 
 module.exports = new InventoryRepository();

@@ -6,6 +6,8 @@ const warehouseRepository = require('../repositories/warehouse.repository');
 const productRepository = require('../repositories/product.repository');
 const inventoryService = require('./inventory.service');
 const batchService = require('./batch.service');
+const pdfGenerator = require('../utils/pdfGenerator');
+const db = require('../database/database');
 
 class PurchaseService {
     // ==================== CREATE ====================
@@ -18,7 +20,7 @@ class PurchaseService {
 
         // Validate warehouse
         const warehouse = warehouseRepository.getById(data.warehouse_id);
-        if (!warehouse) {
+        if (!warehouse || !warehouse.success) {
             throw new Error('Warehouse not found');
         }
 
@@ -55,6 +57,8 @@ class PurchaseService {
         const discount = data.discount || 0;
         const tax = data.tax || 0;
         const finalTotal = totalAmount - discount + tax;
+        const paidAmount = data.paid_amount || 0;
+        const dueAmount = finalTotal - paidAmount;
 
         // Generate purchase number
         const purchaseNumber = purchaseRepository.generateNumber();
@@ -67,8 +71,8 @@ class PurchaseService {
             total_amount: finalTotal,
             discount: discount,
             tax: tax,
-            paid_amount: data.paid_amount || 0,
-            due_amount: finalTotal - (data.paid_amount || 0),
+            paid_amount: paidAmount,
+            due_amount: dueAmount,
             status: data.status || 'pending',
             payment_method: data.payment_method || null,
             purchase_date: data.purchase_date || new Date().toISOString(),
@@ -79,41 +83,134 @@ class PurchaseService {
         // Create purchase items
         purchaseRepository.createItems(purchase.id, data.items);
 
-        // Update supplier balance (debit - amount we owe supplier)
-        // Since we bought from supplier, we owe them money -> debit increases
-        const supplierUpdate = supplierRepository.updateBalance(
-            data.supplier_id,
-            0, // credit unchanged
-            finalTotal // debit increases (we owe supplier)
-        );
+        // ==========================================
+        // ✅ Update inventory table
+        // ==========================================
+        console.log(`\n📦 Purchase #${purchaseNumber} created. Updating inventory...`);
+        console.log(`📍 Warehouse ID: ${data.warehouse_id}`);
+        console.log(`📋 Items count: ${data.items.length}`);
 
-        // Update inventory and batches
-        for (const item of data.items) {
-            // Create or get batch
-            let batchId = null;
-            
-            if (item.batch_number) {
-                // Create new batch
-                const batch = await batchService.createBatch({
-                    product_id: item.product_id,
-                    batch_number: item.batch_number,
-                    purchase_price: item.purchase_price,
-                    sale_price: item.sale_price || 0,
-                    quantity: item.quantity,
-                    expiry_date: item.expiry_date || null
-                });
-                batchId = batch.id;
+        // Start a database transaction to ensure all updates succeed or fail together
+        const updateInventory = db.transaction((items, warehouseId) => {
+            for (const item of items) {
+                console.log(`  ⏳ Adding product ${item.product_id}, quantity ${item.quantity} to warehouse ${warehouseId}`);
+                
+                // Check if inventory record exists for this product in this warehouse
+                const existing = db.prepare(`
+                    SELECT id, quantity FROM inventory 
+                    WHERE product_id = ? AND warehouse_id = ? AND batch_id IS NULL
+                `).get(item.product_id, warehouseId);
+
+                if (existing) {
+                    // Update existing inventory
+                    const newQuantity = existing.quantity + item.quantity;
+                    db.prepare(`
+                        UPDATE inventory 
+                        SET quantity = ?,
+                            updated_at = CURRENT_TIMESTAMP,
+                            last_updated = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `).run(newQuantity, existing.id);
+                    
+                    console.log(`  ✅ Updated existing inventory: ${existing.quantity} → ${newQuantity}`);
+                } else {
+                    // Create new inventory record
+                    db.prepare(`
+                        INSERT INTO inventory (
+                            product_id,
+                            warehouse_id,
+                            batch_id,
+                            quantity,
+                            reserved_quantity,
+                            min_stock,
+                            max_stock,
+                            created_at,
+                            updated_at,
+                            last_updated
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    `).run(
+                        item.product_id,
+                        warehouseId,
+                        null, // batch_id (null for now)
+                        item.quantity,
+                        0, // reserved_quantity
+                        0, // min_stock
+                        0 // max_stock
+                    );
+                    
+                    console.log(`  ✅ Created new inventory record with ${item.quantity} units`);
+                }
+
+                // Update product stock_quantity
+                db.prepare(`
+                    UPDATE products 
+                    SET stock_quantity = stock_quantity + ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).run(item.quantity, item.product_id);
             }
+        });
 
-            // Update inventory
-            await inventoryService.addStock({
-                product_id: item.product_id,
-                warehouse_id: data.warehouse_id,
-                batch_id: batchId,
-                quantity: item.quantity,
-                purchase_price: item.purchase_price,
-                sale_price: item.sale_price || 0
-            });
+        // Execute the transaction
+        try {
+            updateInventory(data.items, data.warehouse_id);
+            console.log('✅ Inventory updated successfully!');
+        } catch (error) {
+            console.error('❌ Inventory update failed:', error);
+            throw new Error(`Failed to update inventory: ${error.message}`);
+        }
+
+        // ==========================================
+        // ✅ Update supplier balance
+        // ==========================================
+        console.log(`\n💰 Updating supplier balance...`);
+        console.log(`  Total Amount: ${finalTotal}`);
+        console.log(`  Paid Amount: ${paidAmount}`);
+        console.log(`  Due Amount: ${dueAmount}`);
+
+        if (dueAmount > 0) {
+            // We owe money to supplier → Increase DEBIT (negative balance)
+            console.log(`  ➕ Adding ${dueAmount} to DEBIT (we owe supplier)`);
+            const result = supplierRepository.updateDebit(data.supplier_id, dueAmount);
+            console.log(`  ✅ Debit updated:`, result);
+        } else if (dueAmount < 0) {
+            // Supplier owes us money → Increase CREDIT (positive balance)
+            const creditAmount = Math.abs(dueAmount);
+            console.log(`  ➕ Adding ${creditAmount} to CREDIT (supplier owes us)`);
+            const result = supplierRepository.updateCredit(data.supplier_id, creditAmount);
+            console.log(`  ✅ Credit updated:`, result);
+        } else {
+            console.log(`  ℹ️ No balance change (fully paid)`);
+        }
+
+        // Verify the update
+        const updatedSupplier = supplierRepository.getById(data.supplier_id);
+        console.log(`\n📊 Updated Supplier Balance:`);
+        console.log(`  Credit: ${updatedSupplier?.credit || 0}`);
+        console.log(`  Debit: ${updatedSupplier?.debit || 0}`);
+        console.log(`  Net Balance: ${(updatedSupplier?.credit || 0) - (updatedSupplier?.debit || 0)}`);
+
+        // ==========================================
+        // ✅ GENERATE PDF
+        // ==========================================
+        try {
+            const purchaseWithDetails = this.getPurchaseById(purchase.id);
+            const itemsWithDetails = purchaseRepository.getItems(purchase.id);
+            
+            const pdfResult = await pdfGenerator.generateAndSavePurchase(
+                purchaseWithDetails.data,
+                itemsWithDetails
+            );
+            
+            if (pdfResult.success) {
+                console.log(`📄 Purchase PDF generated: ${pdfResult.filename}`);
+                console.log(`📁 Saved to: ${pdfResult.path}`);
+            } else {
+                console.error('❌ PDF generation failed:', pdfResult.error);
+            }
+        } catch (pdfError) {
+            console.error('❌ PDF generation error:', pdfError);
+            // Don't fail the purchase if PDF generation fails
         }
 
         // Return complete purchase
@@ -124,7 +221,6 @@ class PurchaseService {
     getAllPurchases(filters = {}) {
         const purchases = purchaseRepository.getAll(filters);
         
-        // Get items for each purchase
         const result = purchases.map(purchase => {
             const items = purchaseRepository.getItems(purchase.id);
             return { ...purchase, items };
@@ -199,23 +295,40 @@ class PurchaseService {
             throw new Error('Purchase not found');
         }
 
-        // If status is being updated to completed, handle inventory
-        if (data.status === 'completed' && existing.status !== 'completed') {
-            // Purchase completed - inventory already updated on creation
-            // Just update the status
-        }
-
-        // If status is being updated to cancelled, reverse inventory
+        // If status is being updated to cancelled, reverse inventory and balance
         if (data.status === 'cancelled' && existing.status !== 'cancelled') {
-            // Reverse inventory updates
             const items = purchaseRepository.getItems(id);
+            
+            // Reverse inventory
             for (const item of items) {
-                await inventoryService.removeStock({
-                    product_id: item.product_id,
-                    warehouse_id: existing.warehouse_id,
-                    quantity: item.quantity,
-                    batch_id: item.batch_id
-                });
+                const existingInventory = db.prepare(`
+                    SELECT id, quantity FROM inventory 
+                    WHERE product_id = ? AND warehouse_id = ? AND batch_id IS NULL
+                `).get(item.product_id, existing.warehouse_id);
+
+                if (existingInventory) {
+                    const newQuantity = existingInventory.quantity - item.quantity;
+                    db.prepare(`
+                        UPDATE inventory 
+                        SET quantity = ?,
+                            updated_at = CURRENT_TIMESTAMP,
+                            last_updated = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `).run(newQuantity, existingInventory.id);
+                }
+
+                db.prepare(`
+                    UPDATE products 
+                    SET stock_quantity = stock_quantity - ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).run(item.quantity, item.product_id);
+            }
+
+            // Reverse supplier balance
+            const dueAmount = existing.total_amount - (existing.paid_amount || 0);
+            if (dueAmount > 0) {
+                supplierRepository.updateDebit(existing.supplier_id, -dueAmount);
             }
         }
 
@@ -245,26 +358,40 @@ class PurchaseService {
             throw new Error('Purchase not found');
         }
 
-        // If cancelling, reverse inventory
+        // If cancelling, reverse inventory and balance
         if (status === 'cancelled' && existing.status !== 'cancelled') {
             const items = purchaseRepository.getItems(id);
+            
+            // Reverse inventory
             for (const item of items) {
-                await inventoryService.removeStock({
-                    product_id: item.product_id,
-                    warehouse_id: existing.warehouse_id,
-                    quantity: item.quantity,
-                    batch_id: item.batch_id
-                });
+                const existingInventory = db.prepare(`
+                    SELECT id, quantity FROM inventory 
+                    WHERE product_id = ? AND warehouse_id = ? AND batch_id IS NULL
+                `).get(item.product_id, existing.warehouse_id);
+
+                if (existingInventory) {
+                    const newQuantity = existingInventory.quantity - item.quantity;
+                    db.prepare(`
+                        UPDATE inventory 
+                        SET quantity = ?,
+                            updated_at = CURRENT_TIMESTAMP,
+                            last_updated = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `).run(newQuantity, existingInventory.id);
+                }
+
+                db.prepare(`
+                    UPDATE products 
+                    SET stock_quantity = stock_quantity - ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).run(item.quantity, item.product_id);
             }
 
             // Reverse supplier balance
-            const supplier = supplierRepository.getById(existing.supplier_id);
-            if (supplier) {
-                supplierRepository.updateBalance(
-                    existing.supplier_id,
-                    0,
-                    -existing.total_amount // Decrease debit (reverse amount we owe)
-                );
+            const dueAmount = existing.total_amount - (existing.paid_amount || 0);
+            if (dueAmount > 0) {
+                supplierRepository.updateDebit(existing.supplier_id, -dueAmount);
             }
         }
 
@@ -291,16 +418,39 @@ class PurchaseService {
             throw new Error('Purchase not found');
         }
 
-        // If completed, reverse inventory first
+        // If completed, reverse inventory and balance
         if (existing.status === 'completed') {
             const items = purchaseRepository.getItems(id);
+            
             for (const item of items) {
-                await inventoryService.removeStock({
-                    product_id: item.product_id,
-                    warehouse_id: existing.warehouse_id,
-                    quantity: item.quantity,
-                    batch_id: item.batch_id
-                });
+                const existingInventory = db.prepare(`
+                    SELECT id, quantity FROM inventory 
+                    WHERE product_id = ? AND warehouse_id = ? AND batch_id IS NULL
+                `).get(item.product_id, existing.warehouse_id);
+
+                if (existingInventory) {
+                    const newQuantity = existingInventory.quantity - item.quantity;
+                    db.prepare(`
+                        UPDATE inventory 
+                        SET quantity = ?,
+                            updated_at = CURRENT_TIMESTAMP,
+                            last_updated = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `).run(newQuantity, existingInventory.id);
+                }
+
+                db.prepare(`
+                    UPDATE products 
+                    SET stock_quantity = stock_quantity - ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).run(item.quantity, item.product_id);
+            }
+
+            // Reverse supplier balance
+            const dueAmount = existing.total_amount - (existing.paid_amount || 0);
+            if (dueAmount > 0) {
+                supplierRepository.updateDebit(existing.supplier_id, -dueAmount);
             }
         }
 
@@ -334,6 +484,44 @@ class PurchaseService {
             success: true,
             data: { purchase_number: number }
         };
+    }
+
+    // ==================== GET WAREHOUSE INVENTORY ====================
+    getWarehouseInventory(warehouseId) {
+        try {
+            const stmt = db.prepare(`
+                SELECT 
+                    i.*,
+                    p.name as product_name,
+                    p.code as product_code,
+                    p.sale_price,
+                    p.purchase_price,
+                    u.abbreviation as unit,
+                    c.name as category_name,
+                    c.id as category_id,
+                    (i.quantity - i.reserved_quantity) as available_quantity
+                FROM inventory i
+                LEFT JOIN products p ON i.product_id = p.id
+                LEFT JOIN units u ON p.unit_id = u.id
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE i.warehouse_id = ?
+                AND i.quantity > 0
+                ORDER BY p.name ASC
+            `);
+            const result = stmt.all(warehouseId);
+            return {
+                success: true,
+                data: result,
+                count: result.length
+            };
+        } catch (error) {
+            console.error('Error getting warehouse inventory:', error);
+            return {
+                success: false,
+                error: error.message,
+                data: []
+            };
+        }
     }
 }
 

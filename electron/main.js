@@ -14,6 +14,7 @@ const { registerPurchaseIPC } = require("./ipc/purchase.ipc.js")
 const { registerSalesIPC } = require("./ipc/sales.ipc.js")
 const { registerLedgerIPC } = require("./ipc/ledger.ipc.js")
 const { registerPDFIPC } = require('./ipc/pdf.ipc');
+const pdfGenerator = require('./utils/pdfGenerator'); // Add this import
 const fs = require("fs")
 
 
@@ -75,6 +76,25 @@ app.whenReady().then(() => {
   registerSalesIPC()
   registerLedgerIPC()
   registerPDFIPC();
+  
+  // ===== ADD PDF GENERATION IPC HANDLER =====
+  // This handles the save dialog for PDFs
+  ipcMain.handle('generate-and-save-pdf', async (event, type, data, items) => {
+    try {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      
+      if (type === 'sale') {
+        return await pdfGenerator.generateAndSave(data, items, window);
+      } else if (type === 'purchase') {
+        return await pdfGenerator.generateAndSavePurchase(data, items, window);
+      } else {
+        throw new Error(`Unknown PDF type: ${type}`);
+      }
+    } catch (error) {
+      console.error('PDF generation IPC error:', error);
+      return { success: false, error: error.message };
+    }
+  });
   
   BackupFolderExists();
 

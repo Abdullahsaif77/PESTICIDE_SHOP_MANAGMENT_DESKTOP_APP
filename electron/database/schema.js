@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS units (
 -- Products (Main product catalog)
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code TEXT UNIQUE,
+    code TEXT UNIQUE,  -- Made optional by removing NOT NULL
     name TEXT NOT NULL,
     brand TEXT,
     category_id INTEGER,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS products (
     sale_price REAL NOT NULL DEFAULT 0,
     stock_quantity REAL NOT NULL DEFAULT 0,
     reorder_level REAL DEFAULT 0,
-    barcode TEXT UNIQUE,
+    barcode TEXT UNIQUE,  -- Made optional by removing NOT NULL
     description TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

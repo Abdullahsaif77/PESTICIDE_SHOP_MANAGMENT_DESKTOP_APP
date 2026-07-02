@@ -26,207 +26,9 @@ import {
   BarChart3,
   Grid,
   List,
-  Eye
+  Eye,
+  Loader2
 } from "lucide-react";
-
-// ==================== MOCK DATA ====================
-const MOCK_INVENTORY = [
-  {
-    id: 1,
-    product_id: 1,
-    name: "Pesticide X",
-    code: "PST-001",
-    category: "Insecticides",
-    unit: "Liter",
-    sale_price: 450,
-    purchase_price: 320,
-    reorder_level: 20,
-    total_quantity: 210,
-    inventory: [
-      { warehouse_id: 1, warehouse_name: "Main Warehouse", quantity: 150, reserved: 10 },
-      { warehouse_id: 2, warehouse_name: "Branch Warehouse", quantity: 60, reserved: 0 }
-    ],
-    batches: [
-      { id: 1, batch_number: "BATCH-001", quantity: 100, expiry_date: "2025-12-31" },
-      { id: 2, batch_number: "BATCH-002", quantity: 50, expiry_date: "2026-06-15" }
-    ]
-  },
-  {
-    id: 2,
-    product_id: 2,
-    name: "Herbicide Y",
-    code: "HRB-002",
-    category: "Herbicides",
-    unit: "Kilogram",
-    sale_price: 320,
-    purchase_price: 220,
-    reorder_level: 15,
-    total_quantity: 195,
-    inventory: [
-      { warehouse_id: 1, warehouse_name: "Main Warehouse", quantity: 75, reserved: 5 },
-      { warehouse_id: 3, warehouse_name: "Storage Facility", quantity: 120, reserved: 0 }
-    ],
-    batches: [
-      { id: 4, batch_number: "BATCH-003", quantity: 75, expiry_date: "2025-09-20" },
-      { id: 5, batch_number: "BATCH-009", quantity: 120, expiry_date: "2025-10-10" }
-    ]
-  },
-  {
-    id: 3,
-    product_id: 3,
-    name: "Fungicide Z",
-    code: "FNG-003",
-    category: "Fungicides",
-    unit: "Liter",
-    sale_price: 280,
-    purchase_price: 190,
-    reorder_level: 25,
-    total_quantity: 35,
-    inventory: [
-      { warehouse_id: 1, warehouse_name: "Main Warehouse", quantity: 5, reserved: 0 },
-      { warehouse_id: 2, warehouse_name: "Branch Warehouse", quantity: 30, reserved: 0 }
-    ],
-    batches: [
-      { id: 6, batch_number: "BATCH-004", quantity: 5, expiry_date: "2025-07-10" },
-      { id: 7, batch_number: "BATCH-007", quantity: 30, expiry_date: "2025-08-15" }
-    ]
-  },
-  {
-    id: 4,
-    product_id: 4,
-    name: "Rodenticide R",
-    code: "RDT-004",
-    category: "Rodenticides",
-    unit: "Kilogram",
-    sale_price: 550,
-    purchase_price: 400,
-    reorder_level: 10,
-    total_quantity: 10,
-    inventory: [
-      { warehouse_id: 2, warehouse_name: "Branch Warehouse", quantity: 10, reserved: 0 }
-    ],
-    batches: [
-      { id: 8, batch_number: "BATCH-008", quantity: 10, expiry_date: "2025-11-30" }
-    ]
-  },
-  {
-    id: 5,
-    product_id: 5,
-    name: "Fertilizer F",
-    code: "FRT-005",
-    category: "Fertilizers",
-    unit: "Kilogram",
-    sale_price: 180,
-    purchase_price: 120,
-    reorder_level: 50,
-    total_quantity: 500,
-    inventory: [
-      { warehouse_id: 1, warehouse_name: "Main Warehouse", quantity: 200, reserved: 0 },
-      { warehouse_id: 3, warehouse_name: "Storage Facility", quantity: 300, reserved: 0 }
-    ],
-    batches: [
-      { id: 9, batch_number: "BATCH-005", quantity: 200, expiry_date: "2026-03-01" },
-      { id: 10, batch_number: "BATCH-010", quantity: 300, expiry_date: "2026-01-15" }
-    ]
-  },
-  {
-    id: 6,
-    product_id: 6,
-    name: "Spray Bottle S",
-    code: "SPR-006",
-    category: "Insecticides",
-    unit: "Bottle",
-    sale_price: 150,
-    purchase_price: 90,
-    reorder_level: 30,
-    total_quantity: 0,
-    inventory: [],
-    batches: []
-  },
-  {
-    id: 7,
-    product_id: 7,
-    name: "Weed Killer W",
-    code: "WDK-007",
-    category: "Herbicides",
-    unit: "Liter",
-    sale_price: 250,
-    purchase_price: 170,
-    reorder_level: 20,
-    total_quantity: 8,
-    inventory: [
-      { warehouse_id: 2, warehouse_name: "Branch Warehouse", quantity: 8, reserved: 0 }
-    ],
-    batches: [
-      { id: 11, batch_number: "BATCH-011", quantity: 8, expiry_date: "2025-06-01" }
-    ]
-  },
-  {
-    id: 8,
-    product_id: 8,
-    name: "Growth Booster G",
-    code: "GRB-008",
-    category: "Fertilizers",
-    unit: "Liter",
-    sale_price: 150,
-    purchase_price: 90,
-    reorder_level: 40,
-    total_quantity: 45,
-    inventory: [
-      { warehouse_id: 1, warehouse_name: "Main Warehouse", quantity: 45, reserved: 0 }
-    ],
-    batches: [
-      { id: 12, batch_number: "BATCH-012", quantity: 45, expiry_date: "2026-04-20" }
-    ]
-  },
-  {
-    id: 9,
-    product_id: 9,
-    name: "Pesticide Tablet T",
-    code: "PST-009",
-    category: "Insecticides",
-    unit: "Pack",
-    sale_price: 250,
-    purchase_price: 180,
-    reorder_level: 10,
-    total_quantity: 50,
-    inventory: [
-      { warehouse_id: 1, warehouse_name: "Main Warehouse", quantity: 30, reserved: 0 },
-      { warehouse_id: 2, warehouse_name: "Branch Warehouse", quantity: 20, reserved: 0 }
-    ],
-    batches: [
-      { id: 13, batch_number: "BATCH-013", quantity: 30, expiry_date: "2026-08-10" },
-      { id: 14, batch_number: "BATCH-014", quantity: 20, expiry_date: "2026-09-15" }
-    ]
-  },
-  {
-    id: 10,
-    product_id: 10,
-    name: "Fertilizer Bag B",
-    code: "FRT-010",
-    category: "Fertilizers",
-    unit: "Bag",
-    sale_price: 350,
-    purchase_price: 250,
-    reorder_level: 5,
-    total_quantity: 15,
-    inventory: [
-      { warehouse_id: 3, warehouse_name: "Storage Facility", quantity: 15, reserved: 0 }
-    ],
-    batches: [
-      { id: 15, batch_number: "BATCH-015", quantity: 15, expiry_date: "2026-12-01" }
-    ]
-  }
-];
-
-const MOCK_WAREHOUSES = [
-  { id: 1, name: "Main Warehouse", location: "Ground Floor" },
-  { id: 2, name: "Branch Warehouse", location: "First Floor" },
-  { id: 3, name: "Storage Facility", location: "Industrial Area" }
-];
-
-const MOCK_CATEGORIES = ["All", "Insecticides", "Herbicides", "Fungicides", "Rodenticides", "Fertilizers"];
-const STATUS_OPTIONS = ["All", "In Stock", "Low Stock", "Out of Stock"];
 
 const api = window.api || {};
 
@@ -240,14 +42,15 @@ const colorSchemes = [
   { from: "from-cyan-500", to: "to-sky-600", light: "from-cyan-50/50 to-sky-50/30", icon: "text-cyan-500", shadow: "shadow-cyan-500/20" },
 ];
 
+const STATUS_OPTIONS = ["All", "In Stock", "Low Stock", "Out of Stock"];
+
 export default function Inventory() {
   // ==================== STATE ====================
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [warehouses, setWarehouses] = useState(MOCK_WAREHOUSES);
-  const [categories, setCategories] = useState(MOCK_CATEGORIES);
+  const [warehouses, setWarehouses] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [useMockData, setUseMockData] = useState(true);
   const [summary, setSummary] = useState({
     totalProducts: 0,
     totalQuantity: 0,
@@ -299,54 +102,100 @@ export default function Inventory() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      if (useMockData) {
-        setProducts(MOCK_INVENTORY);
-        setWarehouses(MOCK_WAREHOUSES);
-        setCategories(MOCK_CATEGORIES);
-        calculateSummary(MOCK_INVENTORY);
-        setIsLoading(false);
-        return;
-      }
-
-      const productsResult = await api.getProducts();
-      if (!productsResult.success) {
-        showNotification("error", productsResult.error || "Failed to load products");
-        setIsLoading(false);
-        return;
-      }
-
+      // Load warehouses first
       const warehousesResult = await api.getActiveOnlyWarehouses();
       if (warehousesResult.success) {
         setWarehouses(warehousesResult.data || []);
       }
 
+      // Load products
+      const productsResult = await api.getProducts();
+      
+      // Handle both array and object responses
+      let productsData = [];
+      if (Array.isArray(productsResult)) {
+        productsData = productsResult;
+      } else if (productsResult.success && productsResult.data) {
+        productsData = productsResult.data;
+      } else if (productsResult.success && Array.isArray(productsResult)) {
+        productsData = productsResult;
+      } else {
+        productsData = [];
+        console.warn('Products data not available:', productsResult);
+      }
+
+      console.log('📦 Products loaded:', productsData.length);
+
+      // Process each product to get inventory and batches
       const productsWithInventory = await Promise.all(
-        (productsResult.data || []).map(async (product) => {
-          const inventoryResult = await api.getInventoryByProduct(product.id);
-          const batchesResult = await api.getBatchesByProduct(product.id);
-          
-          return {
-            ...product,
-            inventory: inventoryResult.success ? inventoryResult.data : [],
-            batches: batchesResult.success ? batchesResult.data : [],
-            total_quantity: inventoryResult.success 
-              ? inventoryResult.data.reduce((sum, i) => sum + (i.quantity || 0), 0)
-              : 0
-          };
+        productsData.map(async (product) => {
+          // Get inventory for this product
+          try {
+            const inventoryResult = await api.getInventoryByProduct(product.id);
+            const inventoryData = inventoryResult.success ? inventoryResult.data : [];
+            
+            // Get batches for this product
+            const batchesResult = await api.getBatchesByProduct(product.id);
+            const batchesData = batchesResult.success ? batchesResult.data : [];
+
+            // Calculate total quantity from inventory
+            const totalQuantity = inventoryData.reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+            // Get category name
+            let categoryName = '';
+            if (product.category_id) {
+              try {
+                const catResult = await api.getCategoryById(product.category_id);
+                if (catResult.success && catResult.data) {
+                  categoryName = catResult.data.name;
+                }
+              } catch (err) {
+                console.error('Error fetching category:', err);
+              }
+            }
+
+            return {
+              ...product,
+              inventory: inventoryData,
+              batches: batchesData,
+              total_quantity: totalQuantity,
+              category: categoryName || 'Uncategorized'
+            };
+          } catch (err) {
+            console.error(`Error processing product ${product.id}:`, err);
+            return {
+              ...product,
+              inventory: [],
+              batches: [],
+              total_quantity: 0,
+              category: 'Uncategorized'
+            };
+          }
         })
       );
 
-      setProducts(productsWithInventory);
+      console.log('📊 Products with inventory:', productsWithInventory.length);
+      console.log('📊 Products with stock:', productsWithInventory.filter(p => p.total_quantity > 0).length);
 
+      setProducts(productsWithInventory);
+      calculateSummary(productsWithInventory);
+
+      // Extract unique categories
       const uniqueCategories = ["All", ...new Set(productsWithInventory.map(p => p.category).filter(Boolean))];
       setCategories(uniqueCategories);
 
-      const summaryResult = await api.getInventorySummary();
-      if (summaryResult.success) {
-        setSummary(summaryResult.data);
+      // Get inventory summary
+      try {
+        const summaryResult = await api.getInventorySummary();
+        if (summaryResult.success) {
+          setSummary(prev => ({
+            ...prev,
+            ...summaryResult.data
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching summary:', err);
       }
-
-      calculateSummary(productsWithInventory);
 
     } catch (err) {
       console.error("Error loading data:", err);
@@ -518,20 +367,6 @@ export default function Inventory() {
       const product = reorderModal.product;
       const newLevel = parseFloat(reorderForm.reorder_level);
 
-      if (useMockData) {
-        const updatedProducts = products.map(p => {
-          if (p.id === product.id) {
-            return { ...p, reorder_level: newLevel };
-          }
-          return p;
-        });
-        setProducts(updatedProducts);
-        calculateSummary(updatedProducts);
-        showNotification("success", `Reorder level updated to ${newLevel} ${product.unit || ''}`);
-        setReorderModal({ open: false, product: null });
-        return;
-      }
-
       const result = await api.updateMinMaxStock(
         product.id,
         null,
@@ -630,34 +465,24 @@ export default function Inventory() {
       {/* ===== HEADER ===== */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
         <div className="flex items-center gap-2">
-          
+          <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25">
+            <BarChart3 size={18} />
+          </div>
           <div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-slate-800 via-indigo-700 to-blue-600 bg-clip-text text-transparent">
               Inventory Management
             </h1>
             <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-              <BarChart3 size={10} />
-              Track stock across all warehouses
+              <Package size={10} />
+              Track stock across {warehouses.length} warehouse{warehouses.length !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
-            onClick={() => {
-              setUseMockData(!useMockData);
-              loadData();
-            }}
-            className={`text-[10px] px-2 py-1 rounded-lg border transition-all duration-300 ${
-              useMockData 
-                ? 'bg-gradient-to-r from-amber-50 to-amber-100 border-amber-200 text-amber-600' 
-                : 'bg-slate-50 border-slate-200 text-slate-500'
-            }`}
-          >
-            {useMockData ? '📦 Mock' : '🔌 Live'}
-          </button>
-          <button
             onClick={handleExport}
-            className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-white rounded-lg transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800"
+            disabled={filteredProducts.length === 0}
+            className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-white rounded-lg transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800"
           >
             <Download size={12} />
             Export
@@ -682,9 +507,8 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* ===== SUMMARY CARDS - Smaller & Colorful ===== */}
+      {/* ===== SUMMARY CARDS ===== */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-4">
-        {/* Total Products - Blue */}
         <div className="relative overflow-hidden bg-white rounded-lg border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group">
           <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-blue-500/10 to-indigo-600/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
           <div className="flex items-center justify-between relative">
@@ -697,7 +521,6 @@ export default function Inventory() {
           <div className="w-full h-0.5 bg-gradient-to-r from-blue-500/20 to-transparent mt-1 rounded-full" />
         </div>
 
-        {/* Total Quantity - Emerald */}
         <div className="relative overflow-hidden bg-white rounded-lg border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group">
           <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-emerald-500/10 to-teal-600/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
           <div className="flex items-center justify-between relative">
@@ -710,7 +533,6 @@ export default function Inventory() {
           <div className="w-full h-0.5 bg-gradient-to-r from-emerald-500/20 to-transparent mt-1 rounded-full" />
         </div>
 
-        {/* Total Value - Amber */}
         <div className="relative overflow-hidden bg-white rounded-lg border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group">
           <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-amber-500/10 to-orange-600/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
           <div className="flex items-center justify-between relative">
@@ -723,7 +545,6 @@ export default function Inventory() {
           <div className="w-full h-0.5 bg-gradient-to-r from-amber-500/20 to-transparent mt-1 rounded-full" />
         </div>
 
-        {/* Low Stock - Rose */}
         <div className="relative overflow-hidden bg-white rounded-lg border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group">
           <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-rose-500/10 to-pink-600/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
           <div className="flex items-center justify-between relative">
@@ -736,7 +557,6 @@ export default function Inventory() {
           <div className="w-full h-0.5 bg-gradient-to-r from-rose-500/20 to-transparent mt-1 rounded-full" />
         </div>
 
-        {/* Out of Stock - Red */}
         <div className="relative overflow-hidden bg-white rounded-lg border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group">
           <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-red-500/10 to-red-600/5 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500" />
           <div className="flex items-center justify-between relative">
@@ -750,7 +570,7 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* ===== FILTERS - Compact ===== */}
+      {/* ===== FILTERS ===== */}
       <div className="bg-white/80 backdrop-blur-sm rounded-lg border border-slate-200/60 shadow-sm p-2.5 mb-3">
         <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2">
           <div className="relative flex-1 w-full">
@@ -779,9 +599,11 @@ export default function Inventory() {
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="w-full pl-7 pr-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 bg-white transition-all appearance-none"
             >
-              {categories.map((cat) => (
+              {categories.length > 0 ? categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
-              ))}
+              )) : (
+                <option value="All">All</option>
+              )}
             </select>
             <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
@@ -818,7 +640,7 @@ export default function Inventory() {
           <div className="text-[10px] text-slate-400 font-medium whitespace-nowrap">
             {isLoading ? (
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+                <Loader2 size={10} className="animate-spin" />
                 Loading...
               </span>
             ) : (
@@ -832,10 +654,10 @@ export default function Inventory() {
       </div>
 
       {/* ===== PRODUCT LIST ===== */}
-      {isLoading ? (
+      {isLoading && filteredProducts.length === 0 ? (
         <div className="bg-white rounded-lg border border-slate-200/60 shadow-sm p-8 text-center">
           <div className="inline-flex items-center gap-2 text-slate-400 text-xs">
-            <span className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+            <Loader2 size={16} className="animate-spin" />
             Loading inventory...
           </div>
         </div>
@@ -852,7 +674,7 @@ export default function Inventory() {
           </p>
         </div>
       ) : viewMode === "table" ? (
-        // ===== TABLE VIEW - Compact =====
+        // ===== TABLE VIEW =====
         <div className="bg-white rounded-lg border border-slate-200/60 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -967,7 +789,7 @@ export default function Inventory() {
                                       <div key={inv.warehouse_id} className="bg-white rounded border border-indigo-100 p-1.5 shadow-sm">
                                         <p className="text-[9px] font-medium text-slate-700">{getWarehouseName(inv.warehouse_id)}</p>
                                         <p className="text-[8px] text-slate-500">Qty: <span className="font-semibold text-indigo-600">{inv.quantity} {getUnitDisplay(product.unit, inv.quantity)}</span></p>
-                                        {inv.reserved > 0 && <p className="text-[7px] text-amber-600">Reserved: {inv.reserved}</p>}
+                                        {inv.reserved_quantity > 0 && <p className="text-[7px] text-amber-600">Reserved: {inv.reserved_quantity}</p>}
                                       </div>
                                     ))}
                                   </div>
@@ -1018,14 +840,14 @@ export default function Inventory() {
           </div>
         </div>
       ) : (
-        // ===== CARD VIEW - Compact & Colorful =====
+        // ===== CARD VIEW =====
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
           {filteredProducts.map((product, index) => {
             const stockStatus = getStockStatus(product);
             const color = colorSchemes[index % colorSchemes.length];
 
             return (
-              <div key={product.id} className={`group bg-white rounded-lg border border-slate-200/60 shadow-sm hover:shadow-lg transition-all duration-300 p-3 hover:-translate-y-0.5 hover:border-${color.from.replace('from-', '')}/50`}>
+              <div key={product.id} className="group bg-white rounded-lg border border-slate-200/60 shadow-sm hover:shadow-lg transition-all duration-300 p-3 hover:-translate-y-0.5 hover:border-indigo-300">
                 <div className="relative overflow-hidden">
                   <div className={`absolute -top-16 -right-16 w-32 h-32 bg-gradient-to-br ${color.light} rounded-full group-hover:scale-150 transition-transform duration-500`} />
                   

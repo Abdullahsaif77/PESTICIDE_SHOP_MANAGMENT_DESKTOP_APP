@@ -40,20 +40,22 @@ function registerProductIPC() {
     })
 
     ipcMain.handle("product:add", async (event, data) => {
-        try {
-            return productService.createProduct(data)
-        } catch (error) {
-            return { error: error.message }
-        }
-    })
+    try {
+        const result = productService.createProduct(data)
+        return result  
+    } catch (error) {
+        return { success: false, error: error.message }
+    }
+})
 
-    ipcMain.handle("product:update", async (event, id, data) => {
-        try {
-            return productService.updateProduct(id, data)
-        } catch (error) {
-            return { error: error.message }
-        }
-    })
+   ipcMain.handle("product:update", async (event, id, data) => {
+    try {
+        const result = productService.updateProduct(id, data);
+        return result;  // Should return { success: true, data: product, message: '...' }
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+})
 
     ipcMain.handle("product:delete", (event, id) => {
         try {
@@ -96,13 +98,14 @@ function registerProductIPC() {
         }
     })
 
-    ipcMain.handle("category:add", async (event, data) => {
-        try {
-            return productService.createCategory(data)
-        } catch (error) {
-            return { error: error.message }
-        }
-    })
+   ipcMain.handle("category:add", async (event, data) => {
+    try {
+        const result = productService.createCategory(data)
+        return result
+    } catch (error) {
+        return { success: false, error: error.message }
+    }
+})
 
     ipcMain.handle("category:update", (event, id, data) => {
         try {
@@ -146,12 +149,13 @@ function registerProductIPC() {
     })
 
     ipcMain.handle("unit:add", async (event, data) => {
-        try {
-            return productService.createUnit(data)
-        } catch (error) {
-            return { error: error.message }
-        }
-    })
+    try {
+        const result = productService.createUnit(data)
+        return result
+    } catch (error) {
+        return { success: false, error: error.message }
+    }
+})
 
     ipcMain.handle("unit:update", (event, id, data) => {
         try {

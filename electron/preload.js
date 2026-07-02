@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld("api", {
   getWarehouseById: (id) => ipcRenderer.invoke("warehouse:getById", id),
   updateWarehouse: (id, data) => ipcRenderer.invoke("warehouse:update", id, data),
   deleteWarehouse: (id) => ipcRenderer.invoke("warehouse:delete", id),
+  
+  // --- Warehouse Inventory ---
+  getWarehouseInventory: (warehouseId) => ipcRenderer.invoke("purchase:getWarehouseInventory", warehouseId),
 
   // --- Batch Management ---
   createBatch: (data) => ipcRenderer.invoke("batch:create", data),
@@ -166,4 +169,10 @@ contextBridge.exposeInMainWorld("api", {
   createBackup: () => ipcRenderer.invoke("backup:create"),
   restoreBackup: (zipFilePath) => ipcRenderer.invoke("backup:restore", zipFilePath),
   selectBackupFile: () => ipcRenderer.invoke('dialog:selectBackupFile'),
+
+  // ===== PDF GENERATION =====
+  // Generate and save PDF with user dialog
+  generateAndSavePDF: (type, data, items) => {
+    return ipcRenderer.invoke('generate-and-save-pdf', type, data, items);
+  },
 });

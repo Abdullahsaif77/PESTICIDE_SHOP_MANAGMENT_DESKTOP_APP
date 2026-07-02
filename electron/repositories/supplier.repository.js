@@ -257,20 +257,21 @@ class SupplierRepository {
         }
     }
 
-    // Additional helper methods
-    getTotalSuppliers() {
-        const stmt = db.prepare(`
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
-                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive,
-                SUM(credit) as total_credit,
-                SUM(debit) as total_debit,
-                SUM(credit - debit) as total_balance
-            FROM suppliers
-        `);
-        return stmt.get();
-    }
+    // electron/repositories/supplier.repository.js
+
+getTotalSuppliers() {
+    const stmt = db.prepare(`
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
+            SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive,
+            COALESCE(SUM(credit), 0) as total_credit,
+            COALESCE(SUM(debit), 0) as total_debit,
+            COALESCE(SUM(credit - debit), 0) as total_balance
+        FROM suppliers
+    `);
+    return stmt.get();
+}
 
     getRecentSuppliers(limit = 10) {
         const stmt = db.prepare(`

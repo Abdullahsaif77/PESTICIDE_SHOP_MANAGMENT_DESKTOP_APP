@@ -559,21 +559,27 @@ class SupplierService {
         }
     }
 
-    async getSupplierSummary() {
-        try {
-            const total = await SupplierRepository.getTotalSuppliers();
-            const stats = await SupplierRepository.getSupplierStats();
-            return {
-                success: true,
-                data: {
-                    ...total,
-                    ...stats
-                }
-            };
-        } catch (error) {
-            return { success: false, error: error.message };
-        }
+
+async getSupplierSummary() {
+    try {
+        const stats = await SupplierRepository.getTotalSuppliers();
+        return {
+            success: true,
+            data: {
+                total: stats.total || 0,
+                active: stats.active || 0,
+                inactive: stats.inactive || 0,
+                totalCredit: stats.total_credit || 0,
+                totalDebit: stats.total_debit || 0,
+                totalBalance: stats.total_balance || 0,
+                totalPurchases: stats.total_purchases || 0,
+                avgPurchase: stats.avg_purchase || 0
+            }
+        };
+    } catch (error) {
+        return { success: false, error: error.message };
     }
+}
 }
 
 module.exports = new SupplierService();

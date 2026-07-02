@@ -41,96 +41,11 @@ import {
   Phone,
   Mail,
   Tag,
-  Link2
+  Link2,
+  Loader2
 } from "lucide-react";
 
-// ==================== MOCK DATA ====================
-const MOCK_SUPPLIERS = [
-  { id: 1, name: "ABC Chemicals", phone: "0300-1234567", address: "Industrial Zone, Lahore", balance: 15000 },
-  { id: 2, name: "XYZ Pesticides", phone: "0300-7654321", address: "Main Road, Faisalabad", balance: 0 },
-  { id: 3, name: "Green Agro Supplies", phone: "0300-9876543", address: "Garden Town, Multan", balance: -5000 },
-  { id: 4, name: "Premium Fertilizers", phone: "0300-5555555", address: "Sheikhupura Road", balance: 25000 },
-  { id: 5, name: "Safe Pest Control", phone: "0300-4444444", address: "Johar Town, Lahore", balance: 1000 },
-];
-
-const MOCK_WAREHOUSES = [
-  { id: 1, name: "Main Warehouse", location: "Ground Floor" },
-  { id: 2, name: "Branch Warehouse", location: "First Floor" },
-  { id: 3, name: "Storage Facility", location: "Industrial Area" },
-];
-
-const MOCK_PRODUCTS = [
-  { id: 1, name: "Pesticide X", code: "PST-001", unit: "L", purchase_price: 320, sale_price: 450, stock: 150 },
-  { id: 2, name: "Herbicide Y", code: "HRB-002", unit: "kg", purchase_price: 220, sale_price: 320, stock: 75 },
-  { id: 3, name: "Fungicide Z", code: "FNG-003", unit: "L", purchase_price: 190, sale_price: 280, stock: 35 },
-  { id: 4, name: "Rodenticide R", code: "RDT-004", unit: "kg", purchase_price: 400, sale_price: 550, stock: 10 },
-  { id: 5, name: "Fertilizer F", code: "FRT-005", unit: "kg", purchase_price: 120, sale_price: 180, stock: 500 },
-  { id: 6, name: "Spray Bottle S", code: "SPR-006", unit: "Bottle", purchase_price: 90, sale_price: 150, stock: 0 },
-  { id: 7, name: "Weed Killer W", code: "WDK-007", unit: "L", purchase_price: 170, sale_price: 250, stock: 8 },
-  { id: 8, name: "Growth Booster G", code: "GRB-008", unit: "L", purchase_price: 90, sale_price: 150, stock: 45 },
-];
-
 const api = window.api || {};
-
-class PurchaseAPI {
-  async create(data) {
-    try {
-      const result = await api.createPurchase(data);
-      return result;
-    } catch (error) {
-      console.error("Create purchase error:", error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  async getSuppliers() {
-    try {
-      const result = await api.getAllSuppliers({ is_active: 1 });
-      if (result.success && result.data.length > 0) {
-        return result;
-      }
-      return { success: true, data: MOCK_SUPPLIERS };
-    } catch (error) {
-      return { success: true, data: MOCK_SUPPLIERS };
-    }
-  }
-
-  async getWarehouses() {
-    try {
-      const result = await api.getActiveOnlyWarehouses();
-      if (result.success && result.data.length > 0) {
-        return result;
-      }
-      return { success: true, data: MOCK_WAREHOUSES };
-    } catch (error) {
-      return { success: true, data: MOCK_WAREHOUSES };
-    }
-  }
-
-  async getProducts() {
-    try {
-      const result = await api.getProducts();
-      if (result.success && result.data.length > 0) {
-        return result;
-      }
-      return { success: true, data: MOCK_PRODUCTS };
-    } catch (error) {
-      return { success: true, data: MOCK_PRODUCTS };
-    }
-  }
-
-  async generateNumber() {
-    try {
-      const result = await api.generatePurchaseNumber();
-      if (result.success) return result;
-      return { success: true, data: { purchase_number: `PO-${String(Date.now()).slice(-6)}` } };
-    } catch (error) {
-      return { success: true, data: { purchase_number: `PO-${String(Date.now()).slice(-6)}` } };
-    }
-  }
-}
-
-const purchaseAPI = new PurchaseAPI();
 
 export default function Purchases() {
   // ==================== STATE ====================
@@ -148,7 +63,10 @@ export default function Purchases() {
     discount: 0,
     tax: 0,
     paid_amount: 0,
-    status: "pending"
+    status: "pending",
+    subtotal: 0,
+    total_amount: 0,
+    due_amount: 0
   });
 
   // Items
@@ -174,9 +92,9 @@ export default function Purchases() {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
-
-  // Edit/View Modal
-  const [detailModal, setDetailModal] = useState({ open: false, purchase: null });
+  
+  // Track the last created purchase for PDF generation
+  const [lastCreatedPurchase, setLastCreatedPurchase] = useState(null);
 
   // ==================== EFFECTS ====================
   useEffect(() => {
@@ -189,12 +107,15 @@ export default function Purchases() {
 
   useEffect(() => {
     if (productSearch.trim()) {
+      const searchTerm = productSearch.toLowerCase().trim();
       const filtered = products.filter(p =>
-        p.name?.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.code?.toLowerCase().includes(productSearch.toLowerCase())
+        p.name?.toLowerCase().includes(searchTerm) ||
+        p.code?.toLowerCase().includes(searchTerm) ||
+        p.brand?.toLowerCase().includes(searchTerm) ||
+        p.barcode?.toLowerCase().includes(searchTerm)
       );
       setFilteredProducts(filtered);
-      setShowProductDropdown(true);
+      setShowProductDropdown(filtered.length > 0);
     } else {
       setFilteredProducts([]);
       setShowProductDropdown(false);
@@ -206,15 +127,21 @@ export default function Purchases() {
     setIsLoading(true);
     try {
       const [suppliersResult, warehousesResult, productsResult, numberResult] = await Promise.all([
-        purchaseAPI.getSuppliers(),
-        purchaseAPI.getWarehouses(),
-        purchaseAPI.getProducts(),
-        purchaseAPI.generateNumber()
+        api.getAllSuppliers({ is_active: 1 }),
+        api.getActiveOnlyWarehouses(),
+        api.getProducts(),
+        api.generatePurchaseNumber()
       ]);
 
       if (suppliersResult.success) setSuppliers(suppliersResult.data || []);
       if (warehousesResult.success) setWarehouses(warehousesResult.data || []);
-      if (productsResult.success) setProducts(productsResult.data || []);
+      if (Array.isArray(productsResult)) {
+        setProducts(productsResult);
+      } else if (productsResult.success) {
+        setProducts(productsResult.data || []);
+      } else {
+        setProducts([]);
+      }
 
       if (numberResult.success) {
         setForm(prev => ({ ...prev, purchase_number: numberResult.data.purchase_number }));
@@ -229,6 +156,32 @@ export default function Purchases() {
       showNotification("error", "Failed to load initial data");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ==================== REFRESH SUPPLIER DATA ====================
+  const refreshSupplierData = async (supplierId) => {
+    try {
+      const result = await api.getAllSuppliers({ is_active: 1 });
+      if (result.success) {
+        setSuppliers(result.data || []);
+        
+        // Log the updated balance for debugging
+        const updatedSupplier = result.data.find(s => s.id === supplierId);
+        if (updatedSupplier) {
+          const credit = updatedSupplier.credit || 0;
+          const debit = updatedSupplier.debit || 0;
+          const balance = credit - debit;
+          console.log(`💰 Supplier balance updated:`, {
+            name: updatedSupplier.name,
+            credit: credit,
+            debit: debit,
+            balance: balance > 0 ? `Credit ${balance}` : `Debit ${Math.abs(balance)}`
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error refreshing supplier data:", err);
     }
   };
 
@@ -325,62 +278,118 @@ export default function Purchases() {
     setShowProductDropdown(false);
   };
 
-  // ==================== FORM SUBMISSION ====================
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!form.supplier_id) {
-      showNotification("error", "Please select a supplier");
-      return;
-    }
-
-    if (!form.warehouse_id) {
-      showNotification("error", "Please select a warehouse");
-      return;
-    }
-
-    if (items.length === 0) {
-      showNotification("error", "Please add at least one product");
-      return;
-    }
-
-    setIsLoading(true);
+  // ==================== PDF GENERATION ====================
+  const generatePDF = async (purchaseData, purchaseItems) => {
     try {
-      const purchaseData = {
-        supplier_id: parseInt(form.supplier_id),
-        warehouse_id: parseInt(form.warehouse_id),
-        purchase_date: form.purchase_date,
-        payment_method: form.payment_method,
-        discount: parseFloat(form.discount) || 0,
-        tax: parseFloat(form.tax) || 0,
-        paid_amount: parseFloat(form.paid_amount) || 0,
-        notes: form.notes,
-        status: form.status,
-        items: items.map(item => ({
-          product_id: parseInt(item.product_id),
-          quantity: parseFloat(item.quantity),
-          purchase_price: parseFloat(item.purchase_price),
-          sale_price: parseFloat(item.sale_price) || 0,
-          expiry_date: item.expiry_date || null,
-          batch_number: item.batch_number || null
-        }))
-      };
-
-      const result = await purchaseAPI.create(purchaseData);
+      setIsLoading(true);
+      showNotification("info", "Preparing PDF...");
+      
+      // Call the PDF generation API
+      const result = await api.generateAndSavePDF('purchase', purchaseData, purchaseItems);
+      
       if (result.success) {
-        showNotification("success", `Purchase ${form.purchase_number} created successfully!`);
-        // Reset form
-        resetForm();
+        showNotification("success", `PDF saved successfully at: ${result.path}`);
+        console.log("✅ PDF saved:", result.path);
+      } else if (result.canceled) {
+        showNotification("info", "PDF save was canceled");
       } else {
-        showNotification("error", result.error || "Failed to create purchase");
+        showNotification("error", `Failed to generate PDF: ${result.error || 'Unknown error'}`);
       }
-    } catch (err) {
-      console.error("Submit error:", err);
-      showNotification("error", err.message || "An error occurred");
+      
+      return result;
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      showNotification("error", `PDF generation failed: ${error.message}`);
+      return { success: false, error: error.message };
     } finally {
       setIsLoading(false);
     }
   };
+
+  // ==================== FORM SUBMISSION ====================
+  // ==================== FORM SUBMISSION ====================
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!form.supplier_id) {
+    showNotification("error", "Please select a supplier");
+    return;
+  }
+
+  if (!form.warehouse_id) {
+    showNotification("error", "Please select a warehouse");
+    return;
+  }
+
+  if (items.length === 0) {
+    showNotification("error", "Please add at least one product");
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    const purchaseData = {
+      supplier_id: parseInt(form.supplier_id),
+      warehouse_id: parseInt(form.warehouse_id),
+      purchase_date: form.purchase_date,
+      payment_method: form.payment_method,
+      discount: parseFloat(form.discount) || 0,
+      tax: parseFloat(form.tax) || 0,
+      paid_amount: parseFloat(form.paid_amount) || 0,
+      notes: form.notes,
+      status: form.status,
+      purchase_number: form.purchase_number,
+      subtotal: form.subtotal,
+      total_amount: form.total_amount,
+      due_amount: form.due_amount
+    };
+
+    const result = await api.createPurchase({
+      ...purchaseData,
+      items: items.map(item => ({
+        product_id: parseInt(item.product_id),
+        quantity: parseFloat(item.quantity),
+        purchase_price: parseFloat(item.purchase_price),
+        sale_price: parseFloat(item.sale_price) || 0,
+        expiry_date: item.expiry_date || null,
+        batch_number: item.batch_number || null
+      }))
+    });
+
+    if (result.success) {
+      // Get the supplier name for notification
+      const supplier = suppliers.find(s => s.id === parseInt(form.supplier_id));
+      const supplierName = supplier?.name || 'Supplier';
+      
+      showNotification("success", `Purchase ${form.purchase_number} created successfully!`);
+      
+      // ✅ Refresh supplier data to show updated balance
+      await refreshSupplierData(parseInt(form.supplier_id));
+      
+      // Store the created purchase data for PDF generation
+      const createdPurchaseData = {
+        ...purchaseData,
+        id: result.data?.id,
+        purchase_number: form.purchase_number
+      };
+      setLastCreatedPurchase(createdPurchaseData);
+      
+     
+      
+      
+      
+      // Reset form
+      await resetForm();
+    } else {
+      showNotification("error", result.error || "Failed to create purchase");
+    }
+  } catch (err) {
+    console.error("Submit error:", err);
+    showNotification("error", err.message || "An error occurred");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const resetForm = async () => {
     setItems([]);
@@ -401,7 +410,7 @@ export default function Purchases() {
       due_amount: 0
     });
 
-    const numberResult = await purchaseAPI.generateNumber();
+    const numberResult = await api.generatePurchaseNumber();
     if (numberResult.success) {
       setForm(prev => ({ ...prev, purchase_number: numberResult.data.purchase_number }));
     }
@@ -436,18 +445,30 @@ export default function Purchases() {
       {/* ===== NOTIFICATION ===== */}
       {notification.show && (
         <div className={`fixed top-4 right-4 z-50 max-w-sm w-full p-3 rounded-xl shadow-lg animate-slide-down border ${
-          notification.type === "success" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+          notification.type === "success" ? "bg-emerald-50 border-emerald-200" : 
+          notification.type === "info" ? "bg-blue-50 border-blue-200" :
+          "bg-red-50 border-red-200"
         }`}>
           <div className="flex items-start gap-2">
-            <div className={`mt-0.5 p-1 rounded-full ${notification.type === "success" ? "bg-emerald-100" : "bg-red-100"}`}>
+            <div className={`mt-0.5 p-1 rounded-full ${
+              notification.type === "success" ? "bg-emerald-100" : 
+              notification.type === "info" ? "bg-blue-100" :
+              "bg-red-100"
+            }`}>
               {notification.type === "success" ? (
                 <CheckCircle size={14} className="text-emerald-600" />
+              ) : notification.type === "info" ? (
+                <AlertCircle size={14} className="text-blue-600" />
               ) : (
                 <X size={14} className="text-red-600" />
               )}
             </div>
             <div className="flex-1">
-              <p className={`text-xs font-medium ${notification.type === "success" ? "text-emerald-800" : "text-red-800"}`}>
+              <p className={`text-xs font-medium ${
+                notification.type === "success" ? "text-emerald-800" : 
+                notification.type === "info" ? "text-blue-800" :
+                "text-red-800"
+              }`}>
                 {notification.message}
               </p>
             </div>
@@ -478,6 +499,16 @@ export default function Purchases() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
+          {lastCreatedPurchase && (
+            <button
+              onClick={() => generatePDF(lastCreatedPurchase, items)}
+              disabled={isLoading}
+              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-white rounded-lg transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50"
+            >
+              <Download size={12} />
+              Last PDF
+            </button>
+          )}
           <button
             onClick={resetForm}
             className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium border rounded-lg transition-all duration-300 shadow-sm hover:shadow-md bg-white hover:bg-slate-50 text-slate-600 border-slate-200"
@@ -693,7 +724,7 @@ export default function Purchases() {
 
                   <div>
                     <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                      Unit Price *
+                      Purchase Price *
                     </label>
                     <input
                       type="number"
@@ -846,8 +877,8 @@ export default function Purchases() {
                       )}
                       <p className="flex items-center gap-1 font-medium">
                         <Wallet size={10} />
-                        Balance: <span className={supplier.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}>
-                          {formatCurrency(supplier.balance)}
+                        Balance: <span className={supplier.credit > 0 ? 'text-amber-600' : (supplier.debit > 0 ? 'text-red-600' : 'text-emerald-600')}>
+                          {formatCurrency((supplier.credit || 0) - (supplier.debit || 0))}
                         </span>
                       </p>
                     </div>
@@ -955,7 +986,7 @@ export default function Purchases() {
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                   Processing...
                 </>
               ) : (
