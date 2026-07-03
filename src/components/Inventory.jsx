@@ -111,7 +111,6 @@ export default function Inventory() {
       // Load products
       const productsResult = await api.getProducts();
       
-      // Handle both array and object responses
       let productsData = [];
       if (Array.isArray(productsResult)) {
         productsData = productsResult;
@@ -129,7 +128,6 @@ export default function Inventory() {
       // Process each product to get inventory and batches
       const productsWithInventory = await Promise.all(
         productsData.map(async (product) => {
-          // Get inventory for this product
           try {
             const inventoryResult = await api.getInventoryByProduct(product.id);
             const inventoryData = inventoryResult.success ? inventoryResult.data : [];
@@ -141,13 +139,18 @@ export default function Inventory() {
             // Calculate total quantity from inventory
             const totalQuantity = inventoryData.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
-            // Get category name
             let categoryName = '';
             if (product.category_id) {
               try {
                 const catResult = await api.getCategoryById(product.category_id);
-                if (catResult.success && catResult.data) {
-                  categoryName = catResult.data.name;
+                if (catResult && typeof catResult === 'object') {
+                  if (catResult.name) {
+                    categoryName = catResult.name;
+                  } else if (catResult.success && catResult.data && catResult.data.name) {
+                    categoryName = catResult.data.name;
+                  } else if (catResult.data && catResult.data.name) {
+                    categoryName = catResult.data.name;
+                  }
                 }
               } catch (err) {
                 console.error('Error fetching category:', err);
@@ -219,10 +222,39 @@ export default function Inventory() {
     setSummary({ totalProducts, totalQuantity, totalValue, lowStockCount, outOfStockCount });
   };
 
+  // ==================== GET WAREHOUSE QUANTITY ====================
+  const getWarehouseQuantity = (product, warehouseId) => {
+    if (!warehouseId || warehouseId === "All") {
+      return product.total_quantity || 0;
+    }
+    const inv = product.inventory?.find(i => i.warehouse_id === parseInt(warehouseId));
+    return inv?.quantity || 0;
+  };
+
+  const getWarehouseReserved = (product, warehouseId) => {
+    if (!warehouseId || warehouseId === "All") {
+      return product.inventory?.reduce((sum, i) => sum + (i.reserved_quantity || 0), 0) || 0;
+    }
+    const inv = product.inventory?.find(i => i.warehouse_id === parseInt(warehouseId));
+    return inv?.reserved_quantity || 0;
+  };
+
+  const getWarehouseBatches = (product, warehouseId) => {
+    if (!warehouseId || warehouseId === "All") {
+      return product.batches || [];
+    }
+    // Filter batches that have inventory in this warehouse
+    const inv = product.inventory?.filter(i => i.warehouse_id === parseInt(warehouseId));
+    if (!inv || inv.length === 0) return [];
+    const batchIds = inv.map(i => i.batch_id).filter(id => id !== null);
+    return product.batches?.filter(b => batchIds.includes(b.id)) || [];
+  };
+
   // ==================== FILTERS & SORTING ====================
   const filterAndSortProducts = () => {
     let filtered = [...products];
 
+    // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(p =>
@@ -232,23 +264,35 @@ export default function Inventory() {
       );
     }
 
+    // Category filter
     if (selectedCategory !== "All") {
       filtered = filtered.filter(p => p.category === selectedCategory);
     }
 
+    // Warehouse filter - only show products that have stock in selected warehouse
     if (selectedWarehouse !== "All") {
+      const warehouseId = parseInt(selectedWarehouse);
       filtered = filtered.filter(p => {
-        return p.inventory?.some(i => i.warehouse_id === parseInt(selectedWarehouse) && i.quantity > 0);
+        return p.inventory?.some(i => i.warehouse_id === warehouseId && i.quantity > 0);
       });
     }
 
+    // Status filter - use warehouse-specific quantity
     if (selectedStatus !== "All") {
       filtered = filtered.filter(p => {
-        const status = getStockStatus(p);
-        return status.label === selectedStatus;
+        const qty = getWarehouseQuantity(p, selectedWarehouse);
+        const reorderLevel = p.reorder_level || 0;
+        
+        let status;
+        if (qty <= 0) status = "Out of Stock";
+        else if (qty <= reorderLevel) status = "Low Stock";
+        else status = "In Stock";
+        
+        return status === selectedStatus;
       });
     }
 
+    // Sort
     filtered.sort((a, b) => {
       let valA, valB;
       switch (sortBy) {
@@ -261,16 +305,16 @@ export default function Inventory() {
           valB = b.code || "";
           break;
         case "quantity":
-          valA = a.total_quantity || 0;
-          valB = b.total_quantity || 0;
+          valA = getWarehouseQuantity(a, selectedWarehouse);
+          valB = getWarehouseQuantity(b, selectedWarehouse);
           break;
         case "price":
           valA = a.sale_price || 0;
           valB = b.sale_price || 0;
           break;
         case "value":
-          valA = (a.total_quantity || 0) * (a.sale_price || 0);
-          valB = (b.total_quantity || 0) * (b.sale_price || 0);
+          valA = getWarehouseQuantity(a, selectedWarehouse) * (a.sale_price || 0);
+          valB = getWarehouseQuantity(b, selectedWarehouse) * (b.sale_price || 0);
           break;
         case "category":
           valA = a.category || "";
@@ -294,11 +338,11 @@ export default function Inventory() {
 
   // ==================== HELPERS ====================
   const getStockStatus = (product) => {
-    const total = product.total_quantity || 0;
+    const qty = getWarehouseQuantity(product, selectedWarehouse);
     const reorderLevel = product.reorder_level || 0;
 
-    if (total <= 0) return { label: "Out of Stock", color: "text-red-600 bg-red-50 border-red-200" };
-    if (total <= reorderLevel) return { label: "Low Stock", color: "text-amber-600 bg-amber-50 border-amber-200" };
+    if (qty <= 0) return { label: "Out of Stock", color: "text-red-600 bg-red-50 border-red-200" };
+    if (qty <= reorderLevel) return { label: "Low Stock", color: "text-amber-600 bg-amber-50 border-amber-200" };
     return { label: "In Stock", color: "text-emerald-600 bg-emerald-50 border-emerald-200" };
   };
 
@@ -401,11 +445,12 @@ export default function Inventory() {
     const headers = ["Product Code", "Product Name", "Category", "Total Quantity", "Unit", "Sale Price", "Purchase Price", "Reorder Level", "Status"];
     const rows = filteredProducts.map(p => {
       const status = getStockStatus(p);
+      const qty = getWarehouseQuantity(p, selectedWarehouse);
       return [
         p.code || "",
         p.name || "",
         p.category || "",
-        p.total_quantity || 0,
+        qty,
         p.unit || "",
         p.sale_price || 0,
         p.purchase_price || 0,
@@ -704,8 +749,10 @@ export default function Inventory() {
                   const hasInventory = product.inventory && product.inventory.length > 0;
                   const hasBatches = product.batches && product.batches.length > 0;
                   const isExpanded = expandedRows[product.id];
-                  const rowColor = product.total_quantity <= 0 ? 'bg-red-50/30' : 
-                                   product.total_quantity <= (product.reorder_level || 0) ? 'bg-amber-50/20' : 
+                  const displayQty = getWarehouseQuantity(product, selectedWarehouse);
+                  const displayBatches = getWarehouseBatches(product, selectedWarehouse);
+                  const rowColor = displayQty <= 0 ? 'bg-red-50/30' : 
+                                   displayQty <= (product.reorder_level || 0) ? 'bg-amber-50/20' : 
                                    index % 2 === 0 ? 'bg-white' : 'bg-slate-50/20';
 
                   return (
@@ -733,16 +780,23 @@ export default function Inventory() {
                           </span>
                         </td>
                         <td className="px-2 py-1.5 text-right font-medium">
-                          <span className={`${product.total_quantity <= 0 ? 'text-red-600' : 'text-slate-700'}`}>
-                            {product.total_quantity?.toFixed(1) || '0'}
+                          <span className={`${displayQty <= 0 ? 'text-red-600' : 'text-slate-700'}`}>
+                            {displayQty.toFixed(1)}
                           </span>
-                          <span className="text-[8px] text-slate-400 ml-0.5">{getUnitDisplay(product.unit, product.total_quantity)}</span>
+                          <span className="text-[8px] text-slate-400 ml-0.5">{getUnitDisplay(product.unit, displayQty)}</span>
                         </td>
                         <td className="px-2 py-1.5 hidden lg:table-cell">
                           <div className="flex flex-wrap gap-0.5">
                             {product.inventory?.filter(i => i.quantity > 0).length > 0 ? (
                               product.inventory.filter(i => i.quantity > 0).map((inv) => (
-                                <span key={inv.warehouse_id} className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-indigo-50 rounded-full text-[8px] text-indigo-600">
+                                <span 
+                                  key={inv.warehouse_id} 
+                                  className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded-full text-[8px] ${
+                                    selectedWarehouse !== "All" && inv.warehouse_id === parseInt(selectedWarehouse)
+                                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                                      : 'bg-indigo-50 text-indigo-600'
+                                  }`}
+                                >
                                   <Warehouse size={6} />
                                   {getWarehouseName(inv.warehouse_id)}: {inv.quantity}
                                 </span>
@@ -786,7 +840,14 @@ export default function Inventory() {
                                   </h4>
                                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
                                     {product.inventory.map((inv) => (
-                                      <div key={inv.warehouse_id} className="bg-white rounded border border-indigo-100 p-1.5 shadow-sm">
+                                      <div 
+                                        key={inv.warehouse_id} 
+                                        className={`bg-white rounded border p-1.5 shadow-sm ${
+                                          selectedWarehouse !== "All" && inv.warehouse_id === parseInt(selectedWarehouse)
+                                            ? 'border-emerald-400 bg-emerald-50/30'
+                                            : 'border-indigo-100'
+                                        }`}
+                                      >
                                         <p className="text-[9px] font-medium text-slate-700">{getWarehouseName(inv.warehouse_id)}</p>
                                         <p className="text-[8px] text-slate-500">Qty: <span className="font-semibold text-indigo-600">{inv.quantity} {getUnitDisplay(product.unit, inv.quantity)}</span></p>
                                         {inv.reserved_quantity > 0 && <p className="text-[7px] text-amber-600">Reserved: {inv.reserved_quantity}</p>}
@@ -796,14 +857,14 @@ export default function Inventory() {
                                 </div>
                               )}
 
-                              {product.batches && product.batches.length > 0 && (
+                              {displayBatches.length > 0 && (
                                 <div>
                                   <h4 className="text-[9px] font-semibold text-indigo-600 mb-1 flex items-center gap-1">
                                     <Layers size={10} />
                                     Batches
                                   </h4>
                                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
-                                    {product.batches.map((batch) => (
+                                    {displayBatches.map((batch) => (
                                       <div key={batch.id} className="bg-white rounded border border-indigo-100 p-1.5 shadow-sm">
                                         <div className="flex justify-between items-start">
                                           <div>
@@ -845,6 +906,7 @@ export default function Inventory() {
           {filteredProducts.map((product, index) => {
             const stockStatus = getStockStatus(product);
             const color = colorSchemes[index % colorSchemes.length];
+            const displayQty = getWarehouseQuantity(product, selectedWarehouse);
 
             return (
               <div key={product.id} className="group bg-white rounded-lg border border-slate-200/60 shadow-sm hover:shadow-lg transition-all duration-300 p-3 hover:-translate-y-0.5 hover:border-indigo-300">
@@ -874,9 +936,11 @@ export default function Inventory() {
 
                   <div className="mt-2 grid grid-cols-2 gap-1.5 relative">
                     <div className={`bg-gradient-to-br ${color.light} rounded-lg p-1.5`}>
-                      <p className="text-[7px] text-slate-400 uppercase font-medium">Total Qty</p>
+                      <p className="text-[7px] text-slate-400 uppercase font-medium">
+                        {selectedWarehouse !== "All" ? 'Warehouse Qty' : 'Total Qty'}
+                      </p>
                       <p className="text-sm font-bold text-slate-800">
-                        {product.total_quantity?.toFixed(1) || '0'}
+                        {displayQty.toFixed(1)}
                       </p>
                     </div>
                     <div className={`bg-gradient-to-br ${color.light} rounded-lg p-1.5`}>
@@ -885,12 +949,25 @@ export default function Inventory() {
                     </div>
                   </div>
 
+                  {selectedWarehouse !== "All" && (
+                    <div className="mt-1.5 text-[8px] text-slate-400">
+                      Total across all: {product.total_quantity?.toFixed(1) || 0} {getUnitDisplay(product.unit, product.total_quantity)}
+                    </div>
+                  )}
+
                   {product.inventory && product.inventory.filter(i => i.quantity > 0).length > 0 && (
                     <div className="mt-2 relative">
                       <p className="text-[7px] text-slate-400 uppercase font-medium mb-0.5">Warehouses</p>
                       <div className="flex flex-wrap gap-0.5">
                         {product.inventory.filter(i => i.quantity > 0).map((inv) => (
-                          <span key={inv.warehouse_id} className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r ${color.light} rounded-full text-[7px] ${color.icon}`}>
+                          <span 
+                            key={inv.warehouse_id} 
+                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r ${color.light} rounded-full text-[7px] ${
+                              selectedWarehouse !== "All" && inv.warehouse_id === parseInt(selectedWarehouse)
+                                ? 'border border-emerald-400 font-semibold'
+                                : ''
+                            }`}
+                          >
                             <Warehouse size={6} />
                             {getWarehouseName(inv.warehouse_id)}: {inv.quantity}
                           </span>

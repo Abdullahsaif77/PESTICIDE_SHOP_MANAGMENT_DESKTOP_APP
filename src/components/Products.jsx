@@ -23,6 +23,9 @@ const api = window.api || {
   getCategoryProductCount: async (id) => ({}),
 };
 
+// Helper function to ensure we always have an array
+const ensureArray = (data) => Array.isArray(data) ? data : [];
+
 export default function Products() {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -112,15 +115,21 @@ export default function Products() {
         api.getProducts()
       ]);
       
-      setCategories(cats || []);
-      setUnits(unitsData || []);
-      setProducts(prods || []);
+      // Ensure we always have arrays
+      setCategories(ensureArray(cats));
+      setUnits(ensureArray(unitsData));
+      setProducts(ensureArray(prods));
+      
       // Reset search after refresh
       setSearchQuery("");
       setSelectedCategory("All Categories");
       setSelectedCategoryId(null);
     } catch (err) {
       console.error("Data fetch error:", err);
+      // Set empty arrays on error
+      setCategories([]);
+      setUnits([]);
+      setProducts([]);
     } finally {
       setIsLoading(false);
     }
@@ -129,37 +138,41 @@ export default function Products() {
   const refreshCategories = async () => {
     try {
       const cats = await api.getCategories();
-      setCategories(cats || []);
+      setCategories(ensureArray(cats));
     } catch (err) {
       console.error("Error fetching categories:", err);
+      setCategories([]);
     }
   };
 
   const refreshUnits = async () => {
     try {
       const unitsData = await api.getUnits();
-      setUnits(unitsData || []);
+      setUnits(ensureArray(unitsData));
     } catch (err) {
       console.error("Error fetching units:", err);
+      setUnits([]);
     }
   };
 
   const filterProducts = () => {
-    let filtered = [...products];
+    let filtered = ensureArray(products);
 
     // Filter by category
     if (selectedCategoryId) {
-      filtered = filtered.filter(p => p.category_id === selectedCategoryId);
+      filtered = filtered.filter(p => p && p.category_id === selectedCategoryId);
     }
 
     // Filter by search query
     if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(p => 
-        p.name?.toLowerCase().includes(query) ||
-        p.code?.toLowerCase().includes(query) ||
-        p.brand?.toLowerCase().includes(query) ||
-        p.barcode?.toLowerCase().includes(query)
+        p && (
+          (p.name && p.name.toLowerCase().includes(query)) ||
+          (p.code && p.code.toLowerCase().includes(query)) ||
+          (p.brand && p.brand.toLowerCase().includes(query)) ||
+          (p.barcode && p.barcode.toLowerCase().includes(query))
+        )
       );
     }
 
@@ -273,6 +286,11 @@ export default function Products() {
   };
 
   const openEditProduct = (product) => {
+    if (!product) {
+      console.error('Product is undefined');
+      return;
+    }
+    
     setProductForm({ 
       name: product.name || "",
       code: product.code || "",
@@ -325,28 +343,28 @@ export default function Products() {
       if (productModal.mode === "add") {
         result = await api.addProduct(productData);
         
-        if (result.success) {
+        if (result && result.success) {
           showSuccessModal("product", "added", productForm.name);
           setProductModal({ open: false, mode: "add", data: null });
           setValidationErrors({});
           await refreshData();
           setSearchQuery("");
         } else {
-          console.error('Product creation failed:', result.error);
-          alert(result.error || 'Failed to add product');
+          console.error('Product creation failed:', result?.error || 'Unknown error');
+          alert(result?.error || 'Failed to add product');
         }
       } else {
         result = await api.updateProduct(productModal.data.id, productData);
         
-        if (result.success) {
+        if (result && result.success) {
           showSuccessModal("product", "updated", productForm.name);
           setProductModal({ open: false, mode: "add", data: null });
           setValidationErrors({});
           await refreshData();
           setSearchQuery("");
         } else {
-          console.error('Product update failed:', result.error);
-          alert(result.error || 'Failed to update product');
+          console.error('Product update failed:', result?.error || 'Unknown error');
+          alert(result?.error || 'Failed to update product');
         }
       }
     } catch (err) {
@@ -358,7 +376,12 @@ export default function Products() {
   };
 
   const handleDeleteProduct = async (id, name) => {
-    if (confirm("Delete this product permanently?")) {
+    if (!id) {
+      console.error('Cannot delete: No ID provided');
+      return;
+    }
+    
+    if (window.confirm(`Delete product "${name}" permanently?`)) {
       setIsLoading(true);
       try {
         await api.deleteProduct(id);
@@ -370,6 +393,7 @@ export default function Products() {
         setSearchQuery("");
       } catch (err) {
         console.error("Failed deleting product:", err);
+        alert('Failed to delete product. Please try again.');
       } finally {
         setIsLoading(false);
       }
@@ -382,17 +406,32 @@ export default function Products() {
   };
 
   const handleEditCategory = async (cat) => {
+    if (!cat || !cat.id) {
+      console.error('Invalid category for editing');
+      return;
+    }
+    
     try {
       const target = await api.getCategoryById(cat.id);
-      setCategoryForm({ name: target.name || "", description: target.description || "" });
+      setCategoryForm({ 
+        name: target?.name || "", 
+        description: target?.description || "" 
+      });
       setCategoryModal({ open: true, mode: "edit", data: cat });
     } catch (err) {
       console.error("Failed fetching category info:", err);
+      alert('Failed to load category data');
     }
   };
 
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
+    
+    if (!categoryForm.name || categoryForm.name.trim() === "") {
+      alert('Category name is required');
+      return;
+    }
+    
     setIsLoading(true);
     try {
       if (categoryModal.mode === "add") {
@@ -409,13 +448,19 @@ export default function Products() {
       setSearchQuery("");
     } catch (err) {
       console.error("Failed saving category:", err);
+      alert('Failed to save category. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDeleteCategory = async (id, name) => {
-    if (confirm("Delete this category?")) {
+    if (!id) {
+      console.error('Cannot delete: No ID provided');
+      return;
+    }
+    
+    if (window.confirm(`Delete category "${name}"?`)) {
       setIsLoading(true);
       try {
         await api.deleteCategory(id);
@@ -429,12 +474,12 @@ export default function Products() {
         setSearchQuery("");
       } catch (err) {
         console.error("Failed deleting category:", err);
+        alert(err.message || 'Failed to delete category');
       } finally {
         setIsLoading(false);
       }
     }
   };
-
 
   const openUnitManager = () => {
     setUnitForm({ name: "", short_name: "" });
@@ -442,17 +487,32 @@ export default function Products() {
   };
 
   const handleEditUnit = async (unit) => {
+    if (!unit || !unit.id) {
+      console.error('Invalid unit for editing');
+      return;
+    }
+    
     try {
       const target = await api.getUnitById(unit.id);
-      setUnitForm({ name: target.name || "", short_name: target.short_name || "" });
+      setUnitForm({ 
+        name: target?.name || "", 
+        short_name: target?.short_name || "" 
+      });
       setUnitModal({ open: true, mode: "edit", data: unit });
     } catch (err) {
       console.error("Failed fetching unit info:", err);
+      alert('Failed to load unit data');
     }
   };
 
   const handleUnitSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!unitForm.name || unitForm.name.trim() === "") {
+      alert('Unit name is required');
+      return;
+    }
+    
     setIsLoading(true);
     try {
       if (unitModal.mode === "add") {
@@ -469,13 +529,19 @@ export default function Products() {
       setSearchQuery("");
     } catch (err) {
       console.error("Failed saving unit:", err);
+      alert('Failed to save unit. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDeleteUnit = async (id, name) => {
-    if (confirm("Delete this unit?")) {
+    if (!id) {
+      console.error('Cannot delete: No ID provided');
+      return;
+    }
+    
+    if (window.confirm(`Delete unit "${name}"?`)) {
       setIsLoading(true);
       try {
         await api.deleteUnit(id);
@@ -485,6 +551,7 @@ export default function Products() {
         setSearchQuery("");
       } catch (err) {
         console.error("Failed deleting unit:", err);
+        alert(err.message || 'Failed to delete unit');
       } finally {
         setIsLoading(false);
       }
@@ -492,13 +559,21 @@ export default function Products() {
   };
 
   const getCategoryName = (categoryId) => {
-    const cat = categories.find(c => c.id === categoryId);
+    // Ensure categories is an array before using find
+    if (!Array.isArray(categories) || categories.length === 0) {
+      return "Uncategorized";
+    }
+    const cat = categories.find(c => c && c.id === categoryId);
     return cat ? cat.name : "Uncategorized";
   };
 
   const getUnitName = (unitId) => {
-    const unit = units.find(u => u.id === unitId);
-    return unit ? unit.short_name || unit.name : "N/A";
+    // Ensure units is an array before using find
+    if (!Array.isArray(units) || units.length === 0) {
+      return "N/A";
+    }
+    const unit = units.find(u => u && u.id === unitId);
+    return unit ? (unit.short_name || unit.name) : "N/A";
   };
 
   const SuccessModal = ({ show, message, type, action }) => {
@@ -632,7 +707,7 @@ export default function Products() {
                 >
                   All Categories
                 </div>
-                {categories.map((cat) => (
+                {Array.isArray(categories) && categories.map((cat) => (
                   <div
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat)}
@@ -840,7 +915,7 @@ export default function Products() {
                     disabled={isLoading}
                   >
                     <option value="">Select Category</option>
-                    {categories.map((c) => (
+                    {Array.isArray(categories) && categories.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
@@ -863,7 +938,7 @@ export default function Products() {
                     disabled={isLoading}
                   >
                     <option value="">Select Unit</option>
-                    {units.map((u) => (
+                    {Array.isArray(units) && units.map((u) => (
                       <option key={u.id} value={u.id}>{u.short_name || u.name}</option>
                     ))}
                   </select>
@@ -1021,7 +1096,7 @@ export default function Products() {
             <div className="w-1/2 flex flex-col">
               <h3 className="text-sm font-semibold text-slate-800 mt-2 mb-3">Categories</h3>
               <div className="flex-1 max-h-[200px] overflow-y-auto space-y-1.5 pr-1">
-                {categories.map((c) => (
+                {Array.isArray(categories) && categories.map((c) => (
                   <div key={c.id} className="flex justify-between items-center p-2 rounded-lg bg-slate-50 border border-slate-100 text-sm group hover:border-slate-200 transition-colors">
                     <div className="flex-1 min-w-0">
                       <span className="font-medium text-slate-700 text-xs block truncate">{c.name}</span>
@@ -1102,7 +1177,7 @@ export default function Products() {
             <div className="w-1/2 flex flex-col">
               <h3 className="text-sm font-semibold text-slate-800 mt-2 mb-3">Units</h3>
               <div className="flex-1 max-h-[200px] overflow-y-auto space-y-1.5 pr-1">
-                {units.map((u) => (
+                {Array.isArray(units) && units.map((u) => (
                   <div key={u.id} className="flex justify-between items-center p-2 rounded-lg bg-slate-50 border border-slate-100 text-sm group hover:border-slate-200 transition-colors">
                     <div className="flex-1 min-w-0">
                       <span className="font-medium text-slate-700 text-xs block truncate">{u.name}</span>

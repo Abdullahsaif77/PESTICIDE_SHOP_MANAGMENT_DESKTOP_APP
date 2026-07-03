@@ -3,17 +3,16 @@ const db = require("../database/database")
 class InventoryRepository {
     create(data) {
         const stmt = db.prepare(`
-            INSERT INTO inventory (
-                product_id,
-                warehouse_id,
-                batch_id,
-                quantity,
-                reserved_quantity,
-                min_stock,
-                max_stock,
-
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
+        INSERT INTO inventory (
+            product_id,
+            warehouse_id,
+            batch_id,
+            quantity,
+            reserved_quantity,
+            min_stock,
+            max_stock
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
 
         return stmt.run(
             data.product_id,

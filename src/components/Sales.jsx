@@ -1,3 +1,5 @@
+// src/pages/Sales/Sales.jsx
+
 import React, { useState, useEffect } from "react";
 import {
   Plus,
@@ -42,128 +44,107 @@ import {
   Link2,
   Award,
   Star,
-  BarChart3
+  BarChart3,
+  Loader2
 } from "lucide-react";
 
-// ==================== MOCK DATA ====================
-const MOCK_CUSTOMERS = [
-  { id: 1, name: "Muhammad Store", phone: "0300-1234567", address: "Main Bazar, Lahore", balance: 15000 },
-  { id: 2, name: "Ali Traders", phone: "0300-7654321", address: "Gulberg, Lahore", balance: 0 },
-  { id: 3, name: "Ahmed Enterprises", phone: "0300-9876543", address: "Industrial Area, Lahore", balance: -5000 },
-  { id: 4, name: "Usman Store", phone: "0300-5555555", address: "Johar Town, Lahore", balance: 25000 },
-  { id: 5, name: "Riaz Agro", phone: "0300-4444444", address: "Farm Area, Lahore", balance: 1000 },
-];
-
-const MOCK_WAREHOUSES = [
-  { id: 1, name: "Main Warehouse", location: "Ground Floor" },
-  { id: 2, name: "Branch Warehouse", location: "First Floor" },
-  { id: 3, name: "Storage Facility", location: "Industrial Area" },
-];
-
-const MOCK_PRODUCTS = [
-  { id: 1, name: "Pesticide X", code: "PST-001", unit: "L", sale_price: 450, purchase_price: 320, stock: 150 },
-  { id: 2, name: "Herbicide Y", code: "HRB-002", unit: "kg", sale_price: 320, purchase_price: 220, stock: 75 },
-  { id: 3, name: "Fungicide Z", code: "FNG-003", unit: "L", sale_price: 280, purchase_price: 190, stock: 35 },
-  { id: 4, name: "Rodenticide R", code: "RDT-004", unit: "kg", sale_price: 550, purchase_price: 400, stock: 10 },
-  { id: 5, name: "Fertilizer F", code: "FRT-005", unit: "kg", sale_price: 180, purchase_price: 120, stock: 500 },
-  { id: 6, name: "Spray Bottle S", code: "SPR-006", unit: "Bottle", sale_price: 150, purchase_price: 90, stock: 0 },
-  { id: 7, name: "Weed Killer W", code: "WDK-007", unit: "L", sale_price: 250, purchase_price: 170, stock: 8 },
-  { id: 8, name: "Growth Booster G", code: "GRB-008", unit: "L", sale_price: 150, purchase_price: 90, stock: 45 },
-];
-
-const MOCK_BATCHES = {
-  1: [
-    { id: 1, batch_number: "BATCH-001", quantity: 100, expiry_date: "2025-12-31", purchase_price: 320, sale_price: 450 },
-    { id: 2, batch_number: "BATCH-002", quantity: 50, expiry_date: "2026-06-15", purchase_price: 320, sale_price: 450 }
-  ],
-  2: [
-    { id: 3, batch_number: "BATCH-003", quantity: 75, expiry_date: "2025-09-20", purchase_price: 220, sale_price: 320 }
-  ],
-  3: [
-    { id: 4, batch_number: "BATCH-004", quantity: 5, expiry_date: "2025-07-10", purchase_price: 190, sale_price: 280 }
-  ],
-  4: [
-    { id: 5, batch_number: "BATCH-008", quantity: 10, expiry_date: "2025-11-30", purchase_price: 400, sale_price: 550 }
-  ],
-  5: [
-    { id: 6, batch_number: "BATCH-005", quantity: 200, expiry_date: "2026-03-01", purchase_price: 120, sale_price: 180 },
-    { id: 7, batch_number: "BATCH-010", quantity: 300, expiry_date: "2026-01-15", purchase_price: 120, sale_price: 180 }
-  ],
-  7: [
-    { id: 8, batch_number: "BATCH-011", quantity: 8, expiry_date: "2025-06-01", purchase_price: 170, sale_price: 250 }
-  ],
-  8: [
-    { id: 9, batch_number: "BATCH-012", quantity: 45, expiry_date: "2026-04-20", purchase_price: 90, sale_price: 150 }
-  ]
-};
-
+// ==================== API WRAPPER ====================
 const api = window.api || {};
 
 class SalesAPI {
   async create(data) {
     try {
       const result = await api.createSale(data);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create sale");
+      }
       return result;
     } catch (error) {
       console.error("Create sale error:", error);
-      return { success: false, error: error.message };
+      throw error;
     }
   }
 
   async getCustomers() {
     try {
       const result = await api.getAllCustomers({ is_active: 1 });
-      if (result.success && result.data.length > 0) {
-        return result;
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch customers");
       }
-      return { success: true, data: MOCK_CUSTOMERS };
+      return result;
     } catch (error) {
-      return { success: true, data: MOCK_CUSTOMERS };
+      console.error("Get customers error:", error);
+      return { success: true, data: [] };
     }
   }
 
   async getWarehouses() {
     try {
       const result = await api.getActiveOnlyWarehouses();
-      if (result.success && result.data.length > 0) {
-        return result;
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch warehouses");
       }
-      return { success: true, data: MOCK_WAREHOUSES };
+      return result;
     } catch (error) {
-      return { success: true, data: MOCK_WAREHOUSES };
+      console.error("Get warehouses error:", error);
+      return { success: true, data: [] };
     }
   }
 
   async getProducts() {
     try {
       const result = await api.getProducts();
-      if (result.success && result.data.length > 0) {
-        return result;
+      let products = [];
+      if (Array.isArray(result)) {
+        products = result;
+      } else if (result && result.success && Array.isArray(result.data)) {
+        products = result.data;
+      } else {
+        console.warn("Products API returned unexpected format:", result);
+        return { success: true, data: [] };
       }
-      return { success: true, data: MOCK_PRODUCTS };
+      return { success: true, data: products };
     } catch (error) {
-      return { success: true, data: MOCK_PRODUCTS };
+      console.error("Get products error:", error);
+      return { success: true, data: [] };
+    }
+  }
+
+  async getProductInventory(productId) {
+    try {
+      const result = await api.getInventoryByProduct(productId);
+      if (!result.success) {
+        return { success: true, data: [] };
+      }
+      return result;
+    } catch (error) {
+      console.error("Get product inventory error:", error);
+      return { success: true, data: [] };
     }
   }
 
   async getProductBatches(productId) {
     try {
       const result = await api.getBatchesByProduct(productId);
-      if (result.success && result.data.length > 0) {
-        return result;
+      if (!result.success) {
+        return { success: true, data: [] };
       }
-      return { success: true, data: MOCK_BATCHES[productId] || [] };
+      return result;
     } catch (error) {
-      return { success: true, data: MOCK_BATCHES[productId] || [] };
+      console.error("Get product batches error:", error);
+      return { success: true, data: [] };
     }
   }
 
   async generateNumber() {
     try {
       const result = await api.generateInvoiceNumber();
-      if (result.success) return result;
-      return { success: true, data: { invoice_number: `INV-${String(Date.now()).slice(-6)}` } };
+      if (!result.success) {
+        throw new Error(result.error || "Failed to generate invoice number");
+      }
+      return result;
     } catch (error) {
+      console.error("Generate number error:", error);
       return { success: true, data: { invoice_number: `INV-${String(Date.now()).slice(-6)}` } };
     }
   }
@@ -174,6 +155,7 @@ const salesAPI = new SalesAPI();
 export default function Sales() {
   // ==================== STATE ====================
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
 
   // Form Data
@@ -202,7 +184,8 @@ export default function Sales() {
     purchase_price: 0,
     total: 0,
     available_stock: 0,
-    batches: []
+    batches: [],
+    inventory: []
   });
 
   // Dropdown Data
@@ -212,9 +195,6 @@ export default function Sales() {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
-
-  // Edit/View Modal
-  const [detailModal, setDetailModal] = useState({ open: false, sale: null });
 
   // ==================== EFFECTS ====================
   useEffect(() => {
@@ -232,7 +212,7 @@ export default function Sales() {
         p.code?.toLowerCase().includes(productSearch.toLowerCase())
       );
       setFilteredProducts(filtered);
-      setShowProductDropdown(true);
+      setShowProductDropdown(filtered.length > 0);
     } else {
       setFilteredProducts([]);
       setShowProductDropdown(false);
@@ -241,7 +221,7 @@ export default function Sales() {
 
   // ==================== DATA LOADING ====================
   const loadInitialData = async () => {
-    setIsLoading(true);
+    setIsInitialLoading(true);
     try {
       const [customersResult, warehousesResult, productsResult, numberResult] = await Promise.all([
         salesAPI.getCustomers(),
@@ -261,11 +241,15 @@ export default function Sales() {
       if (warehousesResult.data && warehousesResult.data.length > 0) {
         setForm(prev => ({ ...prev, warehouse_id: warehousesResult.data[0].id }));
       }
+
+      if (productsResult.data && productsResult.data.length === 0) {
+        showNotification("info", "No products found. Please add products first.");
+      }
     } catch (err) {
       console.error("Error loading data:", err);
-      showNotification("error", "Failed to load initial data");
+      showNotification("error", err.message || "Failed to load initial data");
     } finally {
-      setIsLoading(false);
+      setIsInitialLoading(false);
     }
   };
 
@@ -294,27 +278,80 @@ export default function Sales() {
 
   // ==================== ITEM MANAGEMENT ====================
   const selectProduct = async (product) => {
-    // Get product batches
-    const batchesResult = await salesAPI.getProductBatches(product.id);
-    const batches = batchesResult.success ? batchesResult.data : [];
+    try {
+      // ✅ Get inventory data (this is where stock is stored)
+      const inventoryResult = await salesAPI.getProductInventory(product.id);
+      let availableStock = 0;
+      let inventoryData = [];
 
-    // Calculate available stock
-    const availableStock = batches.reduce((sum, b) => sum + (b.quantity || 0), 0);
+      if (inventoryResult.success && inventoryResult.data) {
+        inventoryData = inventoryResult.data;
+        // Calculate total available stock from all warehouse inventory
+        availableStock = inventoryData.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      }
 
-    setCurrentItem({
-      product_id: product.id,
-      product_name: product.name,
-      product_code: product.code,
-      unit: product.unit,
-      quantity: 1,
-      sale_price: product.sale_price || 0,
-      purchase_price: product.purchase_price || 0,
-      total: product.sale_price || 0,
-      available_stock: availableStock,
-      batches: batches
-    });
-    setProductSearch(product.name);
-    setShowProductDropdown(false);
+      // Also try to get batches for display (optional)
+      let batches = [];
+      try {
+        const batchesResult = await salesAPI.getProductBatches(product.id);
+        if (batchesResult.success && batchesResult.data) {
+          batches = batchesResult.data;
+        }
+      } catch (err) {
+        // Ignore batch errors - inventory is more important
+      }
+
+      // Check if product has stock in the selected warehouse
+      if (form.warehouse_id && inventoryData.length > 0) {
+        const warehouseStock = inventoryData.find(
+          i => i.warehouse_id === parseInt(form.warehouse_id)
+        );
+        if (warehouseStock) {
+          availableStock = warehouseStock.quantity || 0;
+        } else {
+          availableStock = 0;
+        }
+      }
+
+      setCurrentItem({
+        product_id: product.id,
+        product_name: product.name,
+        product_code: product.code,
+        unit: product.unit,
+        quantity: 1,
+        sale_price: product.sale_price || 0,
+        purchase_price: product.purchase_price || 0,
+        total: product.sale_price || 0,
+        available_stock: availableStock,
+        batches: batches,
+        inventory: inventoryData
+      });
+      
+      setProductSearch(product.name);
+      setShowProductDropdown(false);
+
+      if (availableStock === 0) {
+        showNotification("info", `⚠️ ${product.name} has 0 stock available. Add stock via purchases first.`);
+      }
+    } catch (err) {
+      console.error("Error loading product inventory:", err);
+      setCurrentItem({
+        product_id: product.id,
+        product_name: product.name,
+        product_code: product.code,
+        unit: product.unit,
+        quantity: 1,
+        sale_price: product.sale_price || 0,
+        purchase_price: product.purchase_price || 0,
+        total: product.sale_price || 0,
+        available_stock: 0,
+        batches: [],
+        inventory: []
+      });
+      setProductSearch(product.name);
+      setShowProductDropdown(false);
+      showNotification("info", `⚠️ Could not load stock info for ${product.name}.`);
+    }
   };
 
   const addItem = () => {
@@ -366,7 +403,8 @@ export default function Sales() {
       purchase_price: 0,
       total: 0,
       available_stock: 0,
-      batches: []
+      batches: [],
+      inventory: []
     });
     setProductSearch("");
     setShowProductDropdown(false);
@@ -445,9 +483,13 @@ export default function Sales() {
       due_amount: 0
     });
 
-    const numberResult = await salesAPI.generateNumber();
-    if (numberResult.success) {
-      setForm(prev => ({ ...prev, invoice_number: numberResult.data.invoice_number }));
+    try {
+      const numberResult = await salesAPI.generateNumber();
+      if (numberResult.success) {
+        setForm(prev => ({ ...prev, invoice_number: numberResult.data.invoice_number }));
+      }
+    } catch (err) {
+      console.error("Error generating invoice number:", err);
     }
   };
 
@@ -463,16 +505,6 @@ export default function Sales() {
     return `₨${(amount || 0).toFixed(2)}`;
   };
 
-  const getCustomerName = (id) => {
-    const customer = customers.find(c => c.id === parseInt(id));
-    return customer?.name || "Select Customer";
-  };
-
-  const getWarehouseName = (id) => {
-    const warehouse = warehouses.find(w => w.id === parseInt(id));
-    return warehouse?.name || "Select Warehouse";
-  };
-
   const getStockStatus = (available) => {
     if (available <= 0) return { label: "Out of Stock", color: "text-red-600", bg: "bg-red-50" };
     if (available <= 10) return { label: "Low Stock", color: "text-amber-600", bg: "bg-amber-50" };
@@ -480,24 +512,47 @@ export default function Sales() {
   };
 
   // ==================== RENDER ====================
+  if (isInitialLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={32} className="text-emerald-500 animate-spin" />
+          <p className="text-sm text-slate-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-3 sm:p-4 bg-gradient-to-br from-emerald-50/50 via-white to-blue-50/30 min-h-screen">
 
       {/* ===== NOTIFICATION ===== */}
       {notification.show && (
         <div className={`fixed top-4 right-4 z-50 max-w-sm w-full p-3 rounded-xl shadow-lg animate-slide-down border ${
-          notification.type === "success" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+          notification.type === "success" ? "bg-emerald-50 border-emerald-200" : 
+          notification.type === "info" ? "bg-blue-50 border-blue-200" :
+          "bg-red-50 border-red-200"
         }`}>
           <div className="flex items-start gap-2">
-            <div className={`mt-0.5 p-1 rounded-full ${notification.type === "success" ? "bg-emerald-100" : "bg-red-100"}`}>
+            <div className={`mt-0.5 p-1 rounded-full ${
+              notification.type === "success" ? "bg-emerald-100" : 
+              notification.type === "info" ? "bg-blue-100" :
+              "bg-red-100"
+            }`}>
               {notification.type === "success" ? (
                 <CheckCircle size={14} className="text-emerald-600" />
+              ) : notification.type === "info" ? (
+                <AlertCircle size={14} className="text-blue-600" />
               ) : (
                 <X size={14} className="text-red-600" />
               )}
             </div>
             <div className="flex-1">
-              <p className={`text-xs font-medium ${notification.type === "success" ? "text-emerald-800" : "text-red-800"}`}>
+              <p className={`text-xs font-medium ${
+                notification.type === "success" ? "text-emerald-800" : 
+                notification.type === "info" ? "text-blue-800" :
+                "text-red-800"
+              }`}>
                 {notification.message}
               </p>
             </div>
@@ -716,6 +771,11 @@ export default function Sales() {
                           })}
                         </div>
                       )}
+                      {products.length === 0 && !isInitialLoading && (
+                        <p className="text-[10px] text-amber-600 mt-1">
+                          ⚠️ No products available. Please add products first.
+                        </p>
+                      )}
                     </div>
                     {currentItem.product_name && (
                       <div className="mt-1 flex items-center justify-between">
@@ -895,8 +955,8 @@ export default function Sales() {
                       )}
                       <p className="flex items-center gap-1 font-medium">
                         <Wallet size={10} />
-                        Balance: <span className={customer.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}>
-                          {formatCurrency(customer.balance)}
+                        Balance: <span className={customer.credit > customer.debit ? 'text-amber-600' : 'text-emerald-600'}>
+                          {formatCurrency((customer.credit || 0) - (customer.debit || 0))}
                         </span>
                       </p>
                     </div>
@@ -1004,7 +1064,7 @@ export default function Sales() {
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                   Processing...
                 </>
               ) : (

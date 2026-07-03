@@ -10,28 +10,31 @@ const batchService = require('./batch.service');
 class SalesService {
     // ==================== FIFO LOGIC ====================
     async getFIFOBatches(productId, warehouseId, quantity) {
-        // Get all active batches for this product in this warehouse
-        const batches = await batchService.getBatchesByProductAndWarehouse(
+        const result = await batchService.getBatchesByProductAndWarehouse(
             productId,
             warehouseId,
-            true // only active batches
+            true
         );
 
-        // Sort by expiry date (oldest first)
+        if (!result.success || !result.data || result.data.length === 0) {
+            throw new Error(`No stock available for product in this warehouse`);
+        }
+
+        let batches = result.data;
+
         const sortedBatches = batches.sort((a, b) => {
             if (!a.expiry_date) return 1;
             if (!b.expiry_date) return -1;
             return new Date(a.expiry_date) - new Date(b.expiry_date);
         });
 
-        // Allocate quantity from batches (FIFO)
         const allocatedBatches = [];
         let remainingQty = quantity;
 
         for (const batch of sortedBatches) {
             if (remainingQty <= 0) break;
 
-            const availableQty = batch.quantity - (batch.reserved_quantity || 0);
+            const availableQty = batch.available_quantity || batch.quantity || 0;
             if (availableQty <= 0) continue;
 
             const takenQty = Math.min(remainingQty, availableQty);
@@ -42,7 +45,8 @@ class SalesService {
                 quantity: takenQty,
                 purchase_price: batch.purchase_price || 0,
                 sale_price: batch.sale_price || 0,
-                expiry_date: batch.expiry_date
+                expiry_date: batch.expiry_date,
+                inventory_id: batch.inventory_id
             });
 
             remainingQty -= takenQty;
@@ -57,19 +61,31 @@ class SalesService {
 
     // ==================== CREATE ====================
     async createSale(data) {
-        // Validate customer
+        console.log('🟢 [SalesService] createSale called:', {
+            customer_id: data.customer_id,
+            warehouse_id: data.warehouse_id,
+            items: data.items?.length || 0
+        });
+
+        if (!data.warehouse_id) {
+            throw new Error(`Warehouse ID is required (received: ${data.warehouse_id})`);
+        }
+
+        const warehouseId = parseInt(data.warehouse_id);
+        if (isNaN(warehouseId)) {
+            throw new Error(`Invalid warehouse ID: ${data.warehouse_id}`);
+        }
+
         const customer = customerRepository.getById(data.customer_id);
         if (!customer) {
             throw new Error('Customer not found');
         }
 
-        // Validate warehouse
-        const warehouse = warehouseRepository.getById(data.warehouse_id);
+        const warehouse = warehouseRepository.getById(warehouseId);
         if (!warehouse) {
             throw new Error('Warehouse not found');
         }
 
-        // Validate items
         if (!data.items || data.items.length === 0) {
             throw new Error('At least one item is required');
         }
@@ -77,7 +93,6 @@ class SalesService {
         let totalAmount = 0;
         const processedItems = [];
 
-        // Process each item with FIFO
         for (const item of data.items) {
             const product = productRepository.getById(item.product_id);
             if (!product) {
@@ -88,14 +103,16 @@ class SalesService {
                 throw new Error(`Quantity must be greater than 0 for ${product.name}`);
             }
 
-            // Get FIFO batches for this product
+            console.log(`🟢 [SalesService] Processing item: ${product.name} x ${item.quantity}`);
+
             const batches = await this.getFIFOBatches(
                 item.product_id,
-                data.warehouse_id,
+                warehouseId,
                 item.quantity
             );
 
-            // For each batch, create a sale item
+            console.log(`🟢 [SalesService] Found ${batches.length} batches for FIFO`);
+
             for (const batch of batches) {
                 const salePrice = item.sale_price || product.sale_price || 0;
                 const itemTotal = batch.quantity * salePrice;
@@ -111,29 +128,36 @@ class SalesService {
                     total: itemTotal
                 });
 
-                // Update inventory - remove stock from this batch
-                await inventoryService.removeStock({
-                    product_id: item.product_id,
-                    warehouse_id: data.warehouse_id,
-                    batch_id: batch.batch_id,
+                console.log(`🟢 [SalesService] Removing stock: batch ${batch.batch_id}, qty ${batch.quantity}, warehouse ${warehouseId}`);
+
+                // ✅ Pass as object with correct property names
+                const removeResult = await inventoryService.removeStock({
+                    productId: item.product_id,
+                    warehouseId: warehouseId,
+                    batchId: batch.batch_id,
                     quantity: batch.quantity
                 });
+
+                console.log(`🟢 [SalesService] removeStock result:`, removeResult);
+
+                if (!removeResult.success) {
+                    throw new Error(`Failed to remove stock: ${removeResult.error}`);
+                }
             }
         }
 
-        // Apply discount and tax
         const discount = data.discount || 0;
         const tax = data.tax || 0;
         const finalTotal = totalAmount - discount + tax;
 
-        // Generate invoice number
+        console.log(`🟢 [SalesService] Final total: ${finalTotal}`);
+
         const invoiceNumber = salesRepository.generateNumber();
 
-        // Create sale
         const sale = salesRepository.create({
             invoice_number: invoiceNumber,
             customer_id: data.customer_id,
-            warehouse_id: data.warehouse_id,
+            warehouse_id: warehouseId,
             total_amount: finalTotal,
             discount: discount,
             tax: tax,
@@ -146,13 +170,12 @@ class SalesService {
             created_by: data.created_by || null
         });
 
-        // Create sale items
         salesRepository.createItems(sale.id, processedItems);
 
-        // Update customer balance (debit - customer owes us)
         await this.updateCustomerBalance(data.customer_id, finalTotal, 'debit');
 
-        // Return complete sale
+        console.log(`🟢 [SalesService] Sale created successfully: ${sale.invoice_number}`);
+
         return this.getSaleById(sale.id);
     }
 
@@ -164,11 +187,9 @@ class SalesService {
         }
 
         if (type === 'debit') {
-            // Customer owes us - debit increases
             const newDebit = (customer.debit || 0) + amount;
             customerRepository.update(customerId, { debit: newDebit });
         } else if (type === 'credit') {
-            // We owe customer - credit increases
             const newCredit = (customer.credit || 0) + amount;
             customerRepository.update(customerId, { credit: newCredit });
         }
@@ -252,20 +273,21 @@ class SalesService {
             throw new Error('Sale not found');
         }
 
-        // If status is being updated to cancelled, reverse inventory
         if (data.status === 'cancelled' && existing.status !== 'cancelled') {
             const items = salesRepository.getItems(id);
             for (const item of items) {
-                // Add stock back to inventory
-                await inventoryService.addStock({
-                    product_id: item.product_id,
-                    warehouse_id: existing.warehouse_id,
-                    batch_id: item.batch_id,
+                const addResult = await inventoryService.addStock({
+                    productId: item.product_id,
+                    warehouseId: existing.warehouse_id,
+                    batchId: item.batch_id,
                     quantity: item.quantity
                 });
+
+                if (!addResult.success) {
+                    console.error(`Failed to add stock back: ${addResult.error}`);
+                }
             }
 
-            // Reverse customer balance
             await this.updateCustomerBalance(
                 existing.customer_id,
                 existing.total_amount,
@@ -299,19 +321,21 @@ class SalesService {
             throw new Error('Sale not found');
         }
 
-        // If cancelling, reverse inventory
         if (status === 'cancelled' && existing.status !== 'cancelled') {
             const items = salesRepository.getItems(id);
             for (const item of items) {
-                await inventoryService.addStock({
-                    product_id: item.product_id,
-                    warehouse_id: existing.warehouse_id,
-                    batch_id: item.batch_id,
+                const addResult = await inventoryService.addStock({
+                    productId: item.product_id,
+                    warehouseId: existing.warehouse_id,
+                    batchId: item.batch_id,
                     quantity: item.quantity
                 });
+
+                if (!addResult.success) {
+                    console.error(`Failed to add stock back: ${addResult.error}`);
+                }
             }
 
-            // Reverse customer balance
             await this.updateCustomerBalance(
                 existing.customer_id,
                 existing.total_amount,
@@ -342,18 +366,20 @@ class SalesService {
             throw new Error('Sale not found');
         }
 
-        // Reverse inventory
         const items = salesRepository.getItems(id);
         for (const item of items) {
-            await inventoryService.addStock({
-                product_id: item.product_id,
-                warehouse_id: existing.warehouse_id,
-                batch_id: item.batch_id,
+            const addResult = await inventoryService.addStock({
+                productId: item.product_id,
+                warehouseId: existing.warehouse_id,
+                batchId: item.batch_id,
                 quantity: item.quantity
             });
+
+            if (!addResult.success) {
+                console.error(`Failed to add stock back: ${addResult.error}`);
+            }
         }
 
-        // Delete sale items first, then sale
         salesRepository.deleteItems(id);
         const result = salesRepository.delete(id);
 

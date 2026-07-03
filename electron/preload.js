@@ -1,3 +1,5 @@
+// electron/preload.js
+
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
@@ -11,6 +13,9 @@ contextBridge.exposeInMainWorld("api", {
   deleteProduct: (id) => ipcRenderer.invoke("product:delete", id),
   getProductsByCategory: (category_id) => ipcRenderer.invoke("product:getByCategory", category_id),
   getProductsByUnit: (unit_id) => ipcRenderer.invoke("product:getByUnit", unit_id),
+  getProductStockQuantity: (productId) => ipcRenderer.invoke("product:getStockQuantity", productId),
+  getProductLowStock: (threshold) => ipcRenderer.invoke("product:getLowStock", threshold),
+  updateProductStockQuantity: (productId) => ipcRenderer.invoke("product:updateStockQuantity", productId),
 
   // --- Category Management ---
   getCategories: () => ipcRenderer.invoke("category:get"),
@@ -171,7 +176,6 @@ contextBridge.exposeInMainWorld("api", {
   selectBackupFile: () => ipcRenderer.invoke('dialog:selectBackupFile'),
 
   // ===== PDF GENERATION =====
-  // Generate and save PDF with user dialog
   generateAndSavePDF: (type, data, items) => {
     return ipcRenderer.invoke('generate-and-save-pdf', type, data, items);
   },

@@ -12,7 +12,6 @@ import {
   Phone,
   Mail,
   MapPin,
-  Building2,
   Filter,
   ChevronDown,
   Download,
@@ -26,7 +25,6 @@ import {
   FileText,
   Calendar,
   DollarSign,
-  Database,
   ArrowUpRight,
   ArrowDownRight,
   CircleDot,
@@ -34,11 +32,6 @@ import {
   ShoppingBag,
   UserCircle,
   CreditCard,
-  Award,
-  Clock,
-  Star,
-  Activity,
-  BadgeCheck,
   UserCheck,
   UserX,
   CreditCard as CreditIcon,
@@ -46,380 +39,155 @@ import {
   PiggyBank
 } from "lucide-react";
 
-// ==================== MOCK DATA ====================
-const MOCK_CUSTOMERS = [
-  {
-    id: 1,
-    name: "Ali Ahmad",
-    phone: "0300-1111111",
-    email: "ali@example.com",
-    address: "Johar Town, Lahore",
-    cnic: "12345-1111111-1",
-    credit: 5000,
-    debit: 0,
-    credit_limit: 10000,
-    is_active: 1,
-    sales_count: 12,
-    total_sales: 45000,
-    created_at: "2024-01-15"
-  },
-  {
-    id: 2,
-    name: "Sana Khan",
-    phone: "0300-2222222",
-    email: "sana@example.com",
-    address: "Gulberg, Lahore",
-    cnic: "12345-2222222-2",
-    credit: 0,
-    debit: 2000,
-    credit_limit: 5000,
-    is_active: 1,
-    sales_count: 8,
-    total_sales: 28000,
-    created_at: "2024-02-20"
-  },
-  {
-    id: 3,
-    name: "Usman Ali",
-    phone: "0300-3333333",
-    email: "usman@example.com",
-    address: "Model Town, Lahore",
-    cnic: "12345-3333333-3",
-    credit: 0,
-    debit: 0,
-    credit_limit: 15000,
-    is_active: 0,
-    sales_count: 0,
-    total_sales: 0,
-    created_at: "2024-03-10"
-  },
-  {
-    id: 4,
-    name: "Fatima Noor",
-    phone: "0300-4444444",
-    email: "fatima@example.com",
-    address: "Defence, Lahore",
-    cnic: "12345-4444444-4",
-    credit: 12000,
-    debit: 0,
-    credit_limit: 20000,
-    is_active: 1,
-    sales_count: 20,
-    total_sales: 95000,
-    created_at: "2024-04-05"
-  },
-  {
-    id: 5,
-    name: "Imran Khan",
-    phone: "0300-5555555",
-    email: "imran@example.com",
-    address: "Bahria Town, Lahore",
-    cnic: "12345-5555555-5",
-    credit: 3000,
-    debit: 0,
-    credit_limit: 8000,
-    is_active: 1,
-    sales_count: 6,
-    total_sales: 18000,
-    created_at: "2024-05-12"
-  },
-  {
-    id: 6,
-    name: "Ayesha Malik",
-    phone: "0300-6666666",
-    email: "ayesha@example.com",
-    address: "Garden Town, Lahore",
-    cnic: "12345-6666666-6",
-    credit: 0,
-    debit: 1000,
-    credit_limit: 3000,
-    is_active: 1,
-    sales_count: 4,
-    total_sales: 12000,
-    created_at: "2024-06-18"
-  }
-];
-
-const MOCK_SALES = {
-  1: [
-    { id: 1, invoice_number: "INV-001", total_amount: 5000, paid_amount: 5000, due_amount: 0, sale_date: "2024-01-20" },
-    { id: 2, invoice_number: "INV-002", total_amount: 8000, paid_amount: 5000, due_amount: 3000, sale_date: "2024-02-15" },
-    { id: 3, invoice_number: "INV-003", total_amount: 12000, paid_amount: 10000, due_amount: 2000, sale_date: "2024-03-10" }
-  ],
-  2: [
-    { id: 4, invoice_number: "INV-004", total_amount: 6000, paid_amount: 6000, due_amount: 0, sale_date: "2024-02-01" },
-    { id: 5, invoice_number: "INV-005", total_amount: 9000, paid_amount: 7000, due_amount: 2000, sale_date: "2024-03-15" },
-    { id: 6, invoice_number: "INV-006", total_amount: 13000, paid_amount: 13000, due_amount: 0, sale_date: "2024-06-10" }
-  ],
-  4: [
-    { id: 7, invoice_number: "INV-007", total_amount: 15000, paid_amount: 15000, due_amount: 0, sale_date: "2024-04-10" },
-    { id: 8, invoice_number: "INV-008", total_amount: 22000, paid_amount: 20000, due_amount: 2000, sale_date: "2024-05-15" },
-    { id: 9, invoice_number: "INV-009", total_amount: 18000, paid_amount: 18000, due_amount: 0, sale_date: "2024-06-20" },
-    { id: 10, invoice_number: "INV-010", total_amount: 25000, paid_amount: 22000, due_amount: 3000, sale_date: "2024-07-05" },
-    { id: 11, invoice_number: "INV-011", total_amount: 15000, paid_amount: 15000, due_amount: 0, sale_date: "2024-08-01" }
-  ],
-  5: [
-    { id: 12, invoice_number: "INV-012", total_amount: 8000, paid_amount: 8000, due_amount: 0, sale_date: "2024-05-20" },
-    { id: 13, invoice_number: "INV-013", total_amount: 10000, paid_amount: 8000, due_amount: 2000, sale_date: "2024-07-01" }
-  ],
-  6: [
-    { id: 14, invoice_number: "INV-014", total_amount: 5000, paid_amount: 5000, due_amount: 0, sale_date: "2024-06-20" },
-    { id: 15, invoice_number: "INV-015", total_amount: 7000, paid_amount: 5000, due_amount: 2000, sale_date: "2024-07-15" }
-  ]
-};
-
-const MOCK_STATS = {
-  total: 6,
-  active: 5,
-  inactive: 1,
-  totalCredit: 20000,
-  totalDebit: 3000,
-  totalBalance: 17000,
-  totalSales: 28,
-  totalSalesAmount: 198000,
-  avgSalesPerCustomer: 33000
-};
-
 // ==================== API WRAPPER ====================
 const api = window.api || {};
 
 class CustomerAPI {
+  // ==================== CRUD OPERATIONS ====================
   async createCustomer(data) {
-    try {
-      const result = await api.createCustomer(data);
-      return result;
-    } catch (error) {
-      const newCustomer = {
-        id: Date.now(),
-        ...data,
-        is_active: 1,
-        sales_count: 0,
-        total_sales: 0,
-        created_at: new Date().toISOString()
-      };
-      MOCK_CUSTOMERS.unshift(newCustomer);
-      return { success: true, data: newCustomer };
+    const result = await api.createCustomer(data);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to create customer");
     }
+    return result;
   }
 
   async getAllCustomers(filters = {}) {
-    try {
-      const result = await api.getAllCustomers(filters);
-      if (result.success && result.data.length > 0) {
-        return result;
-      }
-      return { success: true, data: MOCK_CUSTOMERS };
-    } catch (error) {
-      return { success: true, data: MOCK_CUSTOMERS };
+    const result = await api.getAllCustomers(filters);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch customers");
     }
+    return result;
   }
 
   async getCustomerById(id) {
-    try {
-      const result = await api.getCustomerById(id);
-      if (result.success) return result;
-      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      return { success: true, data: customer };
-    } catch (error) {
-      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      return { success: true, data: customer };
+    const result = await api.getCustomerById(id);
+    if (!result.success) {
+      throw new Error(result.error || "Customer not found");
     }
+    return result;
   }
 
   async updateCustomer(id, data) {
-    try {
-      const result = await api.updateCustomer(id, data);
-      return result;
-    } catch (error) {
-      const index = MOCK_CUSTOMERS.findIndex(c => c.id === id);
-      if (index !== -1) {
-        MOCK_CUSTOMERS[index] = { ...MOCK_CUSTOMERS[index], ...data };
-        return { success: true, data: MOCK_CUSTOMERS[index] };
-      }
-      return { success: false, error: "Customer not found" };
+    const result = await api.updateCustomer(id, data);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to update customer");
     }
+    return result;
   }
 
   async deleteCustomer(id) {
-    try {
-      const result = await api.deleteCustomer(id);
-      return result;
-    } catch (error) {
-      const index = MOCK_CUSTOMERS.findIndex(c => c.id === id);
-      if (index !== -1) {
-        MOCK_CUSTOMERS[index].is_active = 0;
-        return { success: true, message: "Customer deactivated" };
-      }
-      return { success: false, error: "Customer not found" };
+    const result = await api.deleteCustomer(id);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to delete customer");
     }
+    return result;
   }
 
+  // ==================== READ OPERATIONS ====================
   async getActiveCustomers() {
-    try {
-      const result = await api.getActiveCustomers();
-      if (result.success) return result;
-      return { success: true, data: MOCK_CUSTOMERS.filter(c => c.is_active === 1) };
-    } catch (error) {
-      return { success: true, data: MOCK_CUSTOMERS.filter(c => c.is_active === 1) };
+    const result = await api.getActiveCustomers();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch active customers");
     }
+    return result;
   }
 
   async searchCustomers(query) {
-    try {
-      const result = await api.searchCustomers(query);
-      if (result.success) return result;
-      const filtered = MOCK_CUSTOMERS.filter(c =>
-        c.name?.toLowerCase().includes(query.toLowerCase()) ||
-        c.phone?.includes(query) ||
-        c.email?.toLowerCase().includes(query)
-      );
-      return { success: true, data: filtered };
-    } catch (error) {
-      const filtered = MOCK_CUSTOMERS.filter(c =>
-        c.name?.toLowerCase().includes(query.toLowerCase()) ||
-        c.phone?.includes(query) ||
-        c.email?.toLowerCase().includes(query)
-      );
-      return { success: true, data: filtered };
+    const result = await api.searchCustomers(query);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to search customers");
     }
+    return result;
   }
 
+  // ==================== BALANCE OPERATIONS ====================
   async getCustomerBalance(id) {
-    try {
-      const result = await api.getCustomerBalance(id);
-      return result;
-    } catch (error) {
-      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      const credit = customer?.credit || 0;
-      const debit = customer?.debit || 0;
-      return { success: true, data: { credit, debit, balance: credit - debit } };
+    const result = await api.getCustomerBalance(id);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch customer balance");
     }
+    return result;
   }
 
-  async updateCustomerBalance(id, amount) {
-    try {
-      const result = await api.updateCustomerBalance(id, amount);
-      return result;
-    } catch (error) {
-      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      if (customer) {
-        if (amount >= 0) {
-          customer.credit = (customer.credit || 0) + amount;
-        } else {
-          customer.debit = (customer.debit || 0) + Math.abs(amount);
-        }
-        const credit = customer.credit || 0;
-        const debit = customer.debit || 0;
-        return { success: true, data: { credit, debit, balance: credit - debit } };
-      }
-      return { success: false, error: "Customer not found" };
-    }
-  }
-
-  async getCustomerStats() {
-    try {
-      const result = await api.getCustomerStats();
-      if (result.success) return result;
-      return { success: true, data: MOCK_STATS };
-    } catch (error) {
-      return { success: true, data: MOCK_STATS };
-    }
-  }
-
-  async getTopCustomers(limit = 5) {
-    try {
-      const result = await api.getTopCustomers(limit);
-      if (result.success) return result;
-      const sorted = [...MOCK_CUSTOMERS].sort((a, b) => (b.total_sales || 0) - (a.total_sales || 0));
-      return { success: true, data: sorted.slice(0, limit) };
-    } catch (error) {
-      const sorted = [...MOCK_CUSTOMERS].sort((a, b) => (b.total_sales || 0) - (a.total_sales || 0));
-      return { success: true, data: sorted.slice(0, limit) };
-    }
-  }
-
-  async getCustomerWithSales(id) {
-    try {
-      const result = await api.getCustomerWithSales(id);
-      if (result.success) return result;
-      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      const sales = MOCK_SALES[id] || [];
-      return { success: true, data: { customer, sales } };
-    } catch (error) {
-      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      const sales = MOCK_SALES[id] || [];
-      return { success: true, data: { customer, sales } };
-    }
-  }
-
-  async exportCustomers(filters = {}) {
-    try {
-      const result = await api.exportCustomers(filters);
-      if (result.success) return result;
-      const data = MOCK_CUSTOMERS.filter(c => filters.is_active === undefined || c.is_active === filters.is_active);
-      return { success: true, data };
-    } catch (error) {
-      const data = MOCK_CUSTOMERS.filter(c => filters.is_active === undefined || c.is_active === filters.is_active);
-      return { success: true, data };
-    }
-  }
-
-  // New methods for credit/debit
   async updateCustomerCredit(id, amount) {
-    try {
-      const result = await api.updateCustomerCredit(id, amount);
-      return result;
-    } catch (error) {
-      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      if (customer) {
-        customer.credit = (customer.credit || 0) + amount;
-        const credit = customer.credit || 0;
-        const debit = customer.debit || 0;
-        return { success: true, data: { credit, debit, balance: credit - debit } };
-      }
-      return { success: false, error: "Customer not found" };
+    const result = await api.updateCustomerCredit(id, amount);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to update credit");
     }
+    return result;
   }
 
   async updateCustomerDebit(id, amount) {
-    try {
-      const result = await api.updateCustomerDebit(id, amount);
-      return result;
-    } catch (error) {
-      const customer = MOCK_CUSTOMERS.find(c => c.id === id);
-      if (customer) {
-        customer.debit = (customer.debit || 0) + amount;
-        const credit = customer.credit || 0;
-        const debit = customer.debit || 0;
-        return { success: true, data: { credit, debit, balance: credit - debit } };
-      }
-      return { success: false, error: "Customer not found" };
+    const result = await api.updateCustomerDebit(id, amount);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to update debit");
     }
+    return result;
+  }
+
+  async updateCustomerBalance(id, amount) {
+    const result = await api.updateCustomerBalance(id, amount);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to update balance");
+    }
+    return result;
+  }
+
+  // ==================== STATS OPERATIONS ====================
+  async getCustomerStats() {
+    const result = await api.getCustomerStats();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch customer stats");
+    }
+    return result;
+  }
+
+  async getTopCustomers(limit = 5) {
+    const result = await api.getTopCustomers(limit);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch top customers");
+    }
+    return result;
+  }
+
+  async getCustomerWithSales(id) {
+    const result = await api.getCustomerWithSales(id);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch customer sales");
+    }
+    return result;
   }
 
   async getCustomersWithCredit() {
-    try {
-      const result = await api.getCustomersWithCredit();
-      if (result.success) return result;
-      return { success: true, data: MOCK_CUSTOMERS.filter(c => (c.credit || 0) > 0) };
-    } catch (error) {
-      return { success: true, data: MOCK_CUSTOMERS.filter(c => (c.credit || 0) > 0) };
+    const result = await api.getCustomersWithCredit();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch customers with credit");
     }
+    return result;
   }
 
   async getCustomersWithDebit() {
-    try {
-      const result = await api.getCustomersWithDebit();
-      if (result.success) return result;
-      return { success: true, data: MOCK_CUSTOMERS.filter(c => (c.debit || 0) > 0) };
-    } catch (error) {
-      return { success: true, data: MOCK_CUSTOMERS.filter(c => (c.debit || 0) > 0) };
+    const result = await api.getCustomersWithDebit();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch customers with debit");
     }
+    return result;
+  }
+
+  // ==================== EXPORT ====================
+  async exportCustomers(filters = {}) {
+    const result = await api.exportCustomers(filters);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to export customers");
+    }
+    return result;
   }
 }
 
 const customerAPI = new CustomerAPI();
 
+// ==================== MAIN COMPONENT ====================
 export default function Customers() {
   // ==================== STATE ====================
   const [customers, setCustomers] = useState([]);
@@ -439,8 +207,8 @@ export default function Customers() {
     totalSalesAmount: 0,
     avgSalesPerCustomer: 0
   });
-  const [isUsingMock, setIsUsingMock] = useState(true);
 
+  // ==================== MODAL STATES ====================
   const [modal, setModal] = useState({ open: false, mode: "add", data: null });
   const [form, setForm] = useState({
     name: "",
@@ -462,7 +230,7 @@ export default function Customers() {
   });
   const [balanceForm, setBalanceForm] = useState({
     amount: 0,
-    type: "credit" // credit or debit
+    type: "credit"
   });
 
   const [notification, setNotification] = useState({
@@ -485,65 +253,41 @@ export default function Customers() {
     setIsLoading(true);
     try {
       const customersResult = await customerAPI.getAllCustomers();
-      if (customersResult.success) {
-        setCustomers(customersResult.data || []);
-        if (customersResult.data && customersResult.data.length > 0) {
-          setIsUsingMock(customersResult.data[0].id > 1000 || customersResult.data[0].id === 1);
-        }
-        if (customersResult.data && customersResult.data.length > 0) {
+      if (customersResult.success && customersResult.data) {
+        setCustomers(customersResult.data);
+        if (customersResult.data.length > 0) {
           setSelectedCustomer(customersResult.data[0]);
         }
-        
-        const data = customersResult.data || [];
-        const active = data.filter(c => c.is_active === 1).length;
-        const inactive = data.filter(c => c.is_active === 0).length;
-        const totalCredit = data.reduce((sum, c) => sum + (c.credit || 0), 0);
-        const totalDebit = data.reduce((sum, c) => sum + (c.debit || 0), 0);
-        const totalSales = data.reduce((sum, c) => sum + (c.sales_count || 0), 0);
-        const totalSalesAmount = data.reduce((sum, c) => sum + (c.total_sales || 0), 0);
-        const avgSalesPerCustomer = data.length > 0 ? totalSalesAmount / data.length : 0;
-        
-        setStats({
-          total: data.length,
-          active,
-          inactive,
-          totalCredit,
-          totalDebit,
-          totalBalance: totalCredit - totalDebit,
-          totalSales,
-          totalSalesAmount,
-          avgSalesPerCustomer
-        });
-      } else {
-        setStats({
-          total: MOCK_STATS.total || 0,
-          active: MOCK_STATS.active || 0,
-          inactive: MOCK_STATS.inactive || 0,
-          totalCredit: MOCK_STATS.totalCredit || 0,
-          totalDebit: MOCK_STATS.totalDebit || 0,
-          totalBalance: MOCK_STATS.totalBalance || 0,
-          totalSales: MOCK_STATS.totalSales || 0,
-          totalSalesAmount: MOCK_STATS.totalSalesAmount || 0,
-          avgSalesPerCustomer: MOCK_STATS.avgSalesPerCustomer || 0
-        });
+        calculateStats(customersResult.data);
       }
     } catch (err) {
       console.error("Error loading customers:", err);
-      showNotification("error", "Failed to load customers");
-      setStats({
-        total: MOCK_STATS.total || 0,
-        active: MOCK_STATS.active || 0,
-        inactive: MOCK_STATS.inactive || 0,
-        totalCredit: MOCK_STATS.totalCredit || 0,
-        totalDebit: MOCK_STATS.totalDebit || 0,
-        totalBalance: MOCK_STATS.totalBalance || 0,
-        totalSales: MOCK_STATS.totalSales || 0,
-        totalSalesAmount: MOCK_STATS.totalSalesAmount || 0,
-        avgSalesPerCustomer: MOCK_STATS.avgSalesPerCustomer || 0
-      });
+      showNotification("error", err.message || "Failed to load customers");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const calculateStats = (data) => {
+    const active = data.filter(c => c.is_active === 1).length;
+    const inactive = data.filter(c => c.is_active === 0).length;
+    const totalCredit = data.reduce((sum, c) => sum + (c.credit || 0), 0);
+    const totalDebit = data.reduce((sum, c) => sum + (c.debit || 0), 0);
+    const totalSales = data.reduce((sum, c) => sum + (c.sales_count || 0), 0);
+    const totalSalesAmount = data.reduce((sum, c) => sum + (c.total_sales || 0), 0);
+    const avgSalesPerCustomer = data.length > 0 ? totalSalesAmount / data.length : 0;
+    
+    setStats({
+      total: data.length,
+      active,
+      inactive,
+      totalCredit,
+      totalDebit,
+      totalBalance: totalCredit - totalDebit,
+      totalSales,
+      totalSalesAmount,
+      avgSalesPerCustomer
+    });
   };
 
   // ==================== FILTERS ====================
@@ -752,6 +496,40 @@ export default function Customers() {
     }
   };
 
+  // ==================== EXPORT ====================
+  const handleExport = async () => {
+    try {
+      const result = await customerAPI.exportCustomers({ is_active: 1 });
+      if (result.success && result.data) {
+        const headers = ["Name", "Phone", "Email", "Address", "CNIC", "Credit", "Debit", "Balance", "Credit Limit", "Status"];
+        const rows = result.data.map(c => [
+          c.name || "",
+          c.phone || "",
+          c.email || "",
+          c.address || "",
+          c.cnic || "",
+          c.credit || 0,
+          c.debit || 0,
+          (c.credit || 0) - (c.debit || 0),
+          c.credit_limit || 0,
+          c.is_active ? "Active" : "Inactive"
+        ]);
+        const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `customers_export_${new Date().toISOString().split("T")[0]}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        showNotification("success", "Customers exported successfully!");
+      }
+    } catch (err) {
+      console.error("Export error:", err);
+      showNotification("error", "Failed to export customers");
+    }
+  };
+
   // ==================== HELPERS ====================
   const getStatusBadge = (isActive) => {
     return isActive 
@@ -765,11 +543,6 @@ export default function Customers() {
 
   const formatCurrency = (amount) => {
     return `₨${(amount || 0).toFixed(2)}`;
-  };
-
-  const formatDate = (date) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleDateString();
   };
 
   const getInitials = (name) => {
@@ -836,52 +609,11 @@ export default function Customers() {
           <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
             <Users size={10} />
             Manage customer relationships, credit, and debit
-            {isUsingMock && (
-              <span className="ml-2 text-[7px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
-                <Database size={8} />
-                Mock Data
-              </span>
-            )}
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
-            onClick={() => {
-              setIsUsingMock(!isUsingMock);
-              loadData();
-            }}
-            className="text-[8px] px-2 py-1 rounded-lg border bg-white hover:bg-slate-50 text-slate-600 border-slate-200"
-          >
-            {isUsingMock ? "📊 Mock" : "🔴 Live"}
-          </button>
-          <button
-            onClick={async () => {
-              const result = await customerAPI.exportCustomers({ is_active: 1 });
-              if (result.success && result.data) {
-                const headers = ["Name", "Phone", "Email", "Address", "CNIC", "Credit", "Debit", "Balance", "Credit Limit", "Status"];
-                const rows = result.data.map(c => [
-                  c.name || "",
-                  c.phone || "",
-                  c.email || "",
-                  c.address || "",
-                  c.cnic || "",
-                  c.credit || 0,
-                  c.debit || 0,
-                  (c.credit || 0) - (c.debit || 0),
-                  c.credit_limit || 0,
-                  c.is_active ? "Active" : "Inactive"
-                ]);
-                const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
-                const blob = new Blob([csvContent], { type: "text/csv" });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `customers_export_${new Date().toISOString().split("T")[0]}.csv`;
-                a.click();
-                window.URL.revokeObjectURL(url);
-                showNotification("success", "Customers exported successfully!");
-              }
-            }}
+            onClick={handleExport}
             className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-white rounded-lg transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-r from-slate-600 to-slate-700"
           >
             <Download size={12} />
@@ -929,7 +661,6 @@ export default function Customers() {
               item.label === "Total Debit" ? 'text-rose-600' : 
               item.label === "Net Balance" ? 'text-purple-600' :
               item.label === "Active" ? 'text-emerald-600' : 
-              item.label === "Avg Sales" ? 'text-cyan-600' : 
               'text-slate-800'
             } mt-0.5`}>
               {item.value}
@@ -1580,14 +1311,6 @@ export default function Customers() {
           from { transform: translateY(-8px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-6px); }
-        }
-        @keyframes pulse-slow {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.8; }
-        }
         .animate-fade-in {
           animation: fadeIn 0.3s ease-out forwards;
         }
@@ -1596,12 +1319,6 @@ export default function Customers() {
         }
         .animate-slide-down {
           animation: slideDown 0.25s ease-out forwards;
-        }
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
-        }
-        .animate-pulse-slow {
-          animation: pulse-slow 2s ease-in-out infinite;
         }
       `}</style>
     </div>

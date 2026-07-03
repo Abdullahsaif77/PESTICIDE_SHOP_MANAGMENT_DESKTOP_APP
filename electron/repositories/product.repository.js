@@ -1,59 +1,57 @@
-const db = require("../database/database")
+// electron/repositories/product.repository.js
+
+const db = require("../database/database");
 
 class ProductRepository {
     // ==================== PRODUCT METHODS ====================
     getAll() {
-        return db.prepare("SELECT * FROM products ORDER BY id DESC").all()
+        return db.prepare("SELECT * FROM products ORDER BY id DESC").all();
     }
 
     create(name, category_id, unit_id, purchase_price, sale_price, code = null, brand = null, barcode = null, description = null, stock_quantity = 0, reorder_level = 0) {
-    const result = db
-        .prepare(`INSERT INTO products 
-            (name, category_id, unit_id, purchase_price, sale_price, code, brand, barcode, description, stock_quantity, reorder_level) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(name, category_id, unit_id, purchase_price, sale_price, code, brand, barcode, description, stock_quantity, reorder_level);
-    
-    // Return the created product with all data
-    return this.getById(result.lastInsertRowid);
-}
+        const result = db
+            .prepare(`INSERT INTO products 
+                (name, category_id, unit_id, purchase_price, sale_price, code, brand, barcode, description, stock_quantity, reorder_level) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(name, category_id, unit_id, purchase_price, sale_price, code, brand, barcode, description, stock_quantity, reorder_level);
+        
+        return this.getById(result.lastInsertRowid);
+    }
 
-    // electron/repositories/product.repository.js
-
-update(id, updates) {
-    const fields = [];
-    const values = [];
-    
-    const allowedFields = [
-        'name', 'category_id', 'unit_id', 'purchase_price', 'sale_price',
-        'code', 'brand', 'barcode', 'description', 'stock_quantity', 
-        'reorder_level', 'is_active'
-    ];
-    
-    for (const field of allowedFields) {
-        if (updates[field] !== undefined) {
-            fields.push(`${field} = ?`);
-            values.push(updates[field]);
+    update(id, updates) {
+        const fields = [];
+        const values = [];
+        
+        const allowedFields = [
+            'name', 'category_id', 'unit_id', 'purchase_price', 'sale_price',
+            'code', 'brand', 'barcode', 'description', 'stock_quantity', 
+            'reorder_level', 'is_active'
+        ];
+        
+        for (const field of allowedFields) {
+            if (updates[field] !== undefined) {
+                fields.push(`${field} = ?`);
+                values.push(updates[field]);
+            }
         }
+        
+        if (fields.length === 0) {
+            return this.getById(id);
+        }
+        
+        fields.push("updated_at = CURRENT_TIMESTAMP");
+        values.push(id);
+        
+        const result = db
+            .prepare(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`)
+            .run(...values);
+        
+        if (result.changes === 0) {
+            return null;
+        }
+        
+        return this.getById(id);
     }
-    
-    if (fields.length === 0) {
-        return this.getById(id);  // Return existing product if no fields to update
-    }
-    
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    values.push(id);
-    
-    const result = db
-        .prepare(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`)
-        .run(...values);
-    
-    if (result.changes === 0) {
-        return null;
-    }
-    
-    // Return the updated product
-    return this.getById(id);
-}
 
     delete(id) {
         return db.prepare("DELETE FROM products WHERE id = ?").run(id);
@@ -117,6 +115,40 @@ update(id, updates) {
             .run(id);
     }
 
+    // ==================== ✅ NEW METHOD: Update Stock Quantity ====================
+    updateStockQuantity(productId) {
+        try {
+            // Calculate total stock from inventory
+            const stmt = db.prepare(`
+                SELECT COALESCE(SUM(quantity), 0) as total_stock
+                FROM inventory
+                WHERE product_id = ?
+            `);
+            const result = stmt.get(productId);
+            const totalStock = result?.total_stock || 0;
+
+            // Update product stock_quantity
+            const updateStmt = db.prepare(`
+                UPDATE products 
+                SET stock_quantity = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            `);
+            return updateStmt.run(totalStock, productId);
+        } catch (error) {
+            console.error('Error updating product stock quantity:', error);
+            throw error;
+        }
+    }
+
+    // ==================== ✅ NEW METHOD: Get Stock Quantity ====================
+    getStockQuantity(productId) {
+        const stmt = db.prepare(`
+            SELECT stock_quantity FROM products WHERE id = ?
+        `);
+        const result = stmt.get(productId);
+        return result?.stock_quantity || 0;
+    }
+
     // ==================== CATEGORY METHODS ====================
     createCategory(name, description = null) {
         const result = db
@@ -163,7 +195,6 @@ update(id, updates) {
     }
 
     deleteCategory(id) {
-        // Check if category has products
         const count = db.prepare("SELECT COUNT(*) as count FROM products WHERE category_id = ?").get(id);
         if (count.count > 0) {
             throw new Error('Cannot delete category with existing products');
@@ -223,7 +254,6 @@ update(id, updates) {
     }
 
     deleteUnit(id) {
-        // Check if unit is used in products
         const count = db.prepare("SELECT COUNT(*) as count FROM products WHERE unit_id = ?").get(id);
         if (count.count > 0) {
             throw new Error('Cannot delete unit with existing products');
@@ -232,4 +262,4 @@ update(id, updates) {
     }
 }
 
-module.exports = new ProductRepository()
+module.exports = new ProductRepository();
