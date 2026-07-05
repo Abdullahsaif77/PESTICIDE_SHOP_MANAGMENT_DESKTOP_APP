@@ -1,6 +1,6 @@
 // src/pages/Sales/Sales.jsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Plus,
   X,
@@ -148,6 +148,24 @@ class SalesAPI {
       return { success: true, data: { invoice_number: `INV-${String(Date.now()).slice(-6)}` } };
     }
   }
+
+  // ✅ PDF Generation method - using the specific sale PDF generator
+  async generateSalePDF(saleData, items) {
+    try {
+      console.log('📄 [SalesAPI] Calling generateSalePDF');
+      console.log('📄 [SalesAPI] saleData:', saleData);
+      console.log('📄 [SalesAPI] items count:', items?.length || 0);
+      
+      // ✅ Call the specific sale PDF method from preload
+      const result = await api.generateSalePDF(saleData, items);
+      
+      console.log('📄 [SalesAPI] Result:', result);
+      return result;
+    } catch (error) {
+      console.error("❌ PDF generation error:", error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 const salesAPI = new SalesAPI();
@@ -161,7 +179,7 @@ export default function Sales() {
   // Form Data
   const [form, setForm] = useState({
     invoice_number: "",
-    customer_id: "",
+    customer_id: "", // Will be set to walking customer ID (999) after loading
     warehouse_id: "",
     sale_date: new Date().toISOString().split("T")[0],
     payment_method: "cash",
@@ -169,7 +187,10 @@ export default function Sales() {
     discount: 0,
     tax: 0,
     paid_amount: 0,
-    status: "completed"
+    status: "completed",
+    subtotal: 0,
+    total_amount: 0,
+    due_amount: 0
   });
 
   // Items
@@ -196,6 +217,63 @@ export default function Sales() {
   const [productSearch, setProductSearch] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
+  // ✅ Track the last created sale for PDF generation
+  const [lastCreatedSale, setLastCreatedSale] = useState(null);
+
+  // Refs
+  const productSearchRef = useRef(null);
+
+  // ==================== LOAD INITIAL DATA ====================
+  const loadInitialData = async () => {
+    setIsInitialLoading(true);
+    try {
+      // Load customers
+      const customersResult = await salesAPI.getCustomers();
+      if (customersResult.success) {
+        setCustomers(customersResult.data || []);
+        
+        // ✅ Set default customer to Walking Customer (ID: 999) if exists
+        const walkingCustomer = customersResult.data?.find(c => c.id === 999);
+        if (walkingCustomer) {
+          setForm(prev => ({ ...prev, customer_id: "999" }));
+        } else if (customersResult.data && customersResult.data.length > 0) {
+          // Fallback: set to first active customer
+          setForm(prev => ({ ...prev, customer_id: String(customersResult.data[0].id) }));
+        }
+      }
+
+      // Load warehouses
+      const warehousesResult = await salesAPI.getWarehouses();
+      if (warehousesResult.success) {
+        setWarehouses(warehousesResult.data || []);
+        // Set default warehouse if available
+        if (warehousesResult.data && warehousesResult.data.length > 0) {
+          setForm(prev => ({ ...prev, warehouse_id: String(warehousesResult.data[0].id) }));
+        }
+      }
+
+      // Load products
+      const productsResult = await salesAPI.getProducts();
+      if (productsResult.success) {
+        setProducts(productsResult.data || []);
+      }
+
+      // Generate invoice number
+      const numberResult = await salesAPI.generateNumber();
+      if (numberResult.success) {
+        setForm(prev => ({ 
+          ...prev, 
+          invoice_number: numberResult.data.invoice_number 
+        }));
+      }
+    } catch (error) {
+      console.error("Error loading initial data:", error);
+      showNotification("error", "Failed to load initial data");
+    } finally {
+      setIsInitialLoading(false);
+    }
+  };
+
   // ==================== EFFECTS ====================
   useEffect(() => {
     loadInitialData();
@@ -219,38 +297,31 @@ export default function Sales() {
     }
   }, [productSearch, products]);
 
-  // ==================== DATA LOADING ====================
-  const loadInitialData = async () => {
-    setIsInitialLoading(true);
-    try {
-      const [customersResult, warehousesResult, productsResult, numberResult] = await Promise.all([
-        salesAPI.getCustomers(),
-        salesAPI.getWarehouses(),
-        salesAPI.getProducts(),
-        salesAPI.generateNumber()
-      ]);
+  // Recalculate available stock when warehouse changes
+  useEffect(() => {
+    if (!currentItem.product_id) return;
 
-      if (customersResult.success) setCustomers(customersResult.data || []);
-      if (warehousesResult.success) setWarehouses(warehousesResult.data || []);
-      if (productsResult.success) setProducts(productsResult.data || []);
+    const newStock = getStockForWarehouse(currentItem.inventory, form.warehouse_id);
 
-      if (numberResult.success) {
-        setForm(prev => ({ ...prev, invoice_number: numberResult.data.invoice_number }));
-      }
+    setCurrentItem(prev => ({
+      ...prev,
+      available_stock: newStock
+    }));
 
-      if (warehousesResult.data && warehousesResult.data.length > 0) {
-        setForm(prev => ({ ...prev, warehouse_id: warehousesResult.data[0].id }));
-      }
-
-      if (productsResult.data && productsResult.data.length === 0) {
-        showNotification("info", "No products found. Please add products first.");
-      }
-    } catch (err) {
-      console.error("Error loading data:", err);
-      showNotification("error", err.message || "Failed to load initial data");
-    } finally {
-      setIsInitialLoading(false);
+    if (newStock === 0) {
+      showNotification("info", `⚠️ ${currentItem.product_name} has 0 stock in the selected warehouse.`);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.warehouse_id]);
+
+  // ==================== HELPERS (stock) ====================
+  const getStockForWarehouse = (inventoryData, warehouseId) => {
+    if (!Array.isArray(inventoryData) || inventoryData.length === 0) return 0;
+    if (!warehouseId) {
+      return inventoryData.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    }
+    const match = inventoryData.find(i => i.warehouse_id === parseInt(warehouseId));
+    return match ? (match.quantity || 0) : 0;
   };
 
   // ==================== CALCULATIONS ====================
@@ -279,18 +350,16 @@ export default function Sales() {
   // ==================== ITEM MANAGEMENT ====================
   const selectProduct = async (product) => {
     try {
-      // ✅ Get inventory data (this is where stock is stored)
+      console.log(`🔍 Selecting product: ${product.id} - ${product.name}`);
+      
       const inventoryResult = await salesAPI.getProductInventory(product.id);
-      let availableStock = 0;
       let inventoryData = [];
 
       if (inventoryResult.success && inventoryResult.data) {
         inventoryData = inventoryResult.data;
-        // Calculate total available stock from all warehouse inventory
-        availableStock = inventoryData.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        console.log(`📊 Inventory data for product ${product.id}:`, inventoryData);
       }
 
-      // Also try to get batches for display (optional)
       let batches = [];
       try {
         const batchesResult = await salesAPI.getProductBatches(product.id);
@@ -298,26 +367,18 @@ export default function Sales() {
           batches = batchesResult.data;
         }
       } catch (err) {
-        // Ignore batch errors - inventory is more important
+        // Ignore batch errors
+        console.log('⚠️ Could not fetch batches:', err.message);
       }
 
-      // Check if product has stock in the selected warehouse
-      if (form.warehouse_id && inventoryData.length > 0) {
-        const warehouseStock = inventoryData.find(
-          i => i.warehouse_id === parseInt(form.warehouse_id)
-        );
-        if (warehouseStock) {
-          availableStock = warehouseStock.quantity || 0;
-        } else {
-          availableStock = 0;
-        }
-      }
+      const availableStock = getStockForWarehouse(inventoryData, form.warehouse_id);
+      console.log(`📊 Available stock in warehouse ${form.warehouse_id}: ${availableStock}`);
 
       setCurrentItem({
         product_id: product.id,
         product_name: product.name,
         product_code: product.code,
-        unit: product.unit,
+        unit: product.unit || 'pcs',
         quantity: 1,
         sale_price: product.sale_price || 0,
         purchase_price: product.purchase_price || 0,
@@ -326,12 +387,16 @@ export default function Sales() {
         batches: batches,
         inventory: inventoryData
       });
-      
+
       setProductSearch(product.name);
       setShowProductDropdown(false);
 
+      if (productSearchRef.current) {
+        productSearchRef.current.blur();
+      }
+
       if (availableStock === 0) {
-        showNotification("info", `⚠️ ${product.name} has 0 stock available. Add stock via purchases first.`);
+        showNotification("info", `⚠️ ${product.name} has 0 stock available in this warehouse.`);
       }
     } catch (err) {
       console.error("Error loading product inventory:", err);
@@ -339,7 +404,7 @@ export default function Sales() {
         product_id: product.id,
         product_name: product.name,
         product_code: product.code,
-        unit: product.unit,
+        unit: product.unit || 'pcs',
         quantity: 1,
         sale_price: product.sale_price || 0,
         purchase_price: product.purchase_price || 0,
@@ -350,6 +415,11 @@ export default function Sales() {
       });
       setProductSearch(product.name);
       setShowProductDropdown(false);
+      
+      if (productSearchRef.current) {
+        productSearchRef.current.blur();
+      }
+      
       showNotification("info", `⚠️ Could not load stock info for ${product.name}.`);
     }
   };
@@ -410,6 +480,39 @@ export default function Sales() {
     setShowProductDropdown(false);
   };
 
+  // ==================== PDF GENERATION ====================
+  const generatePDF = async (saleData, saleItems) => {
+    try {
+      setIsLoading(true);
+      showNotification("info", "Preparing PDF...");
+      
+      console.log('📄 [Sales] Generating PDF for invoice:', saleData.invoice_number);
+      console.log('📄 [Sales] Items count:', saleItems?.length || 0);
+      
+      // ✅ Call the specific sale PDF method
+      const result = await salesAPI.generateSalePDF(saleData, saleItems);
+      
+      console.log('📄 [Sales] PDF result:', result);
+      
+      if (result.success) {
+        showNotification("success", `PDF saved successfully at: ${result.path}`);
+        console.log("✅ PDF saved:", result.path);
+      } else if (result.canceled) {
+        showNotification("info", "PDF save was canceled");
+      } else {
+        showNotification("error", `Failed to generate PDF: ${result.error || 'Unknown error'}`);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("❌ PDF generation error:", error);
+      showNotification("error", `PDF generation failed: ${error.message}`);
+      return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ==================== FORM SUBMISSION ====================
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -441,18 +544,34 @@ export default function Sales() {
         paid_amount: parseFloat(form.paid_amount) || 0,
         notes: form.notes,
         status: form.status,
+        invoice_number: form.invoice_number,
+        subtotal: form.subtotal,
+        total_amount: form.total_amount,
+        due_amount: form.due_amount,
         items: items.map(item => ({
           product_id: parseInt(item.product_id),
+          product_name: item.product_name,
+          product_code: item.product_code,
           quantity: parseFloat(item.quantity),
           sale_price: parseFloat(item.sale_price),
-          discount: 0
+          total: item.total,
+          unit: item.unit
         }))
       };
 
       const result = await salesAPI.create(saleData);
       if (result.success) {
         showNotification("success", `Sale ${form.invoice_number} created successfully!`);
-        resetForm();
+        
+        // ✅ Store the created sale data for PDF generation
+        const createdSaleData = {
+          ...saleData,
+          id: result.data?.id,
+          invoice_number: form.invoice_number
+        };
+        setLastCreatedSale(createdSaleData);
+        
+        await resetForm();
       } else {
         showNotification("error", result.error || "Failed to create sale");
       }
@@ -467,10 +586,13 @@ export default function Sales() {
   const resetForm = async () => {
     setItems([]);
     resetCurrentItem();
+    
+    // ✅ Keep the walking customer as default on reset
+    const walkingCustomer = customers.find(c => c.id === 999);
     setForm({
       invoice_number: "",
-      customer_id: "",
-      warehouse_id: form.warehouse_id || "",
+      customer_id: walkingCustomer ? "999" : (customers.length > 0 ? String(customers[0].id) : ""),
+      warehouse_id: form.warehouse_id || (warehouses.length > 0 ? String(warehouses[0].id) : ""),
       sale_date: new Date().toISOString().split("T")[0],
       payment_method: "cash",
       notes: "",
@@ -510,6 +632,9 @@ export default function Sales() {
     if (available <= 10) return { label: "Low Stock", color: "text-amber-600", bg: "bg-amber-50" };
     return { label: "In Stock", color: "text-emerald-600", bg: "bg-emerald-50" };
   };
+
+  const isQuantityExceeding =
+    !!currentItem.product_id && currentItem.quantity > currentItem.available_stock;
 
   // ==================== RENDER ====================
   if (isInitialLoading) {
@@ -583,6 +708,17 @@ export default function Sales() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
+          {/* ✅ NEW: Last Invoice PDF button */}
+          {lastCreatedSale && (
+            <button
+              onClick={() => generatePDF(lastCreatedSale, items)}
+              disabled={isLoading}
+              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-white rounded-lg transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50"
+            >
+              <Download size={12} />
+              Last Invoice
+            </button>
+          )}
           <button
             onClick={resetForm}
             className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium border rounded-lg transition-all duration-300 shadow-sm hover:shadow-md bg-white hover:bg-slate-50 text-slate-600 border-slate-200"
@@ -650,10 +786,18 @@ export default function Sales() {
                     <option value="">Select Customer</option>
                     {customers.map((customer) => (
                       <option key={customer.id} value={customer.id}>
+                
                         {customer.name} {customer.phone ? `- ${customer.phone}` : ''}
+                        {customer.id === 999 && ' (Walk-in)'}
                       </option>
                     ))}
                   </select>
+                  {/* ✅ Show indicator that walking customer is selected */}
+                  {form.customer_id === "999" && (
+                    <p className="text-[9px] text-emerald-600 mt-0.5 flex items-center gap-1">
+                      Walking customer selected (default for cash sales)
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -673,6 +817,11 @@ export default function Sales() {
                       </option>
                     ))}
                   </select>
+                  {currentItem.product_id && (
+                    <p className="text-[9px] text-slate-400 mt-0.5">
+                      Stock updates automatically for the selected product when you change warehouse.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -741,22 +890,37 @@ export default function Sales() {
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                       <input
+                        ref={productSearchRef}
                         type="text"
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
-                        onFocus={() => setShowProductDropdown(true)}
+                        onFocus={() => {
+                          if (filteredProducts.length > 0) {
+                            setShowProductDropdown(true);
+                          }
+                        }}
+                        onBlur={() => {
+                          setTimeout(() => {
+                            setShowProductDropdown(false);
+                          }, 200);
+                        }}
                         className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white transition-all duration-300"
                         placeholder="Search product..."
                       />
                       {showProductDropdown && filteredProducts.length > 0 && (
                         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
                           {filteredProducts.map((product) => {
-                            const stockStatus = getStockStatus(product.stock || 0);
+                            // Get stock for this product in the selected warehouse
+                            const productStock = product.stock || 0;
+                            const stockStatus = getStockStatus(productStock);
                             return (
                               <button
                                 key={product.id}
                                 type="button"
                                 onClick={() => selectProduct(product)}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                }}
                                 className="w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-50 transition-colors flex items-center justify-between"
                               >
                                 <span>
@@ -764,7 +928,7 @@ export default function Sales() {
                                   <span className="text-slate-400 ml-2">#{product.code}</span>
                                 </span>
                                 <span className={`text-[10px] ${stockStatus.color}`}>
-                                  {product.stock || 0} {product.unit}
+                                  {productStock} {product.unit}
                                 </span>
                               </button>
                             );
@@ -782,11 +946,9 @@ export default function Sales() {
                         <p className="text-[9px] text-emerald-600">
                           Selected: {currentItem.product_name} (#{currentItem.product_code})
                         </p>
-                        {currentItem.available_stock > 0 && (
-                          <span className={`text-[9px] ${getStockStatus(currentItem.available_stock).color}`}>
-                            Stock: {currentItem.available_stock} {currentItem.unit}
-                          </span>
-                        )}
+                        <span className={`text-[9px] ${getStockStatus(currentItem.available_stock).color}`}>
+                          Stock: {currentItem.available_stock} {currentItem.unit}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -797,20 +959,35 @@ export default function Sales() {
                     </label>
                     <input
                       type="number"
-                      value={currentItem.quantity}
+                      value={currentItem.quantity || ''}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                         setCurrentItem(prev => ({
                           ...prev,
                           quantity: val,
                           total: val * (prev.sale_price || 0)
                         }));
                       }}
-                      className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white transition-all duration-300"
-                      placeholder="Qty"
-                      min="0.01"
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.select();
+                        }
+                      }}
+                      className={`w-full px-2.5 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 bg-white transition-all duration-300 ${
+                        isQuantityExceeding
+                          ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                          : "border-slate-200 focus:border-emerald-400 focus:ring-emerald-100"
+                      }`}
+                      placeholder="0"
+                      min="0"
                       step="0.01"
                     />
+                    {isQuantityExceeding && (
+                      <p className="text-[9px] text-red-500 mt-0.5 flex items-center gap-1">
+                        <AlertCircle size={10} />
+                        Only {currentItem.available_stock} {currentItem.unit || "units"} in stock
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -819,17 +996,22 @@ export default function Sales() {
                     </label>
                     <input
                       type="number"
-                      value={currentItem.sale_price}
+                      value={currentItem.sale_price || ''}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                         setCurrentItem(prev => ({
                           ...prev,
                           sale_price: val,
                           total: (prev.quantity || 0) * val
                         }));
                       }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.select();
+                        }
+                      }}
                       className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white transition-all duration-300"
-                      placeholder="Price"
+                      placeholder="0"
                       min="0"
                       step="0.01"
                     />
@@ -868,7 +1050,13 @@ export default function Sales() {
                   <button
                     type="button"
                     onClick={addItem}
-                    className="px-3 py-1.5 text-[10px] font-medium text-white rounded-lg bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5"
+                    disabled={isQuantityExceeding}
+                    title={isQuantityExceeding ? "Quantity exceeds available stock" : "Add item"}
+                    className={`px-3 py-1.5 text-[10px] font-medium text-white rounded-lg transition-all duration-300 shadow-sm ${
+                      isQuantityExceeding
+                        ? "bg-slate-300 cursor-not-allowed"
+                        : "bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700 hover:shadow-md hover:-translate-y-0.5"
+                    }`}
                   >
                     <Plus size={14} />
                   </button>
@@ -946,7 +1134,15 @@ export default function Sales() {
                   if (!customer) return null;
                   return (
                     <div className="space-y-1 text-xs text-slate-600">
-                      <p className="font-medium text-slate-700">{customer.name}</p>
+                      <p className="font-medium text-slate-700 flex items-center gap-1">
+                        {customer.id === 999}
+                        {customer.name}
+                        {customer.id === 999 && (
+                          <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium">
+                            Walk-in
+                          </span>
+                        )}
+                      </p>
                       {customer.phone && (
                         <p className="flex items-center gap-1"><Phone size={10} /> {customer.phone}</p>
                       )}
@@ -959,6 +1155,11 @@ export default function Sales() {
                           {formatCurrency((customer.credit || 0) - (customer.debit || 0))}
                         </span>
                       </p>
+                      {customer.id === 999 && (
+                        <p className="text-[8px] text-slate-400 italic mt-1">
+                          Default customer for over-the-counter sales
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
@@ -1004,9 +1205,18 @@ export default function Sales() {
                     <span className="text-red-500">-</span>
                     <input
                       type="number"
-                      value={form.discount}
-                      onChange={(e) => setForm(prev => ({ ...prev, discount: parseFloat(e.target.value) || 0 }))}
+                      value={form.discount || ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setForm(prev => ({ ...prev, discount: val }));
+                      }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.select();
+                        }
+                      }}
                       className="w-20 px-2 py-0.5 text-xs border border-slate-200 rounded text-right focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                      placeholder="0"
                       min="0"
                       step="0.01"
                     />
@@ -1019,9 +1229,18 @@ export default function Sales() {
                     <span className="text-emerald-500">+</span>
                     <input
                       type="number"
-                      value={form.tax}
-                      onChange={(e) => setForm(prev => ({ ...prev, tax: parseFloat(e.target.value) || 0 }))}
+                      value={form.tax || ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setForm(prev => ({ ...prev, tax: val }));
+                      }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.select();
+                        }
+                      }}
                       className="w-20 px-2 py-0.5 text-xs border border-slate-200 rounded text-right focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                      placeholder="0"
                       min="0"
                       step="0.01"
                     />
@@ -1039,9 +1258,18 @@ export default function Sales() {
                   <span className="text-slate-500">Amount Paid</span>
                   <input
                     type="number"
-                    value={form.paid_amount}
-                    onChange={(e) => setForm(prev => ({ ...prev, paid_amount: parseFloat(e.target.value) || 0 }))}
+                    value={form.paid_amount || ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      setForm(prev => ({ ...prev, paid_amount: val }));
+                    }}
+                    onFocus={(e) => {
+                      if (e.target.value === '0' || e.target.value === '') {
+                        e.target.select();
+                      }
+                    }}
                     className="w-24 px-2 py-0.5 text-xs border border-slate-200 rounded text-right focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                    placeholder="0"
                     min="0"
                     step="0.01"
                   />

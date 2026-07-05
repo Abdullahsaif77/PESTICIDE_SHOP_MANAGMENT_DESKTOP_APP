@@ -14,10 +14,9 @@ const { registerPurchaseIPC } = require("./ipc/purchase.ipc.js")
 const { registerSalesIPC } = require("./ipc/sales.ipc.js")
 const { registerLedgerIPC } = require("./ipc/ledger.ipc.js")
 const { registerPDFIPC } = require('./ipc/pdf.ipc');
-const pdfGenerator = require('./utils/pdfGenerator'); // Add this import
+const purchasePDFGenerator = require('./utils/pdfGenerator'); // Purchase PDF generator
+const salePDFGenerator = require('./utils/saleGenerator'); // ✅ Sale PDF generator
 const fs = require("fs")
-
-
 
 const backUpFolderPath = path.join(__dirname, "backups");
 
@@ -73,25 +72,42 @@ app.whenReady().then(() => {
   SetSupplierIPC()
   registerCustomerIPC()
   registerPurchaseIPC()
-  registerSalesIPC()
+  registerSalesIPC()  // This registers sale:generatePDF
   registerLedgerIPC()
   registerPDFIPC();
   
-  // ===== ADD PDF GENERATION IPC HANDLER =====
-  // This handles the save dialog for PDFs
+  // ===== PDF GENERATION IPC HANDLERS =====
+  
+  // Generic handler for both purchase and sale PDFs
   ipcMain.handle('generate-and-save-pdf', async (event, type, data, items) => {
+    console.log('🔵 [Main] generate-and-save-pdf called with type:', type);
     try {
       const window = BrowserWindow.fromWebContents(event.sender);
       
       if (type === 'sale') {
-        return await pdfGenerator.generateAndSave(data, items, window);
+        console.log('🔵 [Main] Using sale PDF generator');
+        return await salePDFGenerator.generateAndSaveSale(data, items, window);
       } else if (type === 'purchase') {
-        return await pdfGenerator.generateAndSavePurchase(data, items, window);
+        console.log('🔵 [Main] Using purchase PDF generator');
+        return await purchasePDFGenerator.generateAndSavePurchase(data, items, window);
       } else {
         throw new Error(`Unknown PDF type: ${type}`);
       }
     } catch (error) {
-      console.error('PDF generation IPC error:', error);
+      console.error('❌ [Main] PDF generation IPC error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ✅ REMOVED: Duplicate sale:generatePDF handler - now handled by sales.ipc.js
+  
+  // Purchase-specific PDF handler (if needed separately)
+  ipcMain.handle('purchase:generatePDF', async (event, purchaseData, items) => {
+    try {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      return await purchasePDFGenerator.generateAndSavePurchase(purchaseData, items, window);
+    } catch (error) {
+      console.error('Purchase PDF generation error:', error);
       return { success: false, error: error.message };
     }
   });

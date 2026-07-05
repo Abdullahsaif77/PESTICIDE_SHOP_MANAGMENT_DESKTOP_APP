@@ -5,26 +5,54 @@ const ProductRepository = require("../repositories/product.repository");
 class ProductService {
     // ==================== PRODUCT METHODS ====================
     getProducts() {
-        return ProductRepository.getAll();
+        try {
+            const products = ProductRepository.getAll();
+            console.log('📦 [Service] Products fetched:', products?.length || 0);
+            return { success: true, data: products || [] };
+        } catch (error) {
+            console.error('❌ [Service] Error fetching products:', error);
+            return { success: false, data: [], error: error.message };
+        }
     }
 
     getActiveProducts() {
-        return ProductRepository.getActive();
+        try {
+            const products = ProductRepository.getActive();
+            return { success: true, data: products || [] };
+        } catch (error) {
+            console.error('Error fetching active products:', error);
+            return { success: false, data: [], error: error.message };
+        }
     }
 
     getProductById(id) {
         if (!id) throw new Error("Product ID required");
-        return ProductRepository.getById(id);
+        try {
+            const product = ProductRepository.getById(id);
+            return { success: true, data: product };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     getProductByCode(code) {
         if (!code) throw new Error("Product code required");
-        return ProductRepository.getByCode(code);
+        try {
+            const product = ProductRepository.getByCode(code);
+            return { success: true, data: product };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     searchProducts(query) {
         if (!query) throw new Error("Search query required");
-        return ProductRepository.search(query);
+        try {
+            const products = ProductRepository.search(query);
+            return { success: true, data: products || [] };
+        } catch (error) {
+            return { success: false, data: [], error: error.message };
+        }
     }
 
     createProduct(data) {
@@ -39,7 +67,6 @@ class ProductService {
         if (!purchase_price || purchase_price <= 0) throw new Error("Purchase price invalid");
         if (!sale_price || sale_price <= 0) throw new Error("Sale price invalid");
 
-        // Check for duplicate code (if provided)
         if (code) {
             const existingByCode = ProductRepository.getByCode(code);
             if (existingByCode) {
@@ -47,7 +74,6 @@ class ProductService {
             }
         }
 
-        // Check for duplicate barcode (if provided)
         if (barcode) {
             const existingByBarcode = ProductRepository.getByBarcode(barcode);
             if (existingByBarcode) {
@@ -70,13 +96,11 @@ class ProductService {
     updateProduct(id, data) {
         if (!id) throw new Error("Product ID required");
         
-        // Check if product exists
         const existing = ProductRepository.getById(id);
         if (!existing) {
             throw new Error("Product not found");
         }
         
-        // Check for duplicate code (if provided and changed)
         if (data.code) {
             const existingByCode = ProductRepository.getByCode(data.code);
             if (existingByCode && existingByCode.id !== id) {
@@ -84,7 +108,6 @@ class ProductService {
             }
         }
         
-        // Check for duplicate barcode (if provided and changed)
         if (data.barcode) {
             const existingByBarcode = ProductRepository.getByBarcode(data.barcode);
             if (existingByBarcode && existingByBarcode.id !== id) {
@@ -106,121 +129,228 @@ class ProductService {
 
     deleteProduct(id) {
         if (!id) throw new Error("Product ID required");
-        return ProductRepository.delete(id);
+        try {
+            const result = ProductRepository.delete(id);
+            return { success: true, data: result };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     updateStock(id, quantity) {
         if (!id) throw new Error("Product ID required");
         if (quantity === undefined || quantity === null) throw new Error("Quantity required");
-        return ProductRepository.updateStock(id, quantity);
+        try {
+            const result = ProductRepository.updateStock(id, quantity);
+            return { success: true, data: result };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     toggleProductActive(id) {
         if (!id) throw new Error("Product ID required");
-        return ProductRepository.toggleActive(id);
+        try {
+            const result = ProductRepository.toggleActive(id);
+            return { success: true, data: result };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     getProductsByCategory(category_id) {
         if (!category_id) throw new Error("Category ID required");
-        return ProductRepository.getByCategory(category_id);
+        try {
+            const products = ProductRepository.getByCategory(category_id);
+            return { success: true, data: products || [] };
+        } catch (error) {
+            return { success: false, data: [], error: error.message };
+        }
     }
 
     getProductsByUnit(unit_id) {
         if (!unit_id) throw new Error("Unit ID required");
-        return ProductRepository.getByUnit(unit_id);
+        try {
+            const products = ProductRepository.getByUnit(unit_id);
+            return { success: true, data: products || [] };
+        } catch (error) {
+            return { success: false, data: [], error: error.message };
+        }
     }
 
     getLowStock(threshold = 10) {
-        return ProductRepository.getLowStock(threshold);
+        try {
+            const products = ProductRepository.getLowStock(threshold);
+            return { success: true, data: products || [] };
+        } catch (error) {
+            return { success: false, data: [], error: error.message };
+        }
     }
 
-    // ==================== ✅ NEW METHOD: Update Stock Quantity ====================
     updateStockQuantity(productId) {
         if (!productId) throw new Error("Product ID required");
-        return ProductRepository.updateStockQuantity(productId);
+        try {
+            const result = ProductRepository.updateStockQuantity(productId);
+            return { success: true, data: result };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
-    // ==================== ✅ NEW METHOD: Get Stock Quantity ====================
     getStockQuantity(productId) {
         if (!productId) throw new Error("Product ID required");
-        return ProductRepository.getStockQuantity(productId);
+        try {
+            const quantity = ProductRepository.getStockQuantity(productId);
+            return { success: true, data: quantity };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     // ==================== CATEGORY METHODS ====================
     createCategory(data) {
         const { name, description } = data;
         if (!name) throw new Error("Category name required");
-        const category = ProductRepository.createCategory(name, description || null);
-        return {
-            success: true,
-            data: category,
-            message: 'Category created successfully'
-        };
+        try {
+            const category = ProductRepository.createCategory(name, description || null);
+            return {
+                success: true,
+                data: category,
+                message: 'Category created successfully'
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     getCategories() {
-        return ProductRepository.getAllCategories();
+        try {
+            const categories = ProductRepository.getAllCategories();
+            console.log('📦 [Service] Categories fetched from DB:', categories);
+            console.log('📦 [Service] Categories count:', categories?.length || 0);
+            return { success: true, data: categories || [] };
+        } catch (error) {
+            console.error('❌ [Service] Error fetching categories:', error);
+            return { success: false, data: [], error: error.message };
+        }
     }
 
     getCategoryById(id) {
         if (!id) throw new Error("Category ID required");
-        return ProductRepository.getCategoryById(id);
+        try {
+            const category = ProductRepository.getCategoryById(id);
+            return { success: true, data: category };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     updateCategory(id, data) {
         if (!id) throw new Error("Category ID required");
-        return ProductRepository.updateCategory(id, data);
+        try {
+            const category = ProductRepository.updateCategory(id, data);
+            return { success: true, data: category };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     deleteCategory(id) {
         if (!id) throw new Error("Category ID required");
-        return ProductRepository.deleteCategory(id);
+        try {
+            const result = ProductRepository.deleteCategory(id);
+            return { success: true, data: result };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     getCategoryProductCount(category_id) {
         if (!category_id) throw new Error("Category ID required");
-        return ProductRepository.getCategoryProductCount(category_id);
+        try {
+            const count = ProductRepository.getCategoryProductCount(category_id);
+            return { success: true, data: count };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     // ==================== UNIT METHODS ====================
     createUnit(data) {
         const { name, abbreviation } = data;
         if (!name) throw new Error("Unit name required");
-        const unit = ProductRepository.createUnit(name, abbreviation || null);
-        return {
-            success: true,
-            data: unit,
-            message: 'Unit created successfully'
-        };
+        try {
+            const unit = ProductRepository.createUnit(name, abbreviation || null);
+            return {
+                success: true,
+                data: unit,
+                message: 'Unit created successfully'
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     getUnits() {
-        return ProductRepository.getAllUnits();
+        try {
+            const units = ProductRepository.getAllUnits();
+            console.log('📦 [Service] Units fetched from DB:', units);
+            console.log('📦 [Service] Units count:', units?.length || 0);
+            return { success: true, data: units || [] };
+        } catch (error) {
+            console.error('❌ [Service] Error fetching units:', error);
+            return { success: false, data: [], error: error.message };
+        }
     }
 
     getUnitById(id) {
         if (!id) throw new Error("Unit ID required");
-        return ProductRepository.getUnitById(id);
+        try {
+            const unit = ProductRepository.getUnitById(id);
+            return { success: true, data: unit };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     updateUnit(id, data) {
         if (!id) throw new Error("Unit ID required");
-        return ProductRepository.updateUnit(id, data);
+        try {
+            const unit = ProductRepository.updateUnit(id, data);
+            return { success: true, data: unit };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     deleteUnit(id) {
         if (!id) throw new Error("Unit ID required");
-        return ProductRepository.deleteUnit(id);
+        try {
+            const result = ProductRepository.deleteUnit(id);
+            return { success: true, data: result };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     // ==================== EXPORT ====================
     exportData(filters = {}) {
-        return ProductRepository.exportData(filters);
+        try {
+            const data = ProductRepository.exportData(filters);
+            return { success: true, data: data || [] };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 
     // ==================== STATS ====================
     getStats() {
-        return ProductRepository.getStats();
+        try {
+            const stats = ProductRepository.getStats();
+            return { success: true, data: stats };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
 }
 

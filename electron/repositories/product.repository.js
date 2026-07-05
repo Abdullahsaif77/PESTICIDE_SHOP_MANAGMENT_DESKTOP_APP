@@ -65,6 +65,11 @@ class ProductRepository {
         return db.prepare("SELECT * FROM products WHERE code = ?").get(code);
     }
 
+    // ✅ ADD THIS MISSING METHOD
+    getByBarcode(barcode) {
+        return db.prepare("SELECT * FROM products WHERE barcode = ?").get(barcode);
+    }
+
     search(query) {
         const searchTerm = `%${query}%`;
         return db
@@ -115,10 +120,8 @@ class ProductRepository {
             .run(id);
     }
 
-    // ==================== ✅ NEW METHOD: Update Stock Quantity ====================
     updateStockQuantity(productId) {
         try {
-            // Calculate total stock from inventory
             const stmt = db.prepare(`
                 SELECT COALESCE(SUM(quantity), 0) as total_stock
                 FROM inventory
@@ -127,7 +130,6 @@ class ProductRepository {
             const result = stmt.get(productId);
             const totalStock = result?.total_stock || 0;
 
-            // Update product stock_quantity
             const updateStmt = db.prepare(`
                 UPDATE products 
                 SET stock_quantity = ?, updated_at = CURRENT_TIMESTAMP 
@@ -140,7 +142,6 @@ class ProductRepository {
         }
     }
 
-    // ==================== ✅ NEW METHOD: Get Stock Quantity ====================
     getStockQuantity(productId) {
         const stmt = db.prepare(`
             SELECT stock_quantity FROM products WHERE id = ?
@@ -259,6 +260,53 @@ class ProductRepository {
             throw new Error('Cannot delete unit with existing products');
         }
         return db.prepare("DELETE FROM units WHERE id = ?").run(id);
+    }
+
+    // ==================== EXPORT ====================
+    exportData(filters = {}) {
+        let query = `
+            SELECT p.id, p.code, p.name, p.brand, 
+                   c.name as category, 
+                   u.name as unit, u.abbreviation as unit_abbr,
+                   p.purchase_price, p.sale_price, p.stock_quantity, 
+                   p.reorder_level, p.barcode, p.is_active,
+                   p.created_at, p.updated_at
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN units u ON p.unit_id = u.id
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (filters.is_active !== undefined) {
+            query += ' AND p.is_active = ?';
+            params.push(filters.is_active);
+        }
+
+        if (filters.category_id) {
+            query += ' AND p.category_id = ?';
+            params.push(filters.category_id);
+        }
+
+        query += ' ORDER BY p.name ASC';
+
+        const stmt = db.prepare(query);
+        return stmt.all(...params);
+    }
+
+    getStats() {
+        const stmt = db.prepare(`
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive,
+                COUNT(DISTINCT category_id) as total_categories,
+                COUNT(DISTINCT unit_id) as total_units,
+                COALESCE(SUM(stock_quantity * purchase_price), 0) as total_inventory_value,
+                COALESCE(SUM(stock_quantity), 0) as total_stock_quantity
+            FROM products
+        `);
+        return stmt.get();
     }
 }
 

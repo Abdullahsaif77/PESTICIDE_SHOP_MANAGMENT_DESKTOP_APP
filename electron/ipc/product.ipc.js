@@ -9,14 +9,13 @@ function registerProductIPC() {
         try {
             return productService.getProducts();
         } catch (error) {
-            return { success: false, error: error.message };
+            return { success: false, error: error.message, data: [] };
         }
     });
 
     ipcMain.handle("product:getById", (event, id) => {
         try {
-            const result = productService.getProductById(id);
-            return { success: true, data: result };
+            return productService.getProductById(id);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -24,8 +23,7 @@ function registerProductIPC() {
 
     ipcMain.handle("product:getByCode", (event, code) => {
         try {
-            const result = productService.getProductByCode(code);
-            return { success: true, data: result };
+            return productService.getProductByCode(code);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -33,17 +31,15 @@ function registerProductIPC() {
 
     ipcMain.handle("product:search", (event, query) => {
         try {
-            const result = productService.searchProducts(query);
-            return { success: true, data: result };
+            return productService.searchProducts(query);
         } catch (error) {
-            return { success: false, error: error.message };
+            return { success: false, error: error.message, data: [] };
         }
     });
 
     ipcMain.handle("product:add", async (event, data) => {
         try {
-            const result = productService.createProduct(data);
-            return result;
+            return productService.createProduct(data);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -51,8 +47,7 @@ function registerProductIPC() {
 
     ipcMain.handle("product:update", async (event, id, data) => {
         try {
-            const result = productService.updateProduct(id, data);
-            return result;
+            return productService.updateProduct(id, data);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -60,8 +55,7 @@ function registerProductIPC() {
 
     ipcMain.handle("product:delete", (event, id) => {
         try {
-            const result = productService.deleteProduct(id);
-            return { success: true, data: result };
+            return productService.deleteProduct(id);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -69,27 +63,24 @@ function registerProductIPC() {
 
     ipcMain.handle("product:getByCategory", (event, category_id) => {
         try {
-            const result = productService.getProductsByCategory(category_id);
-            return { success: true, data: result };
+            return productService.getProductsByCategory(category_id);
         } catch (error) {
-            return { success: false, error: error.message };
+            return { success: false, error: error.message, data: [] };
         }
     });
 
     ipcMain.handle("product:getByUnit", (event, unit_id) => {
         try {
-            const result = productService.getProductsByUnit(unit_id);
-            return { success: true, data: result };
+            return productService.getProductsByUnit(unit_id);
         } catch (error) {
-            return { success: false, error: error.message };
+            return { success: false, error: error.message, data: [] };
         }
     });
 
     // ==================== PRODUCT STOCK HANDLERS ====================
     ipcMain.handle("product:updateStockQuantity", async (event, productId) => {
         try {
-            const result = productService.updateStockQuantity(productId);
-            return { success: true, data: result };
+            return productService.updateStockQuantity(productId);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -97,8 +88,7 @@ function registerProductIPC() {
 
     ipcMain.handle("product:getStockQuantity", (event, productId) => {
         try {
-            const result = productService.getStockQuantity(productId);
-            return { success: true, data: result };
+            return productService.getStockQuantity(productId);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -106,17 +96,15 @@ function registerProductIPC() {
 
     ipcMain.handle("product:getLowStock", (event, threshold) => {
         try {
-            const result = productService.getLowStock(threshold || 10);
-            return { success: true, data: result };
+            return productService.getLowStock(threshold || 10);
         } catch (error) {
-            return { success: false, error: error.message };
+            return { success: false, error: error.message, data: [] };
         }
     });
 
     ipcMain.handle("product:getStats", () => {
         try {
-            const result = productService.getStats();
-            return { success: true, data: result };
+            return productService.getStats();
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -125,17 +113,15 @@ function registerProductIPC() {
     // ==================== CATEGORY HANDLERS ====================
     ipcMain.handle("category:get", () => {
         try {
-            const result = productService.getCategories();
-            return { success: true, data: result };
+            return productService.getCategories();
         } catch (error) {
-            return { success: false, error: error.message };
+            return { success: false, error: error.message, data: [] };
         }
     });
 
     ipcMain.handle("category:getById", (event, id) => {
         try {
-            const result = productService.getCategoryById(id);
-            return { success: true, data: result };
+            return productService.getCategoryById(id);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -143,8 +129,7 @@ function registerProductIPC() {
 
     ipcMain.handle("category:add", async (event, data) => {
         try {
-            const result = productService.createCategory(data);
-            return result;
+            return productService.createCategory(data);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -152,8 +137,7 @@ function registerProductIPC() {
 
     ipcMain.handle("category:update", (event, id, data) => {
         try {
-            const result = productService.updateCategory(id, data);
-            return { success: true, data: result };
+            return productService.updateCategory(id, data);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -161,8 +145,7 @@ function registerProductIPC() {
 
     ipcMain.handle("category:delete", (event, id) => {
         try {
-            const result = productService.deleteCategory(id);
-            return { success: true, data: result };
+            return productService.deleteCategory(id);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -170,8 +153,7 @@ function registerProductIPC() {
 
     ipcMain.handle("category:getProductCount", (event, id) => {
         try {
-            const result = productService.getCategoryProductCount(id);
-            return { success: true, data: result };
+            return productService.getCategoryProductCount(id);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -180,17 +162,15 @@ function registerProductIPC() {
     // ==================== UNIT HANDLERS ====================
     ipcMain.handle("unit:get", () => {
         try {
-            const result = productService.getUnits();
-            return { success: true, data: result };
+            return productService.getUnits();
         } catch (error) {
-            return { success: false, error: error.message };
+            return { success: false, error: error.message, data: [] };
         }
     });
 
     ipcMain.handle("unit:getById", (event, id) => {
         try {
-            const result = productService.getUnitById(id);
-            return { success: true, data: result };
+            return productService.getUnitById(id);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -198,8 +178,7 @@ function registerProductIPC() {
 
     ipcMain.handle("unit:add", async (event, data) => {
         try {
-            const result = productService.createUnit(data);
-            return result;
+            return productService.createUnit(data);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -207,8 +186,7 @@ function registerProductIPC() {
 
     ipcMain.handle("unit:update", (event, id, data) => {
         try {
-            const result = productService.updateUnit(id, data);
-            return { success: true, data: result };
+            return productService.updateUnit(id, data);
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -216,8 +194,7 @@ function registerProductIPC() {
 
     ipcMain.handle("unit:delete", (event, id) => {
         try {
-            const result = productService.deleteUnit(id);
-            return { success: true, data: result };
+            return productService.deleteUnit(id);
         } catch (error) {
             return { success: false, error: error.message };
         }

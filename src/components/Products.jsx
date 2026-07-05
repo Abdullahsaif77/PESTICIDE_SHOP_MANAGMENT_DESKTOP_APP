@@ -1,26 +1,22 @@
+// src/pages/Products/Products.jsx
+
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Plus, Edit3, Trash2, ChevronDown, X, CheckCircle, Package, Tag, Box, AlertCircle, Loader2 } from "lucide-react";
 
-const api = window.api || {
-  getProducts: async () => [],
-  addProduct: async (data) => {},
-  deleteProduct: async (id) => {},
-  updateProduct: async (id, data) => {},
-  getProductsByCategory: async (category_id) => [],
-  getProductsByUnit: async (unit_id) => [],
-  getCategories: async () => [],
-  getCategoryById: async (id) => ({}),
-  addCategory: async (data) => {},
-  updateCategory: async (id, data) => {},
-  deleteCategory: async (id) => {},
-  getUnits: async () => [],
-  getUnitById: async (id) => ({}),
-  addUnit: async (data) => {},
-  updateUnit: async (id, data) => {},
-  deleteUnit: async (id) => {},
-  getProductById: async (id) => ({}),
-  getProductByCode: async (code) => ({}),
-  getCategoryProductCount: async (id) => ({}),
+const api = window.api || {};
+
+// Helper function to extract data from response
+const extractData = (response) => {
+  if (!response) return [];
+  // If response has success and data property
+  if (response.success !== undefined && response.data !== undefined) {
+    return Array.isArray(response.data) ? response.data : [];
+  }
+  // If response is already an array
+  if (Array.isArray(response)) {
+    return response;
+  }
+  return [];
 };
 
 // Helper function to ensure we always have an array
@@ -36,22 +32,21 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
 
   const [productModal, setProductModal] = useState({ open: false, mode: "add", data: null });
   const [categoryModal, setCategoryModal] = useState({ open: false, mode: "add", data: null });
   const [unitModal, setUnitModal] = useState({ open: false, mode: "add", data: null });
 
-  const [successModal, setSuccessModal] = useState({ 
-    show: false, 
-    message: "", 
+  const [successModal, setSuccessModal] = useState({
+    show: false,
+    message: "",
     type: "product",
     action: ""
   });
 
   const [validationErrors, setValidationErrors] = useState({});
 
-  const [productForm, setProductForm] = useState({ 
+  const [productForm, setProductForm] = useState({
     name: "",
     code: "",
     brand: "",
@@ -71,7 +66,6 @@ export default function Products() {
     refreshData();
   }, []);
 
-  // Auto-focus when modal opens
   useEffect(() => {
     if (productModal.open && nameInputRef.current) {
       setTimeout(() => {
@@ -80,7 +74,6 @@ export default function Products() {
     }
   }, [productModal.open]);
 
-  // Reset form when modal closes - but only when it actually closes
   useEffect(() => {
     if (!productModal.open) {
       const timeoutId = setTimeout(() => {
@@ -101,7 +94,6 @@ export default function Products() {
     }
   }, [productModal.open]);
 
-  // Frontend search filter - runs whenever products, searchQuery, or selectedCategoryId changes
   useEffect(() => {
     filterProducts();
   }, [products, searchQuery, selectedCategoryId]);
@@ -109,24 +101,25 @@ export default function Products() {
   const refreshData = async () => {
     setIsLoading(true);
     try {
-      const [cats, unitsData, prods] = await Promise.all([
+      const [catsResult, unitsResult, prodsResult] = await Promise.all([
         api.getCategories(),
         api.getUnits(),
         api.getProducts()
       ]);
-      
-      // Ensure we always have arrays
-      setCategories(ensureArray(cats));
-      setUnits(ensureArray(unitsData));
-      setProducts(ensureArray(prods));
-      
-      // Reset search after refresh
+
+      const categoriesData = extractData(catsResult);
+      const unitsData = extractData(unitsResult);
+      const productsData = extractData(prodsResult);
+
+      setCategories(categoriesData);
+      setUnits(unitsData);
+      setProducts(productsData);
+
       setSearchQuery("");
       setSelectedCategory("All Categories");
       setSelectedCategoryId(null);
     } catch (err) {
       console.error("Data fetch error:", err);
-      // Set empty arrays on error
       setCategories([]);
       setUnits([]);
       setProducts([]);
@@ -137,8 +130,9 @@ export default function Products() {
 
   const refreshCategories = async () => {
     try {
-      const cats = await api.getCategories();
-      setCategories(ensureArray(cats));
+      const result = await api.getCategories();
+      const data = extractData(result);
+      setCategories(data);
     } catch (err) {
       console.error("Error fetching categories:", err);
       setCategories([]);
@@ -147,8 +141,9 @@ export default function Products() {
 
   const refreshUnits = async () => {
     try {
-      const unitsData = await api.getUnits();
-      setUnits(ensureArray(unitsData));
+      const result = await api.getUnits();
+      const data = extractData(result);
+      setUnits(data);
     } catch (err) {
       console.error("Error fetching units:", err);
       setUnits([]);
@@ -158,15 +153,13 @@ export default function Products() {
   const filterProducts = () => {
     let filtered = ensureArray(products);
 
-    // Filter by category
     if (selectedCategoryId) {
       filtered = filtered.filter(p => p && p.category_id === selectedCategoryId);
     }
 
-    // Filter by search query
     if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p && (
           (p.name && p.name.toLowerCase().includes(query)) ||
           (p.code && p.code.toLowerCase().includes(query)) ||
@@ -180,9 +173,7 @@ export default function Products() {
   };
 
   const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-    // The filter will run automatically via useEffect
+    setSearchQuery(e.target.value);
   };
 
   const clearSearch = () => {
@@ -233,31 +224,31 @@ export default function Products() {
 
   const validateProductForm = () => {
     const errors = {};
-    
+
     if (!productForm.name || productForm.name.trim() === "") {
       errors.name = "Product name is required";
     }
-    
+
     if (!productForm.category_id) {
       errors.category_id = "Category is required";
     }
-    
+
     if (!productForm.unit_id) {
       errors.unit_id = "Unit is required";
     }
-    
+
     if (!productForm.purchase_price || productForm.purchase_price <= 0) {
       errors.purchase_price = "Purchase price must be greater than 0";
     }
-    
+
     if (!productForm.sale_price || productForm.sale_price <= 0) {
       errors.sale_price = "Sale price must be greater than 0";
     }
-    
+
     if (productForm.sale_price < productForm.purchase_price) {
       errors.sale_price = "Sale price cannot be less than purchase price";
     }
-    
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -270,7 +261,7 @@ export default function Products() {
   };
 
   const openAddProduct = () => {
-    setProductForm({ 
+    setProductForm({
       name: "",
       code: "",
       brand: "",
@@ -290,8 +281,8 @@ export default function Products() {
       console.error('Product is undefined');
       return;
     }
-    
-    setProductForm({ 
+
+    setProductForm({
       name: product.name || "",
       code: product.code || "",
       brand: product.brand || "",
@@ -303,19 +294,19 @@ export default function Products() {
       description: product.description || ""
     });
     setValidationErrors({});
-    
+
     if (!product.id) {
       console.error('Product has no ID!', product);
       alert('Error: Product ID not found');
       return;
     }
-    
+
     setProductModal({ open: true, mode: "edit", data: product });
   };
 
   const handleProductSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateProductForm()) {
       const firstError = document.querySelector('[data-error="true"]');
       if (firstError) {
@@ -324,7 +315,7 @@ export default function Products() {
       }
       return;
     }
-    
+
     setIsLoading(true);
     try {
       const productData = {
@@ -338,11 +329,11 @@ export default function Products() {
         barcode: productForm.barcode || null,
         description: productForm.description || null
       };
-      
+
       let result;
       if (productModal.mode === "add") {
         result = await api.addProduct(productData);
-        
+
         if (result && result.success) {
           showSuccessModal("product", "added", productForm.name);
           setProductModal({ open: false, mode: "add", data: null });
@@ -355,7 +346,7 @@ export default function Products() {
         }
       } else {
         result = await api.updateProduct(productModal.data.id, productData);
-        
+
         if (result && result.success) {
           showSuccessModal("product", "updated", productForm.name);
           setProductModal({ open: false, mode: "add", data: null });
@@ -380,13 +371,13 @@ export default function Products() {
       console.error('Cannot delete: No ID provided');
       return;
     }
-    
+
     if (window.confirm(`Delete product "${name}" permanently?`)) {
       setIsLoading(true);
       try {
         await api.deleteProduct(id);
         showSuccessModal("product", "deleted", name);
-        
+
         setProductModal({ open: false, mode: "add", data: null });
         setValidationErrors({});
         await refreshData();
@@ -410,12 +401,13 @@ export default function Products() {
       console.error('Invalid category for editing');
       return;
     }
-    
+
     try {
-      const target = await api.getCategoryById(cat.id);
-      setCategoryForm({ 
-        name: target?.name || "", 
-        description: target?.description || "" 
+      const result = await api.getCategoryById(cat.id);
+      const target = extractData(result);
+      setCategoryForm({
+        name: target?.name || "",
+        description: target?.description || ""
       });
       setCategoryModal({ open: true, mode: "edit", data: cat });
     } catch (err) {
@@ -426,12 +418,12 @@ export default function Products() {
 
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!categoryForm.name || categoryForm.name.trim() === "") {
       alert('Category name is required');
       return;
     }
-    
+
     setIsLoading(true);
     try {
       if (categoryModal.mode === "add") {
@@ -459,7 +451,7 @@ export default function Products() {
       console.error('Cannot delete: No ID provided');
       return;
     }
-    
+
     if (window.confirm(`Delete category "${name}"?`)) {
       setIsLoading(true);
       try {
@@ -491,12 +483,13 @@ export default function Products() {
       console.error('Invalid unit for editing');
       return;
     }
-    
+
     try {
-      const target = await api.getUnitById(unit.id);
-      setUnitForm({ 
-        name: target?.name || "", 
-        short_name: target?.short_name || "" 
+      const result = await api.getUnitById(unit.id);
+      const target = extractData(result);
+      setUnitForm({
+        name: target?.name || "",
+        short_name: target?.short_name || ""
       });
       setUnitModal({ open: true, mode: "edit", data: unit });
     } catch (err) {
@@ -507,12 +500,12 @@ export default function Products() {
 
   const handleUnitSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!unitForm.name || unitForm.name.trim() === "") {
       alert('Unit name is required');
       return;
     }
-    
+
     setIsLoading(true);
     try {
       if (unitModal.mode === "add") {
@@ -540,7 +533,7 @@ export default function Products() {
       console.error('Cannot delete: No ID provided');
       return;
     }
-    
+
     if (window.confirm(`Delete unit "${name}"?`)) {
       setIsLoading(true);
       try {
@@ -559,7 +552,6 @@ export default function Products() {
   };
 
   const getCategoryName = (categoryId) => {
-    // Ensure categories is an array before using find
     if (!Array.isArray(categories) || categories.length === 0) {
       return "Uncategorized";
     }
@@ -568,12 +560,11 @@ export default function Products() {
   };
 
   const getUnitName = (unitId) => {
-    // Ensure units is an array before using find
     if (!Array.isArray(units) || units.length === 0) {
       return "N/A";
     }
     const unit = units.find(u => u && u.id === unitId);
-    return unit ? (unit.short_name || unit.name) : "N/A";
+    return unit ? (unit.name) : "N/A";
   };
 
   const SuccessModal = ({ show, message, type, action }) => {
@@ -601,7 +592,7 @@ export default function Products() {
       <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
         <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 text-center animate-scale-in relative overflow-hidden">
           <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${gradients[action]}`} />
-          <button 
+          <button
             onClick={() => setSuccessModal({ show: false, message: "", type: "product", action: "" })}
             className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
           >
@@ -627,10 +618,10 @@ export default function Products() {
 
   return (
     <div className="p-4 sm:p-6 bg-gradient-to-br from-slate-50 via-white to-slate-100/50 min-h-screen">
-      
-      <SuccessModal 
-        show={successModal.show} 
-        message={successModal.message} 
+
+      <SuccessModal
+        show={successModal.show}
+        message={successModal.message}
         type={successModal.type}
         action={successModal.action}
       />
@@ -707,15 +698,21 @@ export default function Products() {
                 >
                   All Categories
                 </div>
-                {Array.isArray(categories) && categories.map((cat) => (
-                  <div
-                    key={cat.id}
-                    onClick={() => handleCategorySelect(cat)}
-                    className="px-3 py-2 text-xs hover:bg-slate-50 cursor-pointer text-slate-600"
-                  >
-                    {cat.name}
+                {Array.isArray(categories) && categories.length > 0 ? (
+                  categories.map((cat) => (
+                    <div
+                      key={cat.id}
+                      onClick={() => handleCategorySelect(cat)}
+                      className="px-3 py-2 text-xs hover:bg-slate-50 cursor-pointer text-slate-600 border-b border-slate-50 last:border-0"
+                    >
+                      {cat.name}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-xs text-slate-400 text-center italic">
+                    No categories found
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
@@ -795,15 +792,15 @@ export default function Products() {
                     </td>
                     <td className="py-2 px-3 text-center">
                       <div className="flex items-center justify-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => openEditProduct(product)} 
+                        <button
+                          onClick={() => openEditProduct(product)}
                           className="p-1 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
                           title="Edit"
                         >
                           <Edit3 size={14} />
                         </button>
-                        <button 
-                          onClick={() => handleDeleteProduct(product.id, product.name)} 
+                        <button
+                          onClick={() => handleDeleteProduct(product.id, product.name)}
                           className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                           title="Delete"
                         >
@@ -821,8 +818,8 @@ export default function Products() {
 
       {/* PRODUCT MODAL */}
       {productModal.open && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" 
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
           style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -832,8 +829,8 @@ export default function Products() {
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-5 animate-scale-in relative max-h-[90vh] overflow-y-auto">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-t-xl" />
-            <button 
-              onClick={() => setProductModal({ open: false, mode: "add", data: null })} 
+            <button
+              onClick={() => setProductModal({ open: false, mode: "add", data: null })}
               className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
             >
               <X size={18} />
@@ -841,7 +838,7 @@ export default function Products() {
             <h3 className="text-lg font-semibold text-slate-800 mt-2 mb-4">
               {productModal.mode === "add" ? "Add Product" : "Edit Product"}
             </h3>
-            
+
             {Object.keys(validationErrors).length > 0 && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-xs font-medium text-red-700 mb-1">Please fix the following errors:</p>
@@ -857,15 +854,15 @@ export default function Products() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Product Name *</label>
-                  <input 
+                  <input
                     ref={nameInputRef}
-                    type="text" 
-                    required 
-                    value={productForm.name} 
-                    onChange={(e) => handleFieldChange('name', e.target.value)} 
+                    type="text"
+                    required
+                    value={productForm.name}
+                    onChange={(e) => handleFieldChange('name', e.target.value)}
                     className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
-                      validationErrors.name 
-                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100' 
+                      validationErrors.name
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
                         : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
                     }`}
                     placeholder="Enter product name"
@@ -878,10 +875,10 @@ export default function Products() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Product Code</label>
-                  <input 
-                    type="text" 
-                    value={productForm.code} 
-                    onChange={(e) => handleFieldChange('code', e.target.value)} 
+                  <input
+                    type="text"
+                    value={productForm.code}
+                    onChange={(e) => handleFieldChange('code', e.target.value)}
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="e.g. PRD-001"
                     disabled={isLoading}
@@ -890,10 +887,10 @@ export default function Products() {
               </div>
               <div>
                 <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Brand</label>
-                <input 
-                  type="text" 
-                  value={productForm.brand} 
-                  onChange={(e) => handleFieldChange('brand', e.target.value)} 
+                <input
+                  type="text"
+                  value={productForm.brand}
+                  onChange={(e) => handleFieldChange('brand', e.target.value)}
                   className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
                   placeholder="e.g. Apple"
                   disabled={isLoading}
@@ -902,13 +899,13 @@ export default function Products() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Category *</label>
-                  <select 
+                  <select
                     required
-                    value={productForm.category_id} 
-                    onChange={(e) => handleFieldChange('category_id', e.target.value)} 
+                    value={productForm.category_id}
+                    onChange={(e) => handleFieldChange('category_id', e.target.value)}
                     className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
-                      validationErrors.category_id 
-                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100' 
+                      validationErrors.category_id
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
                         : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
                     }`}
                     data-error={!!validationErrors.category_id}
@@ -925,13 +922,13 @@ export default function Products() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Unit *</label>
-                  <select 
+                  <select
                     required
-                    value={productForm.unit_id} 
-                    onChange={(e) => handleFieldChange('unit_id', e.target.value)} 
+                    value={productForm.unit_id}
+                    onChange={(e) => handleFieldChange('unit_id', e.target.value)}
                     className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
-                      validationErrors.unit_id 
-                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100' 
+                      validationErrors.unit_id
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
                         : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
                     }`}
                     data-error={!!validationErrors.unit_id}
@@ -948,56 +945,72 @@ export default function Products() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
+               <div>
+  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Purchase Price *</label>
+  <input
+    type="number"
+    step="0.01"
+    required
+    value={productForm.purchase_price || ''}
+    onChange={(e) => {
+      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+      handleFieldChange('purchase_price', value);
+    }}
+    onFocus={(e) => {
+      if (e.target.value === '0') {
+        e.target.select();
+      }
+    }}
+    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+      validationErrors.purchase_price
+        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+    }`}
+    placeholder="0.00"
+    data-error={!!validationErrors.purchase_price}
+    disabled={isLoading}
+  />
+  {validationErrors.purchase_price && (
+    <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.purchase_price}</p>
+  )}
+</div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Purchase Price *</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    required 
-                    value={productForm.purchase_price} 
-                    onChange={(e) => handleFieldChange('purchase_price', parseFloat(e.target.value) || 0)} 
-                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
-                      validationErrors.purchase_price 
-                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100' 
-                        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
-                    }`}
-                    placeholder="0.00"
-                    data-error={!!validationErrors.purchase_price}
-                    disabled={isLoading}
-                  />
-                  {validationErrors.purchase_price && (
-                    <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.purchase_price}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Sale Price *</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    required 
-                    value={productForm.sale_price} 
-                    onChange={(e) => handleFieldChange('sale_price', parseFloat(e.target.value) || 0)} 
-                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
-                      validationErrors.sale_price 
-                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100' 
-                        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
-                    }`}
-                    placeholder="0.00"
-                    data-error={!!validationErrors.sale_price}
-                    disabled={isLoading}
-                  />
-                  {validationErrors.sale_price && (
-                    <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.sale_price}</p>
-                  )}
-                </div>
+  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Sale Price *</label>
+  <input
+    type="number"
+    step="0.01"
+    required
+    value={productForm.sale_price || ''}
+    onChange={(e) => {
+      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+      handleFieldChange('sale_price', value);
+    }}
+    onFocus={(e) => {
+      if (e.target.value === '0') {
+        e.target.select();
+      }
+    }}
+    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+      validationErrors.sale_price
+        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+    }`}
+    placeholder="0.00"
+    data-error={!!validationErrors.sale_price}
+    disabled={isLoading}
+  />
+  {validationErrors.sale_price && (
+    <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.sale_price}</p>
+  )}
+</div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Barcode</label>
-                  <input 
-                    type="text" 
-                    value={productForm.barcode} 
-                    onChange={(e) => handleFieldChange('barcode', e.target.value)} 
+                  <input
+                    type="text"
+                    value={productForm.barcode}
+                    onChange={(e) => handleFieldChange('barcode', e.target.value)}
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="Enter barcode"
                     disabled={isLoading}
@@ -1005,10 +1018,10 @@ export default function Products() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</label>
-                  <textarea 
-                    rows="2" 
-                    value={productForm.description} 
-                    onChange={(e) => handleFieldChange('description', e.target.value)} 
+                  <textarea
+                    rows="2"
+                    value={productForm.description}
+                    onChange={(e) => handleFieldChange('description', e.target.value)}
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white resize-none"
                     placeholder="Product description..."
                     disabled={isLoading}
@@ -1016,17 +1029,17 @@ export default function Products() {
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button 
-                  type="button" 
-                  onClick={() => setProductModal({ open: false, mode: "add", data: null })} 
+                <button
+                  type="button"
+                  onClick={() => setProductModal({ open: false, mode: "add", data: null })}
                   className="px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                   disabled={isLoading}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={isLoading} 
+                <button
+                  type="submit"
+                  disabled={isLoading}
                   className="px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-all hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
                 >
                   {isLoading ? 'Saving...' : 'Save Product'}
@@ -1039,8 +1052,8 @@ export default function Products() {
 
       {/* CATEGORY MODAL */}
       {categoryModal.open && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" 
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
           style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -1053,7 +1066,7 @@ export default function Products() {
             <button onClick={() => setCategoryModal({ open: false, mode: "add", data: null })} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors">
               <X size={18} />
             </button>
-            
+
             <div className="w-1/2 border-r pr-5 border-slate-100">
               <h3 className="text-lg font-semibold text-slate-800 mt-2 mb-4">
                 {categoryModal.mode === "add" ? "Create Category" : "Update Category"}
@@ -1061,11 +1074,11 @@ export default function Products() {
               <form onSubmit={handleCategorySubmit} className="space-y-3">
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Category Name *</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={categoryForm.name} 
-                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} 
+                  <input
+                    type="text"
+                    required
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="e.g. Electronics"
                     disabled={isLoading}
@@ -1073,10 +1086,10 @@ export default function Products() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</label>
-                  <textarea 
-                    rows="2" 
-                    value={categoryForm.description || ""} 
-                    onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} 
+                  <textarea
+                    rows="2"
+                    value={categoryForm.description || ""}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all bg-slate-50 focus:bg-white resize-none"
                     placeholder="Optional description..."
                     disabled={isLoading}
@@ -1120,8 +1133,8 @@ export default function Products() {
 
       {/* UNIT MODAL */}
       {unitModal.open && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" 
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
           style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -1134,7 +1147,7 @@ export default function Products() {
             <button onClick={() => setUnitModal({ open: false, mode: "add", data: null })} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors">
               <X size={18} />
             </button>
-            
+
             <div className="w-1/2 border-r pr-5 border-slate-100">
               <h3 className="text-lg font-semibold text-slate-800 mt-2 mb-4">
                 {unitModal.mode === "add" ? "Create Unit" : "Update Unit"}
@@ -1142,11 +1155,11 @@ export default function Products() {
               <form onSubmit={handleUnitSubmit} className="space-y-3">
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Unit Name *</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={unitForm.name} 
-                    onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })} 
+                  <input
+                    type="text"
+                    required
+                    value={unitForm.name}
+                    onChange={(e) => setUnitForm({ ...unitForm, name: e.target.value })}
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="e.g. Kilogram"
                     disabled={isLoading}
@@ -1154,10 +1167,10 @@ export default function Products() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Short Name</label>
-                  <input 
-                    type="text" 
-                    value={unitForm.short_name} 
-                    onChange={(e) => setUnitForm({ ...unitForm, short_name: e.target.value })} 
+                  <input
+                    type="text"
+                    value={unitForm.short_name}
+                    onChange={(e) => setUnitForm({ ...unitForm, short_name: e.target.value })}
                     className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all bg-slate-50 focus:bg-white"
                     placeholder="e.g. kg"
                     disabled={isLoading}

@@ -1,6 +1,6 @@
 // src/pages/Purchases/Purchases.jsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Plus,
   X,
@@ -95,6 +95,9 @@ export default function Purchases() {
   
   // Track the last created purchase for PDF generation
   const [lastCreatedPurchase, setLastCreatedPurchase] = useState(null);
+
+  // Refs
+  const productSearchRef = useRef(null);
 
   // ==================== EFFECTS ====================
   useEffect(() => {
@@ -276,6 +279,11 @@ export default function Purchases() {
     });
     setProductSearch(product.name);
     setShowProductDropdown(false);
+    
+    // Blur the input using ref
+    if (productSearchRef.current) {
+      productSearchRef.current.blur();
+    }
   };
 
   // ==================== PDF GENERATION ====================
@@ -307,89 +315,84 @@ export default function Purchases() {
   };
 
   // ==================== FORM SUBMISSION ====================
-  // ==================== FORM SUBMISSION ====================
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  if (!form.supplier_id) {
-    showNotification("error", "Please select a supplier");
-    return;
-  }
-
-  if (!form.warehouse_id) {
-    showNotification("error", "Please select a warehouse");
-    return;
-  }
-
-  if (items.length === 0) {
-    showNotification("error", "Please add at least one product");
-    return;
-  }
-
-  setIsLoading(true);
-  try {
-    const purchaseData = {
-      supplier_id: parseInt(form.supplier_id),
-      warehouse_id: parseInt(form.warehouse_id),
-      purchase_date: form.purchase_date,
-      payment_method: form.payment_method,
-      discount: parseFloat(form.discount) || 0,
-      tax: parseFloat(form.tax) || 0,
-      paid_amount: parseFloat(form.paid_amount) || 0,
-      notes: form.notes,
-      status: form.status,
-      purchase_number: form.purchase_number,
-      subtotal: form.subtotal,
-      total_amount: form.total_amount,
-      due_amount: form.due_amount
-    };
-
-    const result = await api.createPurchase({
-      ...purchaseData,
-      items: items.map(item => ({
-        product_id: parseInt(item.product_id),
-        quantity: parseFloat(item.quantity),
-        purchase_price: parseFloat(item.purchase_price),
-        sale_price: parseFloat(item.sale_price) || 0,
-        expiry_date: item.expiry_date || null,
-        batch_number: item.batch_number || null
-      }))
-    });
-
-    if (result.success) {
-      // Get the supplier name for notification
-      const supplier = suppliers.find(s => s.id === parseInt(form.supplier_id));
-      const supplierName = supplier?.name || 'Supplier';
-      
-      showNotification("success", `Purchase ${form.purchase_number} created successfully!`);
-      
-      // ✅ Refresh supplier data to show updated balance
-      await refreshSupplierData(parseInt(form.supplier_id));
-      
-      // Store the created purchase data for PDF generation
-      const createdPurchaseData = {
-        ...purchaseData,
-        id: result.data?.id,
-        purchase_number: form.purchase_number
-      };
-      setLastCreatedPurchase(createdPurchaseData);
-      
-     
-      
-      
-      
-      // Reset form
-      await resetForm();
-    } else {
-      showNotification("error", result.error || "Failed to create purchase");
+    if (!form.supplier_id) {
+      showNotification("error", "Please select a supplier");
+      return;
     }
-  } catch (err) {
-    console.error("Submit error:", err);
-    showNotification("error", err.message || "An error occurred");
-  } finally {
-    setIsLoading(false);
-  }
-};
+
+    if (!form.warehouse_id) {
+      showNotification("error", "Please select a warehouse");
+      return;
+    }
+
+    if (items.length === 0) {
+      showNotification("error", "Please add at least one product");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const purchaseData = {
+        supplier_id: parseInt(form.supplier_id),
+        warehouse_id: parseInt(form.warehouse_id),
+        purchase_date: form.purchase_date,
+        payment_method: form.payment_method,
+        discount: parseFloat(form.discount) || 0,
+        tax: parseFloat(form.tax) || 0,
+        paid_amount: parseFloat(form.paid_amount) || 0,
+        notes: form.notes,
+        status: form.status,
+        purchase_number: form.purchase_number,
+        subtotal: form.subtotal,
+        total_amount: form.total_amount,
+        due_amount: form.due_amount
+      };
+
+      const result = await api.createPurchase({
+        ...purchaseData,
+        items: items.map(item => ({
+          product_id: parseInt(item.product_id),
+          quantity: parseFloat(item.quantity),
+          purchase_price: parseFloat(item.purchase_price),
+          sale_price: parseFloat(item.sale_price) || 0,
+          expiry_date: item.expiry_date || null,
+          batch_number: item.batch_number || null
+        }))
+      });
+
+      if (result.success) {
+        // Get the supplier name for notification
+        const supplier = suppliers.find(s => s.id === parseInt(form.supplier_id));
+        const supplierName = supplier?.name || 'Supplier';
+        
+        showNotification("success", `Purchase ${form.purchase_number} created successfully!`);
+        
+        // ✅ Refresh supplier data to show updated balance
+        await refreshSupplierData(parseInt(form.supplier_id));
+        
+        // Store the created purchase data for PDF generation
+        const createdPurchaseData = {
+          ...purchaseData,
+          id: result.data?.id,
+          purchase_number: form.purchase_number
+        };
+        setLastCreatedPurchase(createdPurchaseData);
+        
+        // Reset form
+        await resetForm();
+      } else {
+        showNotification("error", result.error || "Failed to create purchase");
+      }
+    } catch (err) {
+      console.error("Submit error:", err);
+      showNotification("error", err.message || "An error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const resetForm = async () => {
     setItems([]);
@@ -667,10 +670,22 @@ const handleSubmit = async (e) => {
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                       <input
+                        ref={productSearchRef}
                         type="text"
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
-                        onFocus={() => setShowProductDropdown(true)}
+                        onFocus={() => {
+                          // Only show dropdown if there are filtered products
+                          if (filteredProducts.length > 0) {
+                            setShowProductDropdown(true);
+                          }
+                        }}
+                        onBlur={() => {
+                          // Delay hiding to allow click on dropdown items
+                          setTimeout(() => {
+                            setShowProductDropdown(false);
+                          }, 200);
+                        }}
                         className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-white transition-all duration-300"
                         placeholder="Search product..."
                       />
@@ -681,6 +696,10 @@ const handleSubmit = async (e) => {
                               key={product.id}
                               type="button"
                               onClick={() => selectProduct(product)}
+                              onMouseDown={(e) => {
+                                // Prevent input from losing focus before click
+                                e.preventDefault();
+                              }}
                               className="w-full text-left px-3 py-1.5 text-xs hover:bg-amber-50 transition-colors flex items-center justify-between"
                             >
                               <span>
@@ -706,18 +725,23 @@ const handleSubmit = async (e) => {
                     </label>
                     <input
                       type="number"
-                      value={currentItem.quantity}
+                      value={currentItem.quantity || ''}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                         setCurrentItem(prev => ({
                           ...prev,
                           quantity: val,
                           total: val * (prev.purchase_price || 0)
                         }));
                       }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.select();
+                        }
+                      }}
                       className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-white transition-all duration-300"
-                      placeholder="Qty"
-                      min="0.01"
+                      placeholder="0"
+                      min="0"
                       step="0.01"
                     />
                   </div>
@@ -728,17 +752,22 @@ const handleSubmit = async (e) => {
                     </label>
                     <input
                       type="number"
-                      value={currentItem.purchase_price}
+                      value={currentItem.purchase_price || ''}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                         setCurrentItem(prev => ({
                           ...prev,
                           purchase_price: val,
                           total: (prev.quantity || 0) * val
                         }));
                       }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.select();
+                        }
+                      }}
                       className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-white transition-all duration-300"
-                      placeholder="Price"
+                      placeholder="0"
                       min="0"
                       step="0.01"
                     />
@@ -926,9 +955,18 @@ const handleSubmit = async (e) => {
                     <span className="text-red-500">-</span>
                     <input
                       type="number"
-                      value={form.discount}
-                      onChange={(e) => setForm(prev => ({ ...prev, discount: parseFloat(e.target.value) || 0 }))}
+                      value={form.discount || ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setForm(prev => ({ ...prev, discount: val }));
+                      }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.select();
+                        }
+                      }}
                       className="w-20 px-2 py-0.5 text-xs border border-slate-200 rounded text-right focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                      placeholder="0"
                       min="0"
                       step="0.01"
                     />
@@ -941,9 +979,18 @@ const handleSubmit = async (e) => {
                     <span className="text-amber-500">+</span>
                     <input
                       type="number"
-                      value={form.tax}
-                      onChange={(e) => setForm(prev => ({ ...prev, tax: parseFloat(e.target.value) || 0 }))}
+                      value={form.tax || ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setForm(prev => ({ ...prev, tax: val }));
+                      }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0' || e.target.value === '') {
+                          e.target.select();
+                        }
+                      }}
                       className="w-20 px-2 py-0.5 text-xs border border-slate-200 rounded text-right focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                      placeholder="0"
                       min="0"
                       step="0.01"
                     />
@@ -961,9 +1008,18 @@ const handleSubmit = async (e) => {
                   <span className="text-slate-500">Amount Paid</span>
                   <input
                     type="number"
-                    value={form.paid_amount}
-                    onChange={(e) => setForm(prev => ({ ...prev, paid_amount: parseFloat(e.target.value) || 0 }))}
+                    value={form.paid_amount || ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      setForm(prev => ({ ...prev, paid_amount: val }));
+                    }}
+                    onFocus={(e) => {
+                      if (e.target.value === '0' || e.target.value === '') {
+                        e.target.select();
+                      }
+                    }}
                     className="w-24 px-2 py-0.5 text-xs border border-slate-200 rounded text-right focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                    placeholder="0"
                     min="0"
                     step="0.01"
                   />

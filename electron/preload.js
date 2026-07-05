@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
   // --- Product Management ---
-  getProducts: () => ipcRenderer.invoke("product:get"),
+  getProducts: () => ipcRenderer.invoke("product:get"),  // ✅ ADD THIS!
   getProductById: (id) => ipcRenderer.invoke("product:getById", id),
   getProductByCode: (code) => ipcRenderer.invoke("product:getByCode", code),
   searchProducts: (query) => ipcRenderer.invoke("product:search", query),
@@ -179,4 +179,6 @@ contextBridge.exposeInMainWorld("api", {
   generateAndSavePDF: (type, data, items) => {
     return ipcRenderer.invoke('generate-and-save-pdf', type, data, items);
   },
+  // --- Sales PDF Generation ---
+generateSalePDF: (saleData, items) => ipcRenderer.invoke('sale:generatePDF', saleData, items),
 });

@@ -6,6 +6,7 @@ const warehouseRepository = require('../repositories/warehouse.repository');
 const productRepository = require('../repositories/product.repository');
 const inventoryService = require('./inventory.service');
 const batchService = require('./batch.service');
+const saleGenerator = require("../utils/saleGenerator")
 
 class SalesService {
     // ==================== FIFO LOGIC ====================
@@ -130,7 +131,6 @@ class SalesService {
 
                 console.log(`🟢 [SalesService] Removing stock: batch ${batch.batch_id}, qty ${batch.quantity}, warehouse ${warehouseId}`);
 
-                // ✅ Pass as object with correct property names
                 const removeResult = await inventoryService.removeStock({
                     productId: item.product_id,
                     warehouseId: warehouseId,
@@ -410,6 +410,48 @@ class SalesService {
             data: { invoice_number: number }
         };
     }
+
+    // ==================== PDF GENERATION ====================
+    async generateAndSavePDF(saleData, items, window = null) {
+        console.log('🔵 [SalesService] generateAndSavePDF called');
+        console.log('🔵 [SalesService] saleData:', saleData);
+        console.log('🔵 [SalesService] items count:', items?.length || 0);
+        console.log('🔵 [SalesService] window:', window ? 'provided' : 'null');
+        console.log('🔵 [SalesService] saleGenerator exists?', !!saleGenerator);
+        
+        try {
+            // Fetch customer details if not already in saleData
+            if (saleData.customer_id && !saleData.customer_name) {
+                console.log('🔵 [SalesService] Fetching customer details for ID:', saleData.customer_id);
+                const customer = customerRepository.getById(saleData.customer_id);
+                if (customer) {
+                    saleData.customer_name = customer.name;
+                    saleData.customer_phone = customer.phone;
+                    saleData.customer_address = customer.address;
+                    console.log('🔵 [SalesService] Customer found:', customer.name);
+                } else {
+                    console.log('🔵 [SalesService] Customer NOT found for ID:', saleData.customer_id);
+                }
+            }
+
+            // Ensure invoice_number is set
+            if (!saleData.invoice_number) {
+                console.log('🔵 [SalesService] No invoice number, generating...');
+                saleData.invoice_number = salesRepository.generateNumber();
+                console.log('🔵 [SalesService] Generated invoice number:', saleData.invoice_number);
+            }
+
+            console.log('🔵 [SalesService] Calling saleGenerator.generateAndSaveSale...');
+            // Generate and save the PDF using the sale generator
+            const result = await saleGenerator.generateAndSaveSale(saleData, items, window);
+            console.log('🔵 [SalesService] saleGenerator result:', result);
+            return result;
+        } catch (error) {
+            console.error('❌ [SalesService] PDF generation error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
 }
 
 module.exports = new SalesService();

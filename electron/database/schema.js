@@ -546,6 +546,10 @@ INSERT OR IGNORE INTO units (id, name, abbreviation) VALUES
 -- Seed default warehouse
 INSERT OR IGNORE INTO warehouses (id, name, location, status) VALUES
     (1, 'Main Warehouse', 'Ground Floor', 'active');
+
+-- Seed walking customer (for over-the-counter sales without credit)
+INSERT OR IGNORE INTO customers (id, name, phone, email, address, credit, debit, credit_limit, is_active, notes) 
+VALUES (999, 'Walking Customer', '', '', 'N/A', 0, 0, 0, 1, 'Default customer for walk-in/over-the-counter sales');
 `;
 
 module.exports = schema;
