@@ -8,7 +8,6 @@ import {
   Search,
   Filter,
   ChevronDown,
-  ChevronRight,
   Calendar,
   Download,
   RefreshCw,
@@ -23,88 +22,16 @@ import {
   TrendingDown,
   DollarSign,
   FileText,
-  Clock,
-  User,
   Phone,
   MapPin,
-  Mail,
-  Hash,
-  Printer,
-  PieChart,
-  BarChart3,
-  Zap,
-  CircleDot,
   CreditCard,
   Receipt,
   ShoppingCart,
   Truck,
-  Activity,
-  Settings,
   Grid,
-  List
+  List,
+  Plus
 } from "lucide-react";
-
-// ==================== MOCK DATA ====================
-const MOCK_CUSTOMERS = [
-  { id: 1, name: "Muhammad Store", phone: "0300-1234567", address: "Main Bazar, Lahore", balance: 20000 },
-  { id: 2, name: "Ali Traders", phone: "0300-7654321", address: "Gulberg, Lahore", balance: 15000 },
-  { id: 3, name: "Ahmed Enterprises", phone: "0300-9876543", address: "Industrial Area, Lahore", balance: 0 },
-  { id: 4, name: "Usman Store", phone: "0300-5555555", address: "Johar Town, Lahore", balance: 63000 },
-  { id: 5, name: "Riaz Agro", phone: "0300-4444444", address: "Farm Area, Lahore", balance: 0 },
-];
-
-const MOCK_SUPPLIERS = [
-  { id: 1, name: "ABC Chemicals", phone: "0300-1234567", address: "Industrial Zone, Lahore", balance: 45000 },
-  { id: 2, name: "XYZ Pesticides", phone: "0300-7654321", address: "Main Road, Faisalabad", balance: 0 },
-  { id: 3, name: "Green Agro Supplies", phone: "0300-9876543", address: "Garden Town, Multan", balance: 0 },
-  { id: 4, name: "Premium Fertilizers", phone: "0300-5555555", address: "Sheikhupura Road", balance: 63000 },
-];
-
-const MOCK_LEDGER = {
-  customer: {
-    1: [
-      { id: 1, entry_type: "debit", amount: 15000, description: "Sale INV-001", reference_type: "sale", reference_id: 1, balance_after: 15000, entry_date: "2024-01-15" },
-      { id: 2, entry_type: "credit", amount: 5000, description: "Payment received", reference_type: "payment", reference_id: 1, balance_after: 10000, entry_date: "2024-01-20" },
-      { id: 3, entry_type: "debit", amount: 8000, description: "Sale INV-002", reference_type: "sale", reference_id: 2, balance_after: 18000, entry_date: "2024-02-01" },
-      { id: 4, entry_type: "credit", amount: 10000, description: "Payment received", reference_type: "payment", reference_id: 2, balance_after: 8000, entry_date: "2024-02-15" },
-      { id: 5, entry_type: "debit", amount: 12000, description: "Sale INV-003", reference_type: "sale", reference_id: 3, balance_after: 20000, entry_date: "2024-03-01" },
-    ],
-    2: [
-      { id: 6, entry_type: "debit", amount: 18000, description: "Sale INV-004", reference_type: "sale", reference_id: 4, balance_after: 18000, entry_date: "2024-02-01" },
-      { id: 7, entry_type: "credit", amount: 18000, description: "Payment received", reference_type: "payment", reference_id: 3, balance_after: 0, entry_date: "2024-02-10" },
-      { id: 8, entry_type: "debit", amount: 15000, description: "Sale INV-005", reference_type: "sale", reference_id: 5, balance_after: 15000, entry_date: "2024-03-15" },
-    ],
-    4: [
-      { id: 9, entry_type: "debit", amount: 45000, description: "Sale INV-006", reference_type: "sale", reference_id: 6, balance_after: 45000, entry_date: "2024-04-10" },
-      { id: 10, entry_type: "debit", amount: 68000, description: "Sale INV-007", reference_type: "sale", reference_id: 7, balance_after: 113000, entry_date: "2024-05-15" },
-      { id: 11, entry_type: "credit", amount: 50000, description: "Payment received", reference_type: "payment", reference_id: 4, balance_after: 63000, entry_date: "2024-05-20" },
-    ],
-  },
-  supplier: {
-    1: [
-      { id: 12, entry_type: "debit", amount: 32000, description: "Purchase PO-001", reference_type: "purchase", reference_id: 1, balance_after: 32000, entry_date: "2024-01-20" },
-      { id: 13, entry_type: "credit", amount: 32000, description: "Payment made", reference_type: "payment", reference_id: 5, balance_after: 0, entry_date: "2024-02-01" },
-      { id: 14, entry_type: "debit", amount: 45000, description: "Purchase PO-002", reference_type: "purchase", reference_id: 2, balance_after: 45000, entry_date: "2024-02-15" },
-    ],
-    2: [
-      { id: 15, entry_type: "debit", amount: 18000, description: "Purchase PO-003", reference_type: "purchase", reference_id: 3, balance_after: 18000, entry_date: "2024-02-01" },
-      { id: 16, entry_type: "credit", amount: 18000, description: "Payment made", reference_type: "payment", reference_id: 6, balance_after: 0, entry_date: "2024-02-10" },
-    ],
-    4: [
-      { id: 17, entry_type: "debit", amount: 45000, description: "Purchase PO-004", reference_type: "purchase", reference_id: 4, balance_after: 45000, entry_date: "2024-04-10" },
-      { id: 18, entry_type: "debit", amount: 68000, description: "Purchase PO-005", reference_type: "purchase", reference_id: 5, balance_after: 113000, entry_date: "2024-05-15" },
-      { id: 19, entry_type: "credit", amount: 50000, description: "Payment made", reference_type: "payment", reference_id: 7, balance_after: 63000, entry_date: "2024-05-20" },
-    ],
-  }
-};
-
-const MOCK_STATS = {
-  totalEntries: 19,
-  totalDebit: 295000,
-  totalCredit: 105000,
-  totalCustomers: 5,
-  totalSuppliers: 4
-};
 
 const api = window.api || {};
 
@@ -112,58 +39,177 @@ class LedgerAPI {
   async getCustomerLedger(customerId, filters = {}) {
     try {
       const result = await api.getCustomerLedger(customerId, filters);
-      if (result.success && result.data) {
-        return result;
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch customer ledger");
       }
-      return { success: true, data: { entries: MOCK_LEDGER.customer[customerId] || [], summary: { total_debit: 0, total_credit: 0, balance: 0 } } };
+      return result;
     } catch (error) {
-      return { success: true, data: { entries: MOCK_LEDGER.customer[customerId] || [], summary: { total_debit: 0, total_credit: 0, balance: 0 } } };
+      console.error("Error fetching customer ledger:", error);
+      return { 
+        success: false, 
+        error: error.message,
+        data: { entries: [], summary: { total_debit: 0, total_credit: 0, balance: 0 } }
+      };
     }
   }
 
   async getSupplierLedger(supplierId, filters = {}) {
     try {
       const result = await api.getSupplierLedger(supplierId, filters);
-      if (result.success && result.data) {
-        return result;
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch supplier ledger");
       }
-      return { success: true, data: { entries: MOCK_LEDGER.supplier[supplierId] || [], summary: { total_debit: 0, total_credit: 0, balance: 0 } } };
+      return result;
     } catch (error) {
-      return { success: true, data: { entries: MOCK_LEDGER.supplier[supplierId] || [], summary: { total_debit: 0, total_credit: 0, balance: 0 } } };
+      console.error("Error fetching supplier ledger:", error);
+      return { 
+        success: false, 
+        error: error.message,
+        data: { entries: [], summary: { total_debit: 0, total_credit: 0, balance: 0 } }
+      };
     }
   }
 
   async getCustomers() {
     try {
       const result = await api.getAllCustomers({ is_active: 1 });
-      if (result.success && result.data.length > 0) {
-        return result;
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch customers");
       }
-      return { success: true, data: MOCK_CUSTOMERS };
+      return result;
     } catch (error) {
-      return { success: true, data: MOCK_CUSTOMERS };
+      console.error("Error fetching customers:", error);
+      return { success: false, data: [], error: error.message };
     }
   }
 
   async getSuppliers() {
     try {
       const result = await api.getAllSuppliers({ is_active: 1 });
-      if (result.success && result.data.length > 0) {
-        return result;
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch suppliers");
       }
-      return { success: true, data: MOCK_SUPPLIERS };
+      return result;
     } catch (error) {
-      return { success: true, data: MOCK_SUPPLIERS };
+      console.error("Error fetching suppliers:", error);
+      return { success: false, data: [], error: error.message };
     }
   }
 
   async getStats() {
     try {
       const result = await api.getLedgerStats();
-      if (result.success) return result;
-      return { success: true, data: MOCK_STATS };
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch ledger stats");
+      }
+      return result;
     } catch (error) {
-      return { success: true, data: MOCK_STATS };
+      console.error("Error fetching ledger stats:", error);
+      return { success: false, data: { totalEntries: 0, totalDebit: 0, totalCredit: 0, totalCustomers: 0, totalSuppliers: 0 } };
+    }
+  }
+
+  async recordCustomerPayment(customerId, amount, paymentMethod = 'cash', notes = '') {
+    try {
+      if (api.recordCustomerPayment) {
+        const result = await api.recordCustomerPayment(customerId, amount, paymentMethod, null, notes);
+        return result;
+      }
+      
+      const entryData = {
+        customer_id: customerId,
+        entry_type: 'credit',
+        amount: amount,
+        description: `Payment received${notes ? ` - ${notes}` : ''}`,
+        reference_type: 'payment',
+        reference_id: null,
+        created_by: null
+      };
+      
+      const result = await api.createLedgerEntry(entryData);
+      return result;
+    } catch (error) {
+      console.error('Error recording customer payment:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async recordSupplierPayment(supplierId, amount, paymentMethod = 'cash', notes = '') {
+    try {
+      if (api.recordSupplierPayment) {
+        const result = await api.recordSupplierPayment(supplierId, amount, paymentMethod, null, notes);
+        return result;
+      }
+      
+      const entryData = {
+        supplier_id: supplierId,
+        entry_type: 'credit',
+        amount: amount,
+        description: `Payment made${notes ? ` - ${notes}` : ''}`,
+        reference_type: 'payment',
+        reference_id: null,
+        created_by: null
+      };
+      
+      const result = await api.createLedgerEntry(entryData);
+      return result;
+    } catch (error) {
+      console.error('Error recording supplier payment:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async adjustCustomerBalance(customerId, amount, reason = 'Manual adjustment') {
+    try {
+      if (api.adjustCustomerBalance) {
+        const result = await api.adjustCustomerBalance(customerId, amount, reason, null);
+        return result;
+      }
+      
+      const entryType = amount > 0 ? 'debit' : 'credit';
+      const absAmount = Math.abs(amount);
+      const entryData = {
+        customer_id: customerId,
+        entry_type: entryType,
+        amount: absAmount,
+        description: `${reason} (${entryType === 'debit' ? 'Increase' : 'Decrease'} balance)`,
+        reference_type: 'adjustment',
+        reference_id: null,
+        created_by: null
+      };
+      
+      const result = await api.createLedgerEntry(entryData);
+      return result;
+    } catch (error) {
+      console.error('Error adjusting customer balance:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async adjustSupplierBalance(supplierId, amount, reason = 'Manual adjustment') {
+    try {
+      if (api.adjustSupplierBalance) {
+        const result = await api.adjustSupplierBalance(supplierId, amount, reason, null);
+        return result;
+      }
+      
+      const entryType = amount > 0 ? 'debit' : 'credit';
+      const absAmount = Math.abs(amount);
+      const entryData = {
+        supplier_id: supplierId,
+        entry_type: entryType,
+        amount: absAmount,
+        description: `${reason} (${entryType === 'debit' ? 'Increase' : 'Decrease'} balance)`,
+        reference_type: 'adjustment',
+        reference_id: null,
+        created_by: null
+      };
+      
+      const result = await api.createLedgerEntry(entryData);
+      return result;
+    } catch (error) {
+      console.error('Error adjusting supplier balance:', error);
+      return { success: false, error: error.message };
     }
   }
 }
@@ -184,10 +230,19 @@ export default function Ledger() {
   const [referenceType, setReferenceType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredEntries, setFilteredEntries] = useState([]);
-  const [stats, setStats] = useState({ totalEntries: 0, totalDebit: 0, totalCredit: 0, totalCustomers: 0, totalSuppliers: 0 });
+  const [stats, setStats] = useState({ 
+    totalEntries: 0, 
+    totalDebit: 0, 
+    totalCredit: 0, 
+    totalCustomers: 0, 
+    totalSuppliers: 0 
+  });
   const [detailModal, setDetailModal] = useState({ open: false, entry: null });
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
   const [viewMode, setViewMode] = useState("table");
+  const [paymentModal, setPaymentModal] = useState({ open: false, type: "", entity: null });
+  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "cash", notes: "" });
+  const [entitySearchQuery, setEntitySearchQuery] = useState("");
   
   const referenceTypes = ["all", "sale", "purchase", "payment", "receipt"];
 
@@ -220,13 +275,13 @@ export default function Ledger() {
       if (suppliersResult.success) setSuppliers(suppliersResult.data || []);
 
       if (ledgerType === "customer" && customersResult.data?.length > 0) {
-        setSelectedId(customersResult.data[0].id);
+        setSelectedId(String(customersResult.data[0].id));
       } else if (ledgerType === "supplier" && suppliersResult.data?.length > 0) {
-        setSelectedId(suppliersResult.data[0].id);
+        setSelectedId(String(suppliersResult.data[0].id));
       }
     } catch (err) {
       console.error("Error loading data:", err);
-      showNotification("error", "Failed to load data");
+      showNotification("error", err.message || "Failed to load data");
     } finally {
       setIsLoading(false);
     }
@@ -257,10 +312,12 @@ export default function Ledger() {
       if (result.success) {
         setEntries(result.data.entries || []);
         setSummary(result.data.summary || { total_debit: 0, total_credit: 0, balance: 0 });
+      } else {
+        showNotification("error", result.error || "Failed to load ledger");
       }
     } catch (err) {
       console.error("Error loading ledger:", err);
-      showNotification("error", "Failed to load ledger");
+      showNotification("error", err.message || "Failed to load ledger");
     } finally {
       setIsLoading(false);
     }
@@ -295,6 +352,57 @@ export default function Ledger() {
     setEndDate("");
   };
 
+  // ==================== PAYMENT MODAL ====================
+  const openPaymentModal = (type, entity) => {
+    setPaymentForm({ amount: "", method: "cash", notes: "" });
+    setPaymentModal({ open: true, type, entity });
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0) {
+      showNotification("error", "Please enter a valid amount");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const amount = parseFloat(paymentForm.amount);
+      let result;
+
+      if (paymentModal.type === "customer") {
+        result = await ledgerAPI.recordCustomerPayment(
+          paymentModal.entity.id,
+          amount,
+          paymentForm.method,
+          paymentForm.notes
+        );
+      } else {
+        result = await ledgerAPI.recordSupplierPayment(
+          paymentModal.entity.id,
+          amount,
+          paymentForm.method,
+          paymentForm.notes
+        );
+      }
+
+      if (result.success) {
+        showNotification("success", `Payment of ${formatCurrency(amount)} recorded successfully`);
+        setPaymentModal({ open: false, type: "", entity: null });
+        await loadLedger();
+        await loadStats();
+        await loadData();
+      } else {
+        showNotification("error", result.error || "Failed to record payment");
+      }
+    } catch (err) {
+      console.error("Payment error:", err);
+      showNotification("error", err.message || "An error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ==================== HELPERS ====================
   const showNotification = (type, message) => {
     setNotification({ show: true, type, message });
@@ -307,9 +415,68 @@ export default function Ledger() {
     return `₨${(amount || 0).toFixed(2)}`;
   };
 
+  // ✅ FIXED: Get balance color based on ledger type
+  const getBalanceColor = (amount) => {
+    const num = amount || 0;
+    
+    if (ledgerType === "supplier") {
+      // For SUPPLIERS:
+      // Negative = supplier owes us (GOOD) → GREEN
+      // Positive = we owe supplier (BAD) → RED
+      if (num < 0) return 'text-emerald-600';  // Supplier owes us - GOOD ✅
+      if (num > 0) return 'text-red-600';      // We owe supplier - BAD ❌
+      return 'text-slate-600';
+    } else {
+      // For CUSTOMERS:
+      // Positive = customer owes us (GOOD) → GREEN
+      // Negative = we owe customer (BAD) → RED
+      if (num > 0) return 'text-emerald-600';  // Customer owes us - GOOD ✅
+      if (num < 0) return 'text-red-600';      // We owe customer - BAD ❌
+      return 'text-slate-600';
+    }
+  };
+
+  // ✅ FIXED: Get balance sign
+  const getBalanceSign = (amount) => {
+    const num = amount || 0;
+    
+    if (ledgerType === "supplier") {
+      // For SUPPLIERS: Show what it means
+      if (num < 0) return '';  // Supplier owes us (no sign needed)
+      if (num > 0) return '-'; // We owe supplier
+      return '';
+    } else {
+      // For CUSTOMERS
+      if (num > 0) return '+'; // Customer owes us
+      if (num < 0) return '-'; // We owe customer
+      return '';
+    }
+  };
+
+  // ✅ NEW: Get balance label
+  const getBalanceLabel = (amount) => {
+    const num = amount || 0;
+    
+    if (ledgerType === "supplier") {
+      if (num < 0) return 'Supplier owes us';
+      if (num > 0) return 'We owe supplier';
+      return 'Settled';
+    } else {
+      if (num > 0) return 'Customer owes us';
+      if (num < 0) return 'We owe customer';
+      return 'Settled';
+    }
+  };
+
   const formatDate = (date) => {
     if (!date) return "-";
-    return new Date(date).toLocaleDateString();
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return "-";
+      return d.toLocaleDateString();
+    } catch (e) {
+      return "-";
+    }
   };
 
   const getEntryTypeBadge = (type) => {
@@ -355,10 +522,25 @@ export default function Ledger() {
     return suppliers.find(s => s.id === parseInt(id));
   };
 
+  const getFilteredEntities = () => {
+    const entities = ledgerType === "customer" ? customers : suppliers;
+    if (!entitySearchQuery.trim()) return entities;
+    const query = entitySearchQuery.toLowerCase().trim();
+    return entities.filter(entity => 
+      entity.name?.toLowerCase().includes(query) ||
+      entity.phone?.includes(query)
+    );
+  };
+
   const handleExport = () => {
+    if (filteredEntries.length === 0) {
+      showNotification("info", "No entries to export");
+      return;
+    }
+
     const headers = ["Date", "Type", "Description", "Reference", "Amount", "Balance"];
     const rows = filteredEntries.map(e => [
-      formatDate(e.entry_date),
+      formatDate(e.entry_date || e.created_at),
       e.entry_type.toUpperCase(),
       e.description,
       e.reference_type || "-",
@@ -384,18 +566,30 @@ export default function Ledger() {
       {/* Notification */}
       {notification.show && (
         <div className={`fixed top-4 right-4 z-50 max-w-sm w-full p-4 rounded-xl shadow-lg animate-slide-down border ${
-          notification.type === "success" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+          notification.type === "success" ? "bg-emerald-50 border-emerald-200" : 
+          notification.type === "info" ? "bg-blue-50 border-blue-200" :
+          "bg-red-50 border-red-200"
         }`}>
           <div className="flex items-start gap-3">
-            <div className={`mt-0.5 p-1.5 rounded-full ${notification.type === "success" ? "bg-emerald-100" : "bg-red-100"}`}>
+            <div className={`mt-0.5 p-1.5 rounded-full ${
+              notification.type === "success" ? "bg-emerald-100" : 
+              notification.type === "info" ? "bg-blue-100" :
+              "bg-red-100"
+            }`}>
               {notification.type === "success" ? (
                 <CheckCircle size={16} className="text-emerald-600" />
+              ) : notification.type === "info" ? (
+                <AlertCircle size={16} className="text-blue-600" />
               ) : (
                 <X size={16} className="text-red-600" />
               )}
             </div>
             <div className="flex-1">
-              <p className={`text-sm font-medium ${notification.type === "success" ? "text-emerald-800" : "text-red-800"}`}>
+              <p className={`text-sm font-medium ${
+                notification.type === "success" ? "text-emerald-800" : 
+                notification.type === "info" ? "text-blue-800" :
+                "text-red-800"
+              }`}>
                 {notification.message}
               </p>
             </div>
@@ -454,17 +648,53 @@ export default function Ledger() {
         </div>
       </div>
 
-      {/* Stats Cards - Cleaner Design */}
+      {/* Stats Cards - DYNAMIC */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         {[
-          { label: "Total Entries", value: stats.totalEntries || 0, icon: FileText, color: "text-indigo-600" },
-          { label: "Total Debit", value: formatCurrency(stats.totalDebit), icon: TrendingUp, color: "text-red-600" },
-          { label: "Total Credit", value: formatCurrency(stats.totalCredit), icon: TrendingDown, color: "text-emerald-600" },
-          { label: "Customers", value: stats.totalCustomers || 0, icon: Users, color: "text-blue-600" },
-          { label: "Suppliers", value: stats.totalSuppliers || 0, icon: Building2, color: "text-amber-600" },
-          { label: "Net Balance", value: formatCurrency((stats.totalDebit || 0) - (stats.totalCredit || 0)), icon: Wallet, color: "text-purple-600" }
+          { 
+            label: "Total Entries", 
+            value: stats.totalEntries || 0, 
+            icon: FileText, 
+            color: "text-indigo-600",
+            bg: "bg-indigo-50"
+          },
+          { 
+            label: "Total Debit", 
+            value: formatCurrency(stats.totalDebit || 0), 
+            icon: TrendingUp, 
+            color: "text-red-600",
+            bg: "bg-red-50"
+          },
+          { 
+            label: "Total Credit", 
+            value: formatCurrency(stats.totalCredit || 0), 
+            icon: TrendingDown, 
+            color: "text-emerald-600",
+            bg: "bg-emerald-50"
+          },
+          { 
+            label: "Customers", 
+            value: stats.totalCustomers || 0, 
+            icon: Users, 
+            color: "text-blue-600",
+            bg: "bg-blue-50"
+          },
+          { 
+            label: "Suppliers", 
+            value: stats.totalSuppliers || 0, 
+            icon: Building2, 
+            color: "text-amber-600",
+            bg: "bg-amber-50"
+          },
+          { 
+            label: "Net Balance", 
+            value: formatCurrency((stats.totalDebit || 0) - (stats.totalCredit || 0)), 
+            icon: Wallet, 
+            color: "text-purple-600",
+            bg: "bg-purple-50"
+          }
         ].map((item, index) => (
-          <div key={index} className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300">
+          <div key={index} className={`bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 ${item.bg}`}>
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-slate-500 font-medium">{item.label}</span>
               <item.icon size={16} className={item.color} />
@@ -515,22 +745,16 @@ export default function Ledger() {
               <input
                 type="text"
                 placeholder={`Search ${ledgerType}s...`}
+                value={entitySearchQuery}
+                onChange={(e) => setEntitySearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 bg-slate-50 transition-all"
-                onChange={(e) => {
-                  const query = e.target.value.toLowerCase();
-                  const list = ledgerType === "customer" ? customers : suppliers;
-                  const filtered = list.filter(item => 
-                    item.name.toLowerCase().includes(query) ||
-                    (item.phone && item.phone.includes(query))
-                  );
-                  // You can add state for filtered list here
-                }}
               />
             </div>
 
             <div className="max-h-[400px] overflow-y-auto space-y-1">
-              {(ledgerType === "customer" ? customers : suppliers).map((entity) => {
+              {getFilteredEntities().map((entity) => {
                 const isActive = selectedId === String(entity.id);
+                const balance = (entity.credit || 0) - (entity.debit || 0);
                 return (
                   <div
                     key={entity.id}
@@ -550,18 +774,30 @@ export default function Ledger() {
                           <p className="text-[9px] text-slate-400 truncate">{entity.phone}</p>
                         )}
                       </div>
-                      {entity.balance !== undefined && (
-                        <span className={`text-[10px] font-bold ${entity.balance > 0 ? 'text-red-600' : entity.balance < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {formatCurrency(entity.balance)}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {entity.credit !== undefined && entity.debit !== undefined && (
+                          <span className={`text-[10px] font-bold ${getBalanceColor(balance)}`}>
+                            {getBalanceSign(balance)}{formatCurrency(Math.abs(balance))}
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openPaymentModal(ledgerType, entity);
+                          }}
+                          className="p-1 rounded hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors"
+                          title="Record Payment"
+                        >
+                          <DollarSign size={12} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
-              {(ledgerType === "customer" ? customers : suppliers).length === 0 && (
+              {getFilteredEntities().length === 0 && (
                 <div className="p-4 text-center text-xs text-slate-400">
-                  No {ledgerType}s found
+                  {entitySearchQuery ? `No ${ledgerType}s found matching "${entitySearchQuery}"` : `No ${ledgerType}s found`}
                 </div>
               )}
             </div>
@@ -577,6 +813,11 @@ export default function Ledger() {
                 {(() => {
                   const entity = getEntityDetails(selectedId);
                   if (!entity) return null;
+                  const balance = summary.balance || 0;
+                  const balanceColor = getBalanceColor(balance);
+                  const balanceSign = getBalanceSign(balance);
+                  const balanceLabel = getBalanceLabel(balance);
+                  
                   return (
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div className="flex items-center gap-3">
@@ -593,21 +834,33 @@ export default function Ledger() {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-center">
-                          <p className="text-[8px] text-slate-400 uppercase font-medium">Debit</p>
+                          <p className="text-[8px] text-slate-400 uppercase font-medium">
+                            {ledgerType === "supplier" ? "We Owe" : "They Owe"}
+                          </p>
                           <p className="text-sm font-bold text-red-600">{formatCurrency(summary.total_debit || 0)}</p>
                         </div>
                         <div className="w-px h-8 bg-slate-200" />
                         <div className="text-center">
-                          <p className="text-[8px] text-slate-400 uppercase font-medium">Credit</p>
+                          <p className="text-[8px] text-slate-400 uppercase font-medium">
+                            {ledgerType === "supplier" ? "They Owe" : "We Owe"}
+                          </p>
                           <p className="text-sm font-bold text-emerald-600">{formatCurrency(summary.total_credit || 0)}</p>
                         </div>
                         <div className="w-px h-8 bg-slate-200" />
                         <div className="text-center">
                           <p className="text-[8px] text-slate-400 uppercase font-medium">Balance</p>
-                          <p className={`text-sm font-bold ${(summary.balance || 0) > 0 ? 'text-red-600' : (summary.balance || 0) < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                            {formatCurrency(summary.balance || 0)}
+                          <p className={`text-sm font-bold ${balanceColor}`}>
+                            {balanceSign}{formatCurrency(Math.abs(balance))}
                           </p>
+                          <p className="text-[8px] text-slate-400 mt-0.5">{balanceLabel}</p>
                         </div>
+                        <button
+                          onClick={() => openPaymentModal(ledgerType, entity)}
+                          className="px-3 py-1.5 text-[10px] font-medium text-white rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-sm hover:shadow-md transition-all"
+                        >
+                          <DollarSign size={12} className="inline mr-1" />
+                          Record Payment
+                        </button>
                       </div>
                     </div>
                   );
@@ -714,6 +967,7 @@ export default function Ledger() {
                       <tbody className="divide-y divide-slate-100">
                         {filteredEntries.map((entry, index) => {
                           const isDebit = entry.entry_type === "debit";
+                          const balance = entry.balance_after || 0;
                           return (
                             <tr key={entry.id || index} className="hover:bg-indigo-50/30 transition-colors duration-200">
                               <td className="px-3 py-2 text-[10px] text-slate-600">{formatDate(entry.entry_date)}</td>
@@ -734,8 +988,10 @@ export default function Ledger() {
                               <td className={`px-3 py-2 text-right font-medium text-[10px] ${isDebit ? 'text-red-600' : 'text-emerald-600'}`}>
                                 {isDebit ? '+' : '-'} {formatCurrency(entry.amount)}
                               </td>
-                              <td className="px-3 py-2 text-right font-medium text-[10px] text-slate-700">
-                                {formatCurrency(entry.balance_after)}
+                              <td className="px-3 py-2 text-right font-medium text-[10px]">
+                                <span className={getBalanceColor(balance)}>
+                                  {getBalanceSign(balance)}{formatCurrency(Math.abs(balance))}
+                                </span>
                               </td>
                               <td className="px-3 py-2 text-center">
                                 <button
@@ -757,6 +1013,7 @@ export default function Ledger() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {filteredEntries.map((entry, index) => {
                     const isDebit = entry.entry_type === "debit";
+                    const balance = entry.balance_after || 0;
                     return (
                       <div key={entry.id || index} className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-200">
                         <div className="flex items-start justify-between">
@@ -778,7 +1035,11 @@ export default function Ledger() {
                             <p className={`text-sm font-bold ${isDebit ? 'text-red-600' : 'text-emerald-600'}`}>
                               {isDebit ? '+' : '-'} {formatCurrency(entry.amount)}
                             </p>
-                            <p className="text-[9px] text-slate-400">Balance: {formatCurrency(entry.balance_after)}</p>
+                            <p className="text-[9px]">
+                              <span className={getBalanceColor(balance)}>
+                                Balance: {getBalanceSign(balance)}{formatCurrency(Math.abs(balance))}
+                              </span>
+                            </p>
                           </div>
                         </div>
                         <div className="mt-2 pt-2 border-t border-slate-100 flex justify-end">
@@ -809,6 +1070,99 @@ export default function Ledger() {
           )}
         </div>
       </div>
+
+      {/* ===== PAYMENT MODAL ===== */}
+      {paymentModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5 animate-scale-in relative">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-t-xl" />
+            <button
+              onClick={() => setPaymentModal({ open: false, type: "", entity: null })}
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-transform hover:scale-110"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mt-2 mb-4">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25">
+                <DollarSign size={18} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Record Payment
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {paymentModal.type === "customer" ? "Customer" : "Supplier"}: {paymentModal.entity?.name}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handlePaymentSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Amount *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={paymentForm.amount}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white transition-all"
+                  placeholder="Enter amount"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentForm.method}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, method: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white transition-all appearance-none"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="bank">Bank Transfer</option>
+                  <option value="credit">Credit Card</option>
+                  <option value="cheque">Cheque</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={paymentForm.notes}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white transition-all"
+                  placeholder="Payment notes..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentModal({ open: false, type: "", entity: null })}
+                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="px-4 py-2 text-xs font-medium text-white rounded-lg transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+                >
+                  {isLoading ? 'Processing...' : 'Record Payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {detailModal.open && detailModal.entry && (
@@ -865,8 +1219,12 @@ export default function Ledger() {
                 </div>
                 <div className="bg-slate-50 rounded-lg p-3">
                   <p className="text-[8px] text-slate-400 uppercase font-medium">Balance After</p>
-                  <p className={`text-lg font-bold ${(detailModal.entry.balance_after || 0) > 0 ? 'text-red-600' : 'text-emerald-600'} mt-1`}>
-                    {formatCurrency(detailModal.entry.balance_after)}
+                  <p className={`text-lg font-bold ${getBalanceColor(detailModal.entry.balance_after)} mt-1`}>
+                    {getBalanceSign(detailModal.entry.balance_after)}
+                    {formatCurrency(Math.abs(detailModal.entry.balance_after || 0))}
+                  </p>
+                  <p className="text-[8px] text-slate-400 mt-0.5">
+                    {getBalanceLabel(detailModal.entry.balance_after)}
                   </p>
                 </div>
               </div>

@@ -205,6 +205,7 @@ export default function Sales() {
     purchase_price: 0,
     total: 0,
     available_stock: 0,
+    total_stock: 0,
     batches: [],
     inventory: []
   });
@@ -302,14 +303,18 @@ export default function Sales() {
     if (!currentItem.product_id) return;
 
     const newStock = getStockForWarehouse(currentItem.inventory, form.warehouse_id);
+    const totalStock = currentItem.inventory.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
     setCurrentItem(prev => ({
       ...prev,
-      available_stock: newStock
+      available_stock: newStock,
+      total_stock: totalStock
     }));
 
-    if (newStock === 0) {
-      showNotification("info", `⚠️ ${currentItem.product_name} has 0 stock in the selected warehouse.`);
+    if (newStock === 0 && totalStock > 0) {
+      showNotification("info", `⚠️ ${currentItem.product_name} has 0 stock in this warehouse. Try changing warehouse.`);
+    } else if (newStock === 0) {
+      showNotification("info", `⚠️ ${currentItem.product_name} has 0 stock available.`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.warehouse_id]);
@@ -317,12 +322,21 @@ export default function Sales() {
   // ==================== HELPERS (stock) ====================
   const getStockForWarehouse = (inventoryData, warehouseId) => {
     if (!Array.isArray(inventoryData) || inventoryData.length === 0) return 0;
+
     if (!warehouseId) {
-      return inventoryData.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        return inventoryData.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
     }
-    const match = inventoryData.find(i => i.warehouse_id === parseInt(warehouseId));
-    return match ? (match.quantity || 0) : 0;
-  };
+
+    const targetId = Number(warehouseId);
+    
+    // ✅ SUM ALL records for this warehouse, not just the first one!
+    const total = inventoryData
+        .filter(i => Number(i.warehouse_id) === targetId)
+        .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    
+    console.log(`📊 Total stock in warehouse ${targetId}: ${total}`);
+    return total;
+};
 
   // ==================== CALCULATIONS ====================
   const calculateTotals = () => {
@@ -351,7 +365,9 @@ export default function Sales() {
   const selectProduct = async (product) => {
     try {
       console.log(`🔍 Selecting product: ${product.id} - ${product.name}`);
+      console.log(`🔍 Product stock_quantity: ${product.stock_quantity}`);
       
+      // Fetch inventory data for this product
       const inventoryResult = await salesAPI.getProductInventory(product.id);
       let inventoryData = [];
 
@@ -360,30 +376,38 @@ export default function Sales() {
         console.log(`📊 Inventory data for product ${product.id}:`, inventoryData);
       }
 
+      // ✅ Calculate stock for selected warehouse
+      const availableStock = getStockForWarehouse(inventoryData, form.warehouse_id);
+      
+      // ✅ Calculate total stock across all warehouses
+      const totalStock = inventoryData.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+      console.log(`📊 Available stock in warehouse ${form.warehouse_id}: ${availableStock}`);
+      console.log(`📊 Total stock across all warehouses: ${totalStock}`);
+
+      // Fetch batches
       let batches = [];
       try {
         const batchesResult = await salesAPI.getProductBatches(product.id);
         if (batchesResult.success && batchesResult.data) {
           batches = batchesResult.data;
+          console.log(`📊 Found ${batches.length} batches`);
         }
       } catch (err) {
-        // Ignore batch errors
         console.log('⚠️ Could not fetch batches:', err.message);
       }
 
-      const availableStock = getStockForWarehouse(inventoryData, form.warehouse_id);
-      console.log(`📊 Available stock in warehouse ${form.warehouse_id}: ${availableStock}`);
-
+      // ✅ Set current item with correct stock
       setCurrentItem({
         product_id: product.id,
         product_name: product.name,
-        product_code: product.code,
+        product_code: product.code || 'N/A',
         unit: product.unit || 'pcs',
         quantity: 1,
         sale_price: product.sale_price || 0,
         purchase_price: product.purchase_price || 0,
         total: product.sale_price || 0,
         available_stock: availableStock,
+        total_stock: totalStock,
         batches: batches,
         inventory: inventoryData
       });
@@ -395,21 +419,27 @@ export default function Sales() {
         productSearchRef.current.blur();
       }
 
-      if (availableStock === 0) {
-        showNotification("info", `⚠️ ${product.name} has 0 stock available in this warehouse.`);
+      // Show appropriate notification
+      if (availableStock === 0 && totalStock > 0) {
+        showNotification("info", `⚠️ ${product.name} has 0 stock in this warehouse. Try changing warehouse.`);
+      } else if (availableStock === 0) {
+        showNotification("info", `⚠️ ${product.name} has 0 stock available.`);
+      } else {
+        showNotification("success", `✅ ${product.name}: ${availableStock} ${product.unit || 'units'} available`);
       }
     } catch (err) {
       console.error("Error loading product inventory:", err);
       setCurrentItem({
         product_id: product.id,
         product_name: product.name,
-        product_code: product.code,
+        product_code: product.code || 'N/A',
         unit: product.unit || 'pcs',
         quantity: 1,
         sale_price: product.sale_price || 0,
         purchase_price: product.purchase_price || 0,
         total: product.sale_price || 0,
         available_stock: 0,
+        total_stock: 0,
         batches: [],
         inventory: []
       });
@@ -473,6 +503,7 @@ export default function Sales() {
       purchase_price: 0,
       total: 0,
       available_stock: 0,
+      total_stock: 0,
       batches: [],
       inventory: []
     });
@@ -910,8 +941,8 @@ export default function Sales() {
                       {showProductDropdown && filteredProducts.length > 0 && (
                         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
                           {filteredProducts.map((product) => {
-                            // Get stock for this product in the selected warehouse
-                            const productStock = product.stock || 0;
+                            // ✅ Use product.stock_quantity as fallback display
+                            const productStock = product.stock_quantity || 0;
                             const stockStatus = getStockStatus(productStock);
                             return (
                               <button
@@ -925,7 +956,7 @@ export default function Sales() {
                               >
                                 <span>
                                   <span className="font-medium">{product.name}</span>
-                                  <span className="text-slate-400 ml-2">#{product.code}</span>
+                                  <span className="text-slate-400 ml-2">#{product.code || 'N/A'}</span>
                                 </span>
                                 <span className={`text-[10px] ${stockStatus.color}`}>
                                   {productStock} {product.unit}
@@ -944,11 +975,18 @@ export default function Sales() {
                     {currentItem.product_name && (
                       <div className="mt-1 flex items-center justify-between">
                         <p className="text-[9px] text-emerald-600">
-                          Selected: {currentItem.product_name} (#{currentItem.product_code})
+                          Selected: {currentItem.product_name} (#{currentItem.product_code || 'N/A'})
                         </p>
-                        <span className={`text-[9px] ${getStockStatus(currentItem.available_stock).color}`}>
-                          Stock: {currentItem.available_stock} {currentItem.unit}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] ${getStockStatus(currentItem.available_stock).color}`}>
+                            Stock: {currentItem.available_stock} {currentItem.unit}
+                          </span>
+                          {currentItem.total_stock > currentItem.available_stock && (
+                            <span className="text-[8px] text-slate-400">
+                              (Total: {currentItem.total_stock})
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

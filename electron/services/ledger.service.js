@@ -15,7 +15,8 @@ class LedgerService {
             description,
             reference_type,
             reference_id,
-            created_by
+            created_by,
+            entry_date  
         } = data;
 
         // Validate - must have either customer or supplier
@@ -57,8 +58,6 @@ class LedgerService {
         }
 
         // Calculate new balance
-        // For customers: debit = customer owes us, credit = we owe customer
-        // For suppliers: credit = supplier owes us, debit = we owe supplier
         let balanceAfter = currentBalance;
         if (entry_type === 'debit') {
             balanceAfter = currentBalance + amount;
@@ -76,7 +75,8 @@ class LedgerService {
             reference_type: reference_type || null,
             reference_id: reference_id || null,
             balance_after: balanceAfter,
-            created_by: created_by || null
+            created_by: created_by || null,
+            entry_date: entry_date || null 
         });
 
         return {
@@ -84,6 +84,259 @@ class LedgerService {
             data: entry,
             message: 'Ledger entry created successfully'
         };
+    }
+
+    // ==================== PAYMENT / RECEIPT METHODS ====================
+    
+    async recordCustomerPayment(customerId, amount, paymentMethod = 'cash', referenceId = null, notes = '') {
+        if (!customerId) {
+            throw new Error('Customer ID is required');
+        }
+        if (!amount || amount <= 0) {
+            throw new Error('Amount must be greater than 0');
+        }
+
+        const customer = customerRepository.getById(customerId);
+        if (!customer) {
+            throw new Error('Customer not found');
+        }
+
+        const entry = await this.createLedgerEntry({
+            customer_id: customerId,
+            entry_type: 'credit',
+            amount: amount,
+            description: `Payment received from ${customer.name}${notes ? ` - ${notes}` : ''}`,
+            reference_type: 'payment',
+            reference_id: referenceId,
+            created_by: null
+        });
+
+        await this.updateCustomerBalance(customerId, -amount);
+
+        return {
+            success: true,
+            data: entry,
+            message: `Payment of ${amount} received from ${customer.name}`
+        };
+    }
+
+    async recordSupplierPayment(supplierId, amount, paymentMethod = 'cash', referenceId = null, notes = '') {
+        console.log(`💰 recordSupplierPayment called: supplier ${supplierId}, amount ${amount}`);
+        
+        if (!supplierId) {
+            throw new Error('Supplier ID is required');
+        }
+        if (!amount || amount <= 0) {
+            throw new Error('Amount must be greater than 0');
+        }
+
+        const supplier = supplierRepository.getById(supplierId);
+        if (!supplier) {
+            throw new Error('Supplier not found');
+        }
+
+        const entry = await this.createLedgerEntry({
+            supplier_id: supplierId,
+            entry_type: 'credit',
+            amount: amount,
+            description: `Payment made to ${supplier.name}${notes ? ` - ${notes}` : ''}`,
+            reference_type: 'payment',
+            reference_id: referenceId,
+            created_by: null
+        });
+
+        await this.updateSupplierBalance(supplierId, -amount);
+
+        return {
+            success: true,
+            data: entry,
+            message: `Payment of ${amount} made to ${supplier.name}`
+        };
+    }
+
+    async recordReceipt(customerId, amount, paymentMethod = 'cash', referenceId = null, notes = '') {
+        return this.recordCustomerPayment(customerId, amount, paymentMethod, referenceId, notes);
+    }
+
+    async adjustCustomerBalance(customerId, amount, reason = 'Manual adjustment', referenceId = null) {
+        if (!customerId) {
+            throw new Error('Customer ID is required');
+        }
+        if (!amount || amount === 0) {
+            throw new Error('Amount must be non-zero');
+        }
+
+        const customer = customerRepository.getById(customerId);
+        if (!customer) {
+            throw new Error('Customer not found');
+        }
+
+        const entryType = amount > 0 ? 'debit' : 'credit';
+        const absAmount = Math.abs(amount);
+        const description = `${reason} (${entryType === 'debit' ? 'Increase' : 'Decrease'} balance)`;
+
+        const entry = await this.createLedgerEntry({
+            customer_id: customerId,
+            entry_type: entryType,
+            amount: absAmount,
+            description: description,
+            reference_type: 'adjustment',
+            reference_id: referenceId,
+            created_by: null
+        });
+
+        await this.updateCustomerBalance(customerId, amount);
+
+        return {
+            success: true,
+            data: entry,
+            message: `Customer balance adjusted by ${amount}`
+        };
+    }
+
+    async adjustSupplierBalance(supplierId, amount, reason = 'Manual adjustment', referenceId = null) {
+        if (!supplierId) {
+            throw new Error('Supplier ID is required');
+        }
+        if (!amount || amount === 0) {
+            throw new Error('Amount must be non-zero');
+        }
+
+        const supplier = supplierRepository.getById(supplierId);
+        if (!supplier) {
+            throw new Error('Supplier not found');
+        }
+
+        const entryType = amount > 0 ? 'debit' : 'credit';
+        const absAmount = Math.abs(amount);
+        const description = `${reason} (${entryType === 'debit' ? 'Increase' : 'Decrease'} balance)`;
+
+        const entry = await this.createLedgerEntry({
+            supplier_id: supplierId,
+            entry_type: entryType,
+            amount: absAmount,
+            description: description,
+            reference_type: 'adjustment',
+            reference_id: referenceId,
+            created_by: null
+        });
+
+        await this.updateSupplierBalance(supplierId, amount);
+
+        return {
+            success: true,
+            data: entry,
+            message: `Supplier balance adjusted by ${amount}`
+        };
+    }
+
+    // ==================== HELPER METHODS ====================
+    
+    async updateCustomerBalance(customerId, amount) {
+        const customer = customerRepository.getById(customerId);
+        if (!customer) return;
+
+        let currentDebit = customer.debit || 0;
+        let currentCredit = customer.credit || 0;
+        let remainingAmount = Math.abs(amount);
+        const isPayment = amount < 0;
+
+        if (isPayment) {
+            // ✅ PAYMENT: Reduce DEBIT first
+            if (currentDebit > 0) {
+                const debitReduction = Math.min(remainingAmount, currentDebit);
+                currentDebit = currentDebit - debitReduction;
+                remainingAmount = remainingAmount - debitReduction;
+                console.log(`✅ Reduced DEBIT by ${debitReduction}, new DEBIT: ${currentDebit}`);
+            }
+
+            // If there's remaining amount, add to CREDIT (overpayment)
+            if (remainingAmount > 0) {
+                currentCredit = currentCredit + remainingAmount;
+                console.log(`✅ Added ${remainingAmount} to CREDIT (overpayment), new CREDIT: ${currentCredit}`);
+            }
+
+            customerRepository.update(customerId, { 
+                debit: currentDebit, 
+                credit: currentCredit 
+            });
+        } else {
+            // Amount is positive - customer owes more (DEBIT increases)
+            currentDebit = currentDebit + amount;
+            customerRepository.update(customerId, { debit: currentDebit });
+        }
+    }
+
+    async updateSupplierBalance(supplierId, amount) {
+        const supplier = supplierRepository.getById(supplierId);
+        if (!supplier) return;
+
+        let currentDebit = supplier.debit || 0;
+        let currentCredit = supplier.credit || 0;
+        let remainingAmount = Math.abs(amount);
+        const isPayment = amount < 0;
+
+        console.log(`📊 Current balances - Debit: ${currentDebit}, Credit: ${currentCredit}`);
+
+        if (isPayment) {
+            console.log(`💳 Processing payment of ${remainingAmount}`);
+            
+            // ✅ PAYMENT: Reduce DEBIT first (amount we owe)
+            if (currentDebit > 0) {
+                const debitReduction = Math.min(remainingAmount, currentDebit);
+                currentDebit = currentDebit - debitReduction;
+                remainingAmount = remainingAmount - debitReduction;
+                console.log(`  ✅ Reduced DEBIT by ${debitReduction}, new DEBIT: ${currentDebit}`);
+            }
+
+            // If there's remaining amount, add to CREDIT (overpayment)
+            if (remainingAmount > 0) {
+                currentCredit = currentCredit + remainingAmount;
+                console.log(`  ✅ Added ${remainingAmount} to CREDIT (overpayment), new CREDIT: ${currentCredit}`);
+            }
+
+            // Update supplier
+            supplierRepository.update(supplierId, { 
+                debit: currentDebit, 
+                credit: currentCredit 
+            });
+        } else {
+            // Amount is positive - we owe more (DEBIT increases)
+            currentDebit = currentDebit + amount;
+            supplierRepository.update(supplierId, { debit: currentDebit });
+            console.log(`  ➕ Added ${amount} to DEBIT, new DEBIT: ${currentDebit}`);
+        }
+        
+        // Verify the update
+        const updated = supplierRepository.getById(supplierId);
+        console.log(`✅ Supplier updated - Debit: ${updated.debit}, Credit: ${updated.credit}`);
+    }
+
+    // ==================== AUTO CREATE FROM TRANSACTIONS ====================
+    async autoCreateFromSale(saleData) {
+        return await this.createLedgerEntry({
+            customer_id: saleData.customer_id,
+            entry_type: 'debit',
+            amount: saleData.total_amount,
+            description: `Sale ${saleData.invoice_number}`,
+            reference_type: 'sale',
+            reference_id: saleData.id,
+            created_by: saleData.created_by,
+            entry_date: saleData.entry_date || null
+        });
+    }
+
+    async autoCreateFromPurchase(purchaseData) {
+        return await this.createLedgerEntry({
+            supplier_id: purchaseData.supplier_id,
+            entry_type: 'debit',
+            amount: purchaseData.total_amount,
+            description: `Purchase ${purchaseData.purchase_number}`,
+            reference_type: 'purchase',
+            reference_id: purchaseData.id,
+            created_by: purchaseData.created_by,
+            entry_date: purchaseData.entry_date || purchaseData.purchase_date
+        });
     }
 
     // ==================== GET LEDGER ====================
@@ -99,7 +352,12 @@ class LedgerService {
             success: true,
             data: {
                 entries,
-                summary
+                summary: {
+                    total_entries: summary.total_entries || 0,
+                    total_debit: summary.remaining_debit || 0,
+                    total_credit: summary.remaining_credit || 0,
+                    balance: summary.balance || 0
+                }
             }
         };
     }
@@ -116,7 +374,12 @@ class LedgerService {
             success: true,
             data: {
                 entries,
-                summary
+                summary: {
+                    total_entries: summary.total_entries || 0,
+                    total_debit: summary.remaining_debit || 0,
+                    total_credit: summary.remaining_credit || 0,
+                    balance: summary.balance || 0
+                }
             }
         };
     }
@@ -199,83 +462,219 @@ class LedgerService {
 
     // ==================== STATS ====================
     getLedgerStats(filters = {}) {
-        const stats = ledgerRepository.getStats(filters);
-        return {
-            success: true,
-            data: stats
-        };
+        try {
+            const stats = ledgerRepository.getStats(filters);
+            return {
+                success: true,
+                data: stats
+            };
+        } catch (error) {
+            console.error('Error getting ledger stats:', error);
+            return {
+                success: false,
+                data: {
+                    totalEntries: 0,
+                    totalDebit: 0,
+                    totalCredit: 0,
+                    totalCustomers: 0,
+                    totalSuppliers: 0
+                },
+                error: error.message
+            };
+        }
     }
 
-    // ==================== AUTO CREATE FROM TRANSACTIONS ====================
-    // This is called when a sale, purchase, or payment is created
-    async autoCreateFromSale(saleData) {
-        // Customer owes us -> debit entry
-        return await this.createLedgerEntry({
-            customer_id: saleData.customer_id,
-            entry_type: 'debit',
-            amount: saleData.total_amount,
-            description: `Sale ${saleData.invoice_number}`,
-            reference_type: 'sale',
-            reference_id: saleData.id,
-            created_by: saleData.created_by
-        });
-    }
-
-    async autoCreateFromPurchase(purchaseData) {
-        // We owe supplier -> debit entry for supplier
-        return await this.createLedgerEntry({
-            supplier_id: purchaseData.supplier_id,
-            entry_type: 'debit',
-            amount: purchaseData.total_amount,
-            description: `Purchase ${purchaseData.purchase_number}`,
-            reference_type: 'purchase',
-            reference_id: purchaseData.id,
-            created_by: purchaseData.created_by
-        });
-    }
-
-    async autoCreateFromPayment(paymentData) {
-        let entry = {
-            amount: paymentData.amount,
-            description: paymentData.description,
-            reference_type: 'payment',
-            reference_id: paymentData.id,
-            created_by: paymentData.created_by
-        };
-
-        if (paymentData.customer_id) {
-            // Customer made payment -> credit entry (customer owes less)
-            entry.customer_id = paymentData.customer_id;
-            entry.entry_type = 'credit';
-        } else if (paymentData.supplier_id) {
-            // We made payment to supplier -> credit entry for supplier (we owe less)
-            entry.supplier_id = paymentData.supplier_id;
-            entry.entry_type = 'credit';
+    // ==================== ✅ NEW: CUSTOMER LEDGER STATS ====================
+    async getCustomerLedgerStats(customerId) {
+        if (!customerId || isNaN(customerId)) {
+            throw new Error('Invalid customer ID');
         }
 
-        return await this.createLedgerEntry(entry);
+        try {
+            const entries = ledgerRepository.getCustomerLedger(customerId);
+            
+            let totalDebit = 0;
+            let totalCredit = 0;
+            let totalEntries = entries.length;
+            let totalSales = 0;
+            let totalSalesAmount = 0;
+
+            for (const entry of entries) {
+                if (entry.entry_type === 'debit') {
+                    totalDebit += entry.amount;
+                    if (entry.reference_type === 'sale') {
+                        totalSales++;
+                        totalSalesAmount += entry.amount;
+                    }
+                } else if (entry.entry_type === 'credit') {
+                    totalCredit += entry.amount;
+                }
+            }
+
+            const netBalance = totalDebit - totalCredit;
+
+            return {
+                success: true,
+                data: {
+                    customer_id: customerId,
+                    totalEntries,
+                    totalDebit,
+                    totalCredit,
+                    netBalance,
+                    totalSales,
+                    totalSalesAmount
+                }
+            };
+        } catch (error) {
+            console.error('Error getting customer ledger stats:', error);
+            return {
+                success: false,
+                error: error.message,
+                data: {
+                    totalEntries: 0,
+                    totalDebit: 0,
+                    totalCredit: 0,
+                    netBalance: 0,
+                    totalSales: 0,
+                    totalSalesAmount: 0
+                }
+            };
+        }
     }
 
-    async autoCreateFromReceipt(receiptData) {
-        let entry = {
-            amount: receiptData.amount,
-            description: receiptData.description,
-            reference_type: 'receipt',
-            reference_id: receiptData.id,
-            created_by: receiptData.created_by
-        };
+    async getAllCustomerLedgerStats() {
+        try {
+            const customers = customerRepository.getAll();
+            const stats = [];
 
-        if (receiptData.customer_id) {
-            // We received payment from customer -> credit entry
-            entry.customer_id = receiptData.customer_id;
-            entry.entry_type = 'credit';
-        } else if (receiptData.supplier_id) {
-            // Supplier paid us -> credit entry for supplier
-            entry.supplier_id = receiptData.supplier_id;
-            entry.entry_type = 'credit';
+            for (const customer of customers) {
+                const result = await this.getCustomerLedgerStats(customer.id);
+                if (result.success) {
+                    stats.push({
+                        ...customer,
+                        ...result.data
+                    });
+                } else {
+                    stats.push({
+                        ...customer,
+                        totalEntries: 0,
+                        totalDebit: 0,
+                        totalCredit: 0,
+                        netBalance: 0,
+                        totalSales: 0,
+                        totalSalesAmount: 0
+                    });
+                }
+            }
+
+            return {
+                success: true,
+                data: stats
+            };
+        } catch (error) {
+            console.error('Error getting all customer ledger stats:', error);
+            return {
+                success: false,
+                error: error.message,
+                data: []
+            };
+        }
+    }
+
+    async getSupplierLedgerStats(supplierId) {
+        if (!supplierId || isNaN(supplierId)) {
+            throw new Error('Invalid supplier ID');
         }
 
-        return await this.createLedgerEntry(entry);
+        try {
+            const entries = ledgerRepository.getSupplierLedger(supplierId);
+            
+            let totalDebit = 0;
+            let totalCredit = 0;
+            let totalEntries = entries.length;
+            let totalPurchases = 0;
+            let totalPurchasesAmount = 0;
+
+            for (const entry of entries) {
+                if (entry.entry_type === 'debit') {
+                    totalDebit += entry.amount;
+                    if (entry.reference_type === 'purchase') {
+                        totalPurchases++;
+                        totalPurchasesAmount += entry.amount;
+                    }
+                } else if (entry.entry_type === 'credit') {
+                    totalCredit += entry.amount;
+                }
+            }
+
+            const netBalance = totalDebit - totalCredit;
+
+            return {
+                success: true,
+                data: {
+                    supplier_id: supplierId,
+                    totalEntries,
+                    totalDebit,
+                    totalCredit,
+                    netBalance,
+                    totalPurchases,
+                    totalPurchasesAmount
+                }
+            };
+        } catch (error) {
+            console.error('Error getting supplier ledger stats:', error);
+            return {
+                success: false,
+                error: error.message,
+                data: {
+                    totalEntries: 0,
+                    totalDebit: 0,
+                    totalCredit: 0,
+                    netBalance: 0,
+                    totalPurchases: 0,
+                    totalPurchasesAmount: 0
+                }
+            };
+        }
+    }
+
+    async getAllSupplierLedgerStats() {
+        try {
+            const suppliers = supplierRepository.getAll();
+            const stats = [];
+
+            for (const supplier of suppliers) {
+                const result = await this.getSupplierLedgerStats(supplier.id);
+                if (result.success) {
+                    stats.push({
+                        ...supplier,
+                        ...result.data
+                    });
+                } else {
+                    stats.push({
+                        ...supplier,
+                        totalEntries: 0,
+                        totalDebit: 0,
+                        totalCredit: 0,
+                        netBalance: 0,
+                        totalPurchases: 0,
+                        totalPurchasesAmount: 0
+                    });
+                }
+            }
+
+            return {
+                success: true,
+                data: stats
+            };
+        } catch (error) {
+            console.error('Error getting all supplier ledger stats:', error);
+            return {
+                success: false,
+                error: error.message,
+                data: []
+            };
+        }
     }
 }
 

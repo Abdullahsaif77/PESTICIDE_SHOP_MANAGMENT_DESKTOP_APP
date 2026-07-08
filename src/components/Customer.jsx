@@ -36,7 +36,9 @@ import {
   UserX,
   CreditCard as CreditIcon,
   Receipt,
-  PiggyBank
+  PiggyBank,
+  BookOpen,
+  Layers
 } from "lucide-react";
 
 // ==================== API WRAPPER ====================
@@ -101,39 +103,6 @@ class CustomerAPI {
     return result;
   }
 
-  // ==================== BALANCE OPERATIONS ====================
-  async getCustomerBalance(id) {
-    const result = await api.getCustomerBalance(id);
-    if (!result.success) {
-      throw new Error(result.error || "Failed to fetch customer balance");
-    }
-    return result;
-  }
-
-  async updateCustomerCredit(id, amount) {
-    const result = await api.updateCustomerCredit(id, amount);
-    if (!result.success) {
-      throw new Error(result.error || "Failed to update credit");
-    }
-    return result;
-  }
-
-  async updateCustomerDebit(id, amount) {
-    const result = await api.updateCustomerDebit(id, amount);
-    if (!result.success) {
-      throw new Error(result.error || "Failed to update debit");
-    }
-    return result;
-  }
-
-  async updateCustomerBalance(id, amount) {
-    const result = await api.updateCustomerBalance(id, amount);
-    if (!result.success) {
-      throw new Error(result.error || "Failed to update balance");
-    }
-    return result;
-  }
-
   // ==================== STATS OPERATIONS ====================
   async getCustomerStats() {
     const result = await api.getCustomerStats();
@@ -159,18 +128,20 @@ class CustomerAPI {
     return result;
   }
 
-  async getCustomersWithCredit() {
-    const result = await api.getCustomersWithCredit();
+  // ✅ NEW: Get customer stats from ledger
+  async getCustomerLedgerStats(customerId) {
+    const result = await api.getCustomerLedgerStats(customerId);
     if (!result.success) {
-      throw new Error(result.error || "Failed to fetch customers with credit");
+      throw new Error(result.error || "Failed to fetch customer ledger stats");
     }
     return result;
   }
 
-  async getCustomersWithDebit() {
-    const result = await api.getCustomersWithDebit();
+  // ✅ NEW: Get all customers with ledger stats
+  async getAllCustomerLedgerStats() {
+    const result = await api.getAllCustomerLedgerStats();
     if (!result.success) {
-      throw new Error(result.error || "Failed to fetch customers with debit");
+      throw new Error(result.error || "Failed to fetch all customer ledger stats");
     }
     return result;
   }
@@ -205,7 +176,8 @@ export default function Customers() {
     totalBalance: 0,
     totalSales: 0,
     totalSalesAmount: 0,
-    avgSalesPerCustomer: 0
+    avgSalesPerCustomer: 0,
+    totalEntries: 0
   });
 
   // ==================== MODAL STATES ====================
@@ -223,16 +195,6 @@ export default function Customers() {
     is_active: 1
   });
   const [validationErrors, setValidationErrors] = useState({});
-  
-  const [balanceModal, setBalanceModal] = useState({
-    open: false,
-    customer: null
-  });
-  const [balanceForm, setBalanceForm] = useState({
-    amount: 0,
-    type: "credit"
-  });
-
   const [notification, setNotification] = useState({
     show: false,
     type: "",
@@ -252,7 +214,8 @@ export default function Customers() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const customersResult = await customerAPI.getAllCustomers();
+      // ✅ Get customers with ledger stats
+      const customersResult = await customerAPI.getAllCustomerLedgerStats();
       if (customersResult.success && customersResult.data) {
         setCustomers(customersResult.data);
         if (customersResult.data.length > 0) {
@@ -271,10 +234,14 @@ export default function Customers() {
   const calculateStats = (data) => {
     const active = data.filter(c => c.is_active === 1).length;
     const inactive = data.filter(c => c.is_active === 0).length;
-    const totalCredit = data.reduce((sum, c) => sum + (c.credit || 0), 0);
-    const totalDebit = data.reduce((sum, c) => sum + (c.debit || 0), 0);
-    const totalSales = data.reduce((sum, c) => sum + (c.sales_count || 0), 0);
-    const totalSalesAmount = data.reduce((sum, c) => sum + (c.total_sales || 0), 0);
+    
+    // ✅ Use ledger data for financial stats
+    const totalCredit = data.reduce((sum, c) => sum + (c.totalCredit || 0), 0);
+    const totalDebit = data.reduce((sum, c) => sum + (c.totalDebit || 0), 0);
+    const totalSales = data.reduce((sum, c) => sum + (c.totalSales || 0), 0);
+    const totalSalesAmount = data.reduce((sum, c) => sum + (c.totalSalesAmount || 0), 0);
+    const totalEntries = data.reduce((sum, c) => sum + (c.totalEntries || 0), 0);
+    const totalBalance = data.reduce((sum, c) => sum + (c.netBalance || 0), 0);
     const avgSalesPerCustomer = data.length > 0 ? totalSalesAmount / data.length : 0;
     
     setStats({
@@ -283,10 +250,11 @@ export default function Customers() {
       inactive,
       totalCredit,
       totalDebit,
-      totalBalance: totalCredit - totalDebit,
+      totalBalance,
       totalSales,
       totalSalesAmount,
-      avgSalesPerCustomer
+      avgSalesPerCustomer,
+      totalEntries
     });
   };
 
@@ -459,43 +427,6 @@ export default function Customers() {
     }
   };
 
-  // ==================== BALANCE MANAGEMENT ====================
-  const openBalanceModal = (customer) => {
-    setBalanceForm({ amount: 0, type: "credit" });
-    setBalanceModal({ open: true, customer });
-  };
-
-  const handleBalanceUpdate = async (e) => {
-    e.preventDefault();
-    if (!balanceForm.amount || balanceForm.amount <= 0) {
-      showNotification("error", "Amount must be greater than 0");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      let result;
-      if (balanceForm.type === "credit") {
-        result = await customerAPI.updateCustomerCredit(balanceModal.customer.id, parseFloat(balanceForm.amount));
-      } else {
-        result = await customerAPI.updateCustomerDebit(balanceModal.customer.id, parseFloat(balanceForm.amount));
-      }
-
-      if (result.success) {
-        showNotification("success", `${balanceForm.type.charAt(0).toUpperCase() + balanceForm.type.slice(1)} updated successfully`);
-        await loadData();
-        setBalanceModal({ open: false, customer: null });
-      } else {
-        showNotification("error", result.error || "Failed to update balance");
-      }
-    } catch (err) {
-      console.error("Failed updating balance:", err);
-      showNotification("error", err.message || "An error occurred");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // ==================== EXPORT ====================
   const handleExport = async () => {
     try {
@@ -608,7 +539,7 @@ export default function Customers() {
           </h1>
           <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
             <Users size={10} />
-            Manage customer relationships, credit, and debit
+            Manage customer information and view balances from ledger
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -642,13 +573,14 @@ export default function Customers() {
           { label: "Total", value: stats.total || 0, icon: Users, color: "from-blue-500 to-indigo-600" },
           { label: "Active", value: stats.active || 0, icon: UserCheck, color: "from-emerald-500 to-teal-600" },
           { label: "Inactive", value: stats.inactive || 0, icon: UserX, color: "from-slate-500 to-slate-600" },
+          { label: "Total Entries", value: stats.totalEntries || 0, icon: Layers, color: "from-cyan-500 to-blue-600" },
           { label: "Total Credit", value: formatCurrency(stats.totalCredit), icon: CreditIcon, color: "from-amber-500 to-orange-600" },
           { label: "Total Debit", value: formatCurrency(stats.totalDebit), icon: Receipt, color: "from-rose-500 to-red-600" },
           { label: "Net Balance", value: formatCurrency(stats.totalBalance), icon: PiggyBank, color: "from-purple-500 to-pink-600" },
           { label: "Total Sales", value: stats.totalSales || 0, icon: ShoppingBag, color: "from-cyan-500 to-blue-600" },
         ].map((item, index) => (
           <div key={index} className={`bg-white rounded-xl border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group ${
-            index >= 5 ? "hidden sm:block" : ""
+            index >= 6 ? "hidden sm:block" : ""
           }`}>
             <div className="flex items-center justify-between">
               <span className="text-[8px] text-slate-500 font-medium">{item.label}</span>
@@ -766,7 +698,8 @@ export default function Customers() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredCustomers.map((customer) => {
-                      const balance = (customer.credit || 0) - (customer.debit || 0);
+                      // ✅ Use netBalance from ledger
+                      const balance = customer.netBalance || 0;
                       const isPositive = balance > 0;
                       const isNegative = balance < 0;
                       const isSelected = selectedCustomer?.id === customer.id;
@@ -821,12 +754,13 @@ export default function Customers() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  openBalanceModal(customer);
+                                  // Navigate to ledger or show notification
+                                  showNotification("info", `View ${customer.name}'s ledger in the Ledger page`);
                                 }}
-                                className="p-1 rounded hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors"
-                                title="Update Balance"
+                                className="p-1 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
+                                title="View Ledger"
                               >
-                                <Wallet size={12} />
+                                <BookOpen size={12} />
                               </button>
                               <button
                                 onClick={(e) => {
@@ -876,6 +810,11 @@ export default function Customers() {
                     {getStatusIcon(selectedCustomer.is_active)}
                     {selectedCustomer.is_active ? "Active" : "Inactive"}
                   </span>
+                  {selectedCustomer.totalEntries > 0 && (
+                    <span className="text-[8px] text-slate-400 block mt-0.5">
+                      {selectedCustomer.totalEntries} ledger entries
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -912,38 +851,45 @@ export default function Customers() {
                 )}
               </div>
 
+              {/* ✅ Updated with Ledger data */}
               <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
                 <div className="bg-amber-50 rounded-lg p-2 text-center">
-                  <p className="text-[7px] text-amber-600 uppercase font-medium">Credit</p>
-                  <p className="text-sm font-bold text-amber-600">{formatCurrency(selectedCustomer.credit)}</p>
+                  <p className="text-[7px] text-amber-600 uppercase font-medium">Total Credit</p>
+                  <p className="text-sm font-bold text-amber-600">{formatCurrency(selectedCustomer.totalCredit || 0)}</p>
                 </div>
                 <div className="bg-rose-50 rounded-lg p-2 text-center">
-                  <p className="text-[7px] text-rose-600 uppercase font-medium">Debit</p>
-                  <p className="text-sm font-bold text-rose-600">{formatCurrency(selectedCustomer.debit)}</p>
+                  <p className="text-[7px] text-rose-600 uppercase font-medium">Total Debit</p>
+                  <p className="text-sm font-bold text-rose-600">{formatCurrency(selectedCustomer.totalDebit || 0)}</p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-2 text-center col-span-2">
-                  <p className="text-[7px] text-purple-600 uppercase font-medium">Net Balance</p>
-                  <p className={`text-sm font-bold ${(selectedCustomer.credit || 0) > (selectedCustomer.debit || 0) ? 'text-amber-600' : (selectedCustomer.debit || 0) > (selectedCustomer.credit || 0) ? 'text-rose-600' : 'text-slate-600'}`}>
-                    {formatCurrency((selectedCustomer.credit || 0) - (selectedCustomer.debit || 0))}
+                  <p className="text-[7px] text-purple-600 uppercase font-medium">Net Balance (from Ledger)</p>
+                  <p className={`text-sm font-bold ${selectedCustomer.netBalance > 0 ? 'text-amber-600' : selectedCustomer.netBalance < 0 ? 'text-rose-600' : 'text-slate-600'}`}>
+                    {formatCurrency(selectedCustomer.netBalance || 0)}
                   </p>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-2 text-center col-span-2">
-                  <p className="text-[7px] text-slate-400 uppercase font-medium">Sales</p>
-                  <p className="text-sm font-bold text-slate-800">{selectedCustomer.sales_count || 0}</p>
+                <div className="bg-blue-50 rounded-lg p-2 text-center col-span-2">
+                  <p className="text-[7px] text-blue-600 uppercase font-medium">Total Entries</p>
+                  <p className="text-sm font-bold text-blue-600">{selectedCustomer.totalEntries || 0}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg p-2 text-center col-span-2">
                   <p className="text-[7px] text-slate-400 uppercase font-medium">Total Sales</p>
-                  <p className="text-sm font-bold text-slate-800">{formatCurrency(selectedCustomer.total_sales)}</p>
+                  <p className="text-sm font-bold text-slate-800">{selectedCustomer.totalSales || 0}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-2 text-center col-span-2">
+                  <p className="text-[7px] text-slate-400 uppercase font-medium">Total Sales Amount</p>
+                  <p className="text-sm font-bold text-slate-800">{formatCurrency(selectedCustomer.totalSalesAmount || 0)}</p>
                 </div>
               </div>
 
               <div className="mt-3 pt-3 border-t border-slate-100 flex gap-1">
                 <button
-                  onClick={() => openBalanceModal(selectedCustomer)}
-                  className="flex-1 px-2 py-1.5 text-[9px] font-medium text-white rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:shadow-md transition-all"
+                  onClick={() => {
+                    showNotification("info", `View ${selectedCustomer.name}'s full ledger in the Ledger page`);
+                  }}
+                  className="flex-1 px-2 py-1.5 text-[9px] font-medium text-white rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-md transition-all"
                 >
-                  <Wallet size={10} className="inline mr-1" />
-                  Update Balance
+                  <BookOpen size={10} className="inline mr-1" />
+                  View Ledger
                 </button>
                 <button
                   onClick={() => openEditModal(selectedCustomer)}
@@ -1215,82 +1161,6 @@ export default function Customers() {
                   }`}
                 >
                   {isLoading ? 'Saving...' : modal.mode === "add" ? 'Add' : 'Update'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== BALANCE MODAL ===== */}
-      {balanceModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-4 animate-scale-in relative">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-600 rounded-t-xl" />
-            <button
-              onClick={() => setBalanceModal({ open: false, customer: null })}
-              className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 transition-transform hover:scale-110"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2.5 mt-1 mb-3">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg">
-                <Wallet size={16} />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-slate-800">Update Balance</h3>
-                <p className="text-[10px] text-slate-500">
-                  {balanceModal.customer?.name} - Credit: {formatCurrency(balanceModal.customer?.credit || 0)} | Debit: {formatCurrency(balanceModal.customer?.debit || 0)}
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleBalanceUpdate} className="space-y-2.5">
-              <div>
-                <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                  Transaction Type
-                </label>
-                <select
-                  value={balanceForm.type}
-                  onChange={(e) => setBalanceForm(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-300 bg-white"
-                >
-                  <option value="credit">Credit (Customer owes us)</option>
-                  <option value="debit">Debit (We owe customer)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                  Amount *
-                </label>
-                <input
-                  type="number"
-                  value={balanceForm.amount}
-                  onChange={(e) => setBalanceForm(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-300 bg-white"
-                  placeholder="Enter amount"
-                  min="0.01"
-                  step="0.01"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setBalanceModal({ open: false, customer: null })}
-                  className="px-3 py-1.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-all duration-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-3 py-1.5 text-[10px] font-medium text-white rounded-lg transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-                >
-                  {isLoading ? 'Processing...' : 'Update Balance'}
                 </button>
               </div>
             </form>

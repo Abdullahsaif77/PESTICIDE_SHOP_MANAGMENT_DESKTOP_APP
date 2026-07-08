@@ -180,6 +180,34 @@ class CustomerRepository {
         return this.getBalance(id);
     }
 
+    // ✅ NEW: Set debit directly (for reducing debit on payment)
+    setDebit(id, amount) {
+        const stmt = db.prepare(`
+            UPDATE customers 
+            SET debit = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        `);
+        const result = stmt.run(amount, id);
+        if (result.changes === 0) {
+            return null;
+        }
+        return this.getById(id);
+    }
+
+    // ✅ NEW: Set credit directly
+    setCredit(id, amount) {
+        const stmt = db.prepare(`
+            UPDATE customers 
+            SET credit = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        `);
+        const result = stmt.run(amount, id);
+        if (result.changes === 0) {
+            return null;
+        }
+        return this.getById(id);
+    }
+
     updateBalance(id, amount) {
         // For backward compatibility - updates credit (positive) or debit (negative)
         if (amount >= 0) {

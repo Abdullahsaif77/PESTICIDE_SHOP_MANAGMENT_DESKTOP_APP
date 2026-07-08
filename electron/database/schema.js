@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS units (
 -- Products (Main product catalog)
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code TEXT UNIQUE,  -- Made optional by removing NOT NULL
+    code TEXT UNIQUE,
     name TEXT NOT NULL,
     brand TEXT,
     category_id INTEGER,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS products (
     sale_price REAL NOT NULL DEFAULT 0,
     stock_quantity REAL NOT NULL DEFAULT 0,
     reorder_level REAL DEFAULT 0,
-    barcode TEXT UNIQUE,  -- Made optional by removing NOT NULL
+    barcode TEXT UNIQUE,
     description TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS stock_transfers (
     quantity REAL NOT NULL,
     batch_id INTEGER,
     transferred_by INTEGER,
-    status TEXT DEFAULT 'pending', -- pending, completed, cancelled
+    status TEXT DEFAULT 'pending',
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME,
@@ -127,8 +127,8 @@ CREATE TABLE IF NOT EXISTS customers (
     email TEXT,
     address TEXT,
     cnic TEXT UNIQUE,
-    credit REAL DEFAULT 0, -- Amount customer owes us (Customer's credit / our receivable)
-    debit REAL DEFAULT 0, -- Amount we owe customer (Customer's debit / our payable)
+    credit REAL DEFAULT 0,
+    debit REAL DEFAULT 0,
     credit_limit REAL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
     notes TEXT,
@@ -144,8 +144,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
     email TEXT,
     address TEXT,
     cnic TEXT UNIQUE,
-    credit REAL DEFAULT 0, -- Amount supplier owes us (Supplier's credit / our receivable)
-    debit REAL DEFAULT 0, -- Amount we owe supplier (Supplier's debit / our payable)
+    credit REAL DEFAULT 0,
+    debit REAL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -167,8 +167,8 @@ CREATE TABLE IF NOT EXISTS purchases (
     tax REAL DEFAULT 0,
     paid_amount REAL DEFAULT 0,
     due_amount REAL DEFAULT 0,
-    status TEXT DEFAULT 'pending', -- pending, completed, cancelled
-    payment_method TEXT, -- cash, bank, credit
+    status TEXT DEFAULT 'pending',
+    payment_method TEXT,
     purchase_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     notes TEXT,
     created_by INTEGER,
@@ -212,8 +212,8 @@ CREATE TABLE IF NOT EXISTS sales (
     tax REAL DEFAULT 0,
     paid_amount REAL DEFAULT 0,
     due_amount REAL DEFAULT 0,
-    status TEXT DEFAULT 'completed', -- completed, pending, cancelled
-    payment_method TEXT, -- cash, bank, credit
+    status TEXT DEFAULT 'completed',
+    payment_method TEXT,
     sale_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     notes TEXT,
     created_by INTEGER,
@@ -243,6 +243,48 @@ CREATE TABLE IF NOT EXISTS sale_items (
 );
 
 -- ============================================
+-- PRODUCT RETURN TABLES
+-- ============================================
+
+-- Product Returns (Customer returns)
+CREATE TABLE IF NOT EXISTS product_returns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_number TEXT NOT NULL UNIQUE,
+    sale_id INTEGER,
+    customer_id INTEGER NOT NULL,
+    return_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    total_return_amount REAL NOT NULL DEFAULT 0,
+    refund_method TEXT CHECK(refund_method IN ('cash', 'bank_transfer', 'credit_note', 'wallet')) DEFAULT 'cash',
+    refund_status TEXT CHECK(refund_status IN ('pending', 'completed', 'cancelled')) DEFAULT 'pending',
+    reason TEXT,
+    notes TEXT,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL,
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Product Return Items
+CREATE TABLE IF NOT EXISTS product_return_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    batch_id INTEGER,
+    quantity REAL NOT NULL,
+    unit_price REAL NOT NULL DEFAULT 0,
+    total_price REAL NOT NULL DEFAULT 0,
+    reason TEXT,
+    condition TEXT CHECK(condition IN ('good', 'damaged', 'expired', 'opened')) DEFAULT 'good',
+    restocked BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (return_id) REFERENCES product_returns(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL
+);
+
+-- ============================================
 -- LEDGER (KHATA) TABLES
 -- ============================================
 
@@ -251,10 +293,10 @@ CREATE TABLE IF NOT EXISTS ledger (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER,
     supplier_id INTEGER,
-    entry_type TEXT NOT NULL, -- debit, credit
+    entry_type TEXT NOT NULL,
     amount REAL NOT NULL,
     description TEXT,
-    reference_type TEXT, -- sale, purchase, payment, receipt
+    reference_type TEXT,
     reference_id INTEGER,
     balance_after REAL NOT NULL,
     entry_date DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -273,9 +315,9 @@ CREATE TABLE IF NOT EXISTS payments (
     customer_id INTEGER,
     supplier_id INTEGER,
     amount REAL NOT NULL,
-    payment_type TEXT NOT NULL, -- received, paid
-    payment_method TEXT, -- cash, bank, credit
-    reference_type TEXT, -- sale, purchase, general
+    payment_type TEXT NOT NULL,
+    payment_method TEXT,
+    reference_type TEXT,
     reference_id INTEGER,
     description TEXT,
     payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -333,10 +375,11 @@ CREATE TABLE IF NOT EXISTS cash_sessions (
     total_purchases REAL DEFAULT 0,
     total_expenses REAL DEFAULT 0,
     total_withdrawals REAL DEFAULT 0,
+    total_returns REAL DEFAULT 0,
     expected_closing_amount REAL DEFAULT 0,
     actual_closing_amount REAL DEFAULT 0,
     difference REAL DEFAULT 0,
-    status TEXT DEFAULT 'open', -- open, closed
+    status TEXT DEFAULT 'open',
     opened_by INTEGER,
     closed_by INTEGER,
     opened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -373,7 +416,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     full_name TEXT,
     email TEXT,
-    role TEXT DEFAULT 'staff', -- admin, manager, staff
+    role TEXT DEFAULT 'staff',
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -397,97 +440,132 @@ CREATE TABLE IF NOT EXISTS shop_settings (
 -- INDEXES FOR PERFORMANCE
 -- ============================================
 
--- Products indexes
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
 CREATE INDEX IF NOT EXISTS idx_products_code ON products(code);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_unit ON products(unit_id);
 CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active);
 
--- Warehouses indexes
 CREATE INDEX IF NOT EXISTS idx_warehouses_name ON warehouses(name);
 CREATE INDEX IF NOT EXISTS idx_warehouses_status ON warehouses(status);
 
--- Inventory indexes
 CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory(product_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_warehouse ON inventory(warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_batch ON inventory(batch_id);
 
--- Batches indexes
 CREATE INDEX IF NOT EXISTS idx_batches_product ON batches(product_id);
 CREATE INDEX IF NOT EXISTS idx_batches_expiry ON batches(expiry_date);
 CREATE INDEX IF NOT EXISTS idx_batches_is_active ON batches(is_active);
 
--- Stock transfers indexes
 CREATE INDEX IF NOT EXISTS idx_transfers_from_warehouse ON stock_transfers(from_warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_transfers_to_warehouse ON stock_transfers(to_warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_transfers_status ON stock_transfers(status);
 
--- Customers indexes
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_customers_is_active ON customers(is_active);
 
--- Suppliers indexes
 CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
 CREATE INDEX IF NOT EXISTS idx_suppliers_phone ON suppliers(phone);
 CREATE INDEX IF NOT EXISTS idx_suppliers_is_active ON suppliers(is_active);
 
--- Sales indexes
 CREATE INDEX IF NOT EXISTS idx_sales_invoice ON sales(invoice_number);
 CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id);
 CREATE INDEX IF NOT EXISTS idx_sales_warehouse ON sales(warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date);
 CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
 
--- Sale items indexes
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_sale_items_product ON sale_items(product_id);
 CREATE INDEX IF NOT EXISTS idx_sale_items_batch ON sale_items(batch_id);
 
--- Purchases indexes
 CREATE INDEX IF NOT EXISTS idx_purchases_number ON purchases(purchase_number);
 CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_warehouse ON purchases(warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(purchase_date);
 CREATE INDEX IF NOT EXISTS idx_purchases_status ON purchases(status);
 
--- Purchase items indexes
 CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase ON purchase_items(purchase_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_items_product ON purchase_items(product_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_items_batch ON purchase_items(batch_id);
 
--- Ledger indexes
+CREATE INDEX IF NOT EXISTS idx_product_returns_number ON product_returns(return_number);
+CREATE INDEX IF NOT EXISTS idx_product_returns_sale ON product_returns(sale_id);
+CREATE INDEX IF NOT EXISTS idx_product_returns_customer ON product_returns(customer_id);
+CREATE INDEX IF NOT EXISTS idx_product_returns_date ON product_returns(return_date);
+CREATE INDEX IF NOT EXISTS idx_product_returns_status ON product_returns(refund_status);
+
+CREATE INDEX IF NOT EXISTS idx_return_items_return ON product_return_items(return_id);
+CREATE INDEX IF NOT EXISTS idx_return_items_product ON product_return_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_return_items_batch ON product_return_items(batch_id);
+
 CREATE INDEX IF NOT EXISTS idx_ledger_customer ON ledger(customer_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_supplier ON ledger(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_entry_date ON ledger(entry_date);
 CREATE INDEX IF NOT EXISTS idx_ledger_reference ON ledger(reference_type, reference_id);
 
--- Payments indexes
 CREATE INDEX IF NOT EXISTS idx_payments_customer ON payments(customer_id);
 CREATE INDEX IF NOT EXISTS idx_payments_supplier ON payments(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date);
 
--- Expenses indexes
 CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
 
--- Cash sessions indexes
 CREATE INDEX IF NOT EXISTS idx_cash_sessions_status ON cash_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_cash_sessions_date ON cash_sessions(opened_at);
 
--- Withdrawals indexes
 CREATE INDEX IF NOT EXISTS idx_withdrawals_session ON withdrawals(cash_session_id);
+
+-- ============================================
+-- TRIGGERS
+-- ============================================
+
+CREATE TRIGGER IF NOT EXISTS update_product_stock_after_inventory_insert
+AFTER INSERT ON inventory
+BEGIN
+    UPDATE products SET 
+        stock_quantity = COALESCE((
+            SELECT SUM(quantity) FROM inventory WHERE product_id = NEW.product_id
+        ), 0),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = NEW.product_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_product_stock_after_inventory_update
+AFTER UPDATE ON inventory
+BEGIN
+    UPDATE products SET 
+        stock_quantity = COALESCE((
+            SELECT SUM(quantity) FROM inventory WHERE product_id = NEW.product_id
+        ), 0),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = NEW.product_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_product_stock_after_inventory_delete
+AFTER DELETE ON inventory
+BEGIN
+    UPDATE products SET 
+        stock_quantity = COALESCE((
+            SELECT SUM(quantity) FROM inventory WHERE product_id = OLD.product_id
+        ), 0),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = OLD.product_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_product_returns_updated_at 
+AFTER UPDATE ON product_returns
+BEGIN
+    UPDATE product_returns SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END;
 
 -- ============================================
 -- SEED DATA (Default records)
 -- ============================================
 
--- Seed default user (username: admin, password: password123)
 INSERT OR IGNORE INTO users (id, username, password_hash, full_name, role) 
 VALUES (1, 'admin', '$2a$10$X7O2P8N8Wv4U7S4X8y8GSuQO6B2X1uM0.wYmC7Pz2GzK7B7D/vVOW', 'Shop Admin', 'admin');
 
--- Seed default shop settings
 INSERT OR IGNORE INTO shop_settings (
     id,
     shop_name,
@@ -511,7 +589,6 @@ VALUES (
     0
 );
 
--- Seed default expense categories
 INSERT OR IGNORE INTO expense_categories (id, name, description) VALUES
     (1, 'Rent', 'Shop rent payments'),
     (2, 'Utilities', 'Electricity, water, gas bills'),
@@ -523,7 +600,6 @@ INSERT OR IGNORE INTO expense_categories (id, name, description) VALUES
     (8, 'Taxes', 'Government taxes and fees'),
     (9, 'Miscellaneous', 'Other expenses');
 
--- Seed default categories
 INSERT OR IGNORE INTO categories (id, name, description) VALUES
     (1, 'Insecticides', 'Insect killing pesticides'),
     (2, 'Herbicides', 'Weed control products'),
@@ -532,7 +608,6 @@ INSERT OR IGNORE INTO categories (id, name, description) VALUES
     (5, 'Fertilizers', 'Plant nutrition products'),
     (6, 'Growth Regulators', 'Plant growth regulators');
 
--- Seed default units
 INSERT OR IGNORE INTO units (id, name, abbreviation) VALUES
     (1, 'Liter', 'L'),
     (2, 'Milliliter', 'mL'),
@@ -543,11 +618,9 @@ INSERT OR IGNORE INTO units (id, name, abbreviation) VALUES
     (7, 'Bottle', 'btl'),
     (8, 'Bag', 'bag');
 
--- Seed default warehouse
 INSERT OR IGNORE INTO warehouses (id, name, location, status) VALUES
     (1, 'Main Warehouse', 'Ground Floor', 'active');
 
--- Seed walking customer (for over-the-counter sales without credit)
 INSERT OR IGNORE INTO customers (id, name, phone, email, address, credit, debit, credit_limit, is_active, notes) 
 VALUES (999, 'Walking Customer', '', '', 'N/A', 0, 0, 0, 1, 'Default customer for walk-in/over-the-counter sales');
 `;

@@ -12,24 +12,12 @@ db.pragma("foreign_keys = ON");
 
 try {
     // ===============================
-    // Create tables
+    // Execute the entire schema as one statement
     // ===============================
-    const statements = schema
-        .split(";")
-        .map(s => s.trim())
-        .filter(Boolean);
-
-    for (const stmt of statements) {
-        try {
-            db.exec(stmt);
-        } catch (err) {
-            console.log("FAILED SQL:");
-            console.log(stmt);
-            throw err;
-        }
-    }
-
-    console.log("Schema loaded successfully.");
+    
+    console.log("📝 Executing database schema...");
+    db.exec(schema);
+    console.log("✅ Schema loaded successfully.");
 
     // ===============================
     // DATABASE MIGRATIONS
@@ -48,8 +36,6 @@ try {
         
         if (hasBatchId && orphanInventory.count > 0) {
             console.log(`Migration: Found ${orphanInventory.count} inventory records without batch_id. Creating batches...`);
-            
-            // ===== FIX: Check for existing batches before creating new ones =====
             
             // Get products that have inventory without batch_id
             const productsWithoutBatch = db.prepare(`
@@ -71,7 +57,6 @@ try {
                 `).get(product.product_id);
                 
                 if (existingBatch) {
-                    // Batch exists, just update inventory
                     console.log(`⏭️ Product ${product.product_id} already has a batch, skipping batch creation...`);
                     batchesSkipped++;
                     
@@ -142,8 +127,7 @@ try {
             
             console.log(`Migration: Created ${batchesCreated} new batches, skipped ${batchesSkipped} existing batches.`);
             
-            // ===== FIX: Ensure no duplicates in inventory =====
-            // Check for duplicate inventory records that might cause the unique constraint error
+            // Check for duplicate inventory records
             const duplicates = db.prepare(`
                 SELECT product_id, warehouse_id, batch_id, COUNT(*) as count
                 FROM inventory
@@ -155,7 +139,6 @@ try {
                 console.log(`⚠️ Found ${duplicates.length} duplicate inventory records. Cleaning up...`);
                 
                 for (const dup of duplicates) {
-                    // Keep the first record, delete the rest
                     const keepOne = db.prepare(`
                         DELETE FROM inventory 
                         WHERE id IN (

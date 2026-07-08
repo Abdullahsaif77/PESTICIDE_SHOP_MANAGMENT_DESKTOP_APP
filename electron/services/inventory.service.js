@@ -4,6 +4,7 @@ const InventoryRepository = require("../repositories/inventory.repository");
 const ProductRepository = require("../repositories/product.repository");
 const WarehouseRepository = require("../repositories/warehouse.repository");
 const BatchRepository = require("../repositories/batch.repository");
+const db = require("../database/database");
 
 class InventoryService {
     // ==================== ADD STOCK ====================
@@ -40,33 +41,52 @@ class InventoryService {
                 if (!batch) {
                     return { success: false, error: 'Batch not found' };
                 }
-                await BatchRepository.updateQuantity(batchId, batch.quantity + quantity);
+                await BatchRepository.updateQuantity(batchId, (batch.quantity || 0) + quantity);
             }
 
             // Check if inventory record exists
-            const existingInventory = await InventoryRepository.getByProductAndWarehouse(productId, warehouseId);
-            let inventoryRecord = existingInventory.find(item => 
-                (item.batch_id === batchId) || (!item.batch_id && !batchId)
-            );
+            const existingInventory = await this.getInventoryByProductAndWarehouse(productId, warehouseId);
+            
+            let inventoryRecord = null;
+            if (existingInventory && existingInventory.id) {
+                // Check if we have a record with this batch_id
+                if (batchId) {
+                    // Find record with matching batch_id
+                    const allRecords = await InventoryRepository.getByProductAndWarehouse(productId, warehouseId);
+                    inventoryRecord = allRecords.find(item => item.batch_id === batchId);
+                } else {
+                    // Find record with null batch_id
+                    const allRecords = await InventoryRepository.getByProductAndWarehouse(productId, warehouseId);
+                    inventoryRecord = allRecords.find(item => item.batch_id === null);
+                }
+            }
 
             if (inventoryRecord) {
-                const newQuantity = inventoryRecord.quantity + quantity;
+                // Update existing inventory
+                const newQuantity = (inventoryRecord.quantity || 0) + quantity;
                 const result = await InventoryRepository.updateQuantity(inventoryRecord.id, newQuantity);
                 if (result.changes === 0) {
                     return { success: false, error: 'Failed to update inventory' };
                 }
+                console.log(`✅ Updated inventory record ${inventoryRecord.id}: ${newQuantity}`);
             } else {
+                // Create new inventory record
                 const result = await InventoryRepository.create({
                     product_id: productId,
                     warehouse_id: warehouseId,
                     batch_id: batchId || null,
-                    quantity: quantity
+                    quantity: quantity,
+                    reserved_quantity: 0,
+                    min_stock: 0,
+                    max_stock: 0
                 });
                 if (!result.lastInsertRowid) {
                     return { success: false, error: 'Failed to create inventory record' };
                 }
+                console.log(`✅ Created inventory record with ID: ${result.lastInsertRowid}`);
             }
 
+            // Update product stock quantity
             await ProductRepository.updateStockQuantity(productId);
 
             return {
@@ -101,13 +121,24 @@ class InventoryService {
                 return { success: false, error: 'Product not found' };
             }
 
-            // Get inventory record
+            // Get inventory records
             const existingInventory = await InventoryRepository.getByProductAndWarehouse(productId, warehouseId);
-            console.log('🔍 Existing inventory:', existingInventory);
+            console.log('🔍 Existing inventory records:', existingInventory);
 
-            let inventoryRecord = existingInventory.find(item => 
-                (item.batch_id === batchId) || (!item.batch_id && !batchId)
-            );
+            let inventoryRecord = null;
+            
+            // Find the specific record with matching batch_id
+            if (batchId) {
+                inventoryRecord = existingInventory.find(item => item.batch_id === batchId);
+            } else {
+                inventoryRecord = existingInventory.find(item => item.batch_id === null);
+            }
+
+            // If not found with specific batch, try to find any record
+            if (!inventoryRecord && existingInventory.length > 0) {
+                inventoryRecord = existingInventory[0];
+                console.log(`⚠️ No specific batch found, using first available record`);
+            }
 
             console.log('🔍 Found inventory record:', inventoryRecord);
 
@@ -118,7 +149,7 @@ class InventoryService {
                 };
             }
 
-            const availableQuantity = inventoryRecord.quantity - (inventoryRecord.reserved_quantity || 0);
+            const availableQuantity = (inventoryRecord.quantity || 0) - (inventoryRecord.reserved_quantity || 0);
             console.log(`🔍 Available: ${availableQuantity}, Requested: ${quantity}`);
 
             if (availableQuantity < quantity) {
@@ -129,7 +160,7 @@ class InventoryService {
             }
 
             // Update inventory quantity
-            const newQuantity = inventoryRecord.quantity - quantity;
+            const newQuantity = (inventoryRecord.quantity || 0) - quantity;
             const result = await InventoryRepository.updateQuantity(inventoryRecord.id, newQuantity);
             
             if (!result || result.changes === 0) {
@@ -140,7 +171,8 @@ class InventoryService {
             if (batchId) {
                 const batch = await BatchRepository.getById(batchId);
                 if (batch) {
-                    await BatchRepository.updateQuantity(batchId, batch.quantity - quantity);
+                    await BatchRepository.updateQuantity(batchId, (batch.quantity || 0) - quantity);
+                    console.log(`✅ Updated batch ${batchId} quantity: ${(batch.quantity || 0) - quantity}`);
                 }
             }
 
@@ -155,6 +187,51 @@ class InventoryService {
         } catch (error) {
             console.error('🔴 removeStock error:', error);
             return { success: false, error: error.message };
+        }
+    }
+
+    // ==================== GET INVENTORY BY PRODUCT AND WAREHOUSE ====================
+    async getInventoryByProductAndWarehouse(productId, warehouseId) {
+        try {
+            console.log(`🔍 getInventoryByProductAndWarehouse: product ${productId}, warehouse ${warehouseId}`);
+            
+            const stmt = db.prepare(`
+                SELECT 
+                    i.*,
+                    p.name as product_name,
+                    p.code as product_code,
+                    w.name as warehouse_name,
+                    b.batch_number,
+                    b.expiry_date,
+                    b.purchase_price as batch_purchase_price,
+                    b.sale_price as batch_sale_price
+                FROM inventory i
+                LEFT JOIN products p ON i.product_id = p.id
+                LEFT JOIN warehouses w ON i.warehouse_id = w.id
+                LEFT JOIN batches b ON i.batch_id = b.id
+                WHERE i.product_id = ? AND i.warehouse_id = ?
+                ORDER BY i.id ASC
+            `);
+            
+            const result = stmt.all(productId, warehouseId);
+            console.log(`🔍 Found ${result.length} inventory records`);
+            
+            // Return the first record or null
+            return result.length > 0 ? result[0] : null;
+        } catch (error) {
+            console.error('Error getting inventory by product and warehouse:', error);
+            return null;
+        }
+    }
+
+    // ==================== GET ALL INVENTORY RECORDS ====================
+    async getInventoryRecords(productId, warehouseId) {
+        try {
+            const records = await InventoryRepository.getByProductAndWarehouse(productId, warehouseId);
+            return records || [];
+        } catch (error) {
+            console.error('Error getting inventory records:', error);
+            return [];
         }
     }
 
@@ -180,7 +257,7 @@ class InventoryService {
                 return { success: false, error: 'No inventory record found' };
             }
 
-            const availableQuantity = inventoryRecord.quantity - inventoryRecord.reserved_quantity;
+            const availableQuantity = (inventoryRecord.quantity || 0) - (inventoryRecord.reserved_quantity || 0);
             if (availableQuantity < quantity) {
                 return {
                     success: false,
@@ -224,7 +301,7 @@ class InventoryService {
                 return { success: false, error: 'No inventory record found' };
             }
 
-            if (inventoryRecord.reserved_quantity < quantity) {
+            if ((inventoryRecord.reserved_quantity || 0) < quantity) {
                 return {
                     success: false,
                     error: `Cannot release more than reserved. Reserved: ${inventoryRecord.reserved_quantity}, Requested: ${quantity}`
@@ -275,8 +352,8 @@ class InventoryService {
     async getProductStockInWarehouse(productId, warehouseId) {
         try {
             const inventory = await InventoryRepository.getByProductAndWarehouse(productId, warehouseId);
-            const totalQuantity = inventory.reduce((sum, item) => sum + item.quantity, 0);
-            const totalReserved = inventory.reduce((sum, item) => sum + item.reserved_quantity, 0);
+            const totalQuantity = inventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const totalReserved = inventory.reduce((sum, item) => sum + (item.reserved_quantity || 0), 0);
             const totalAvailable = totalQuantity - totalReserved;
 
             return {
@@ -311,7 +388,7 @@ class InventoryService {
 
     async getStockValue() {
         try {
-            const stmt = require("../database/database").prepare(`
+            const stmt = db.prepare(`
                 SELECT 
                     SUM(i.quantity * p.purchase_price) as total_purchase_value,
                     SUM(i.quantity * p.sale_price) as total_sale_value,

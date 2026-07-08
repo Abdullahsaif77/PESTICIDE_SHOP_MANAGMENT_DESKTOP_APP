@@ -12,47 +12,115 @@ import {
   User,
   LogOut,
   Warehouse,
-  BookOpen
+  BookOpen,
+  RefreshCw,
+  Store,
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 import logo from "../assets/logo.png";
 
 const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [shopSettings, setShopSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const settingsRef = useRef(null);
-  console.log(shopSettings)
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'products', label: 'Products', icon: Package },
-    { id: 'inventory', label: 'Inventory', icon: Boxes },
-    { id: 'warehouses', label: 'Warehouses', icon: Warehouse },
-    { id: 'purchases', label: 'Purchases', icon: ShoppingCart },
-    { id: 'suppliers', label: 'Suppliers', icon: Handshake },
-    { id: 'sales', label: 'Sales', icon: TrendingUp },
-    { id: 'customers', label: 'Customers', icon: Users },
-    { id: 'ledger', label: 'Ledger (Khata)', icon: BookOpen },
-    { id: 'expenses', label: 'Expenses', icon: CreditCard },
-  ];
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'sales', label: 'Sales', icon: TrendingUp },
+  { id: 'purchases', label: 'Purchases', icon: ShoppingCart },
+  { id: 'suppliers', label: 'Suppliers', icon: Handshake },
+  { id: 'products', label: 'Products', icon: Package },
+  { id: 'inventory', label: 'Inventory', icon: Boxes },
+  { id: 'warehouses', label: 'Warehouses', icon: Warehouse },
+  { id: 'customers', label: 'Customers', icon: Users },
+  { id: 'ledger', label: 'Ledger (Khata)', icon: BookOpen },
+  { id: 'expenses', label: 'Expenses', icon: CreditCard },
+  { id: 'reports', label: 'Reports', icon: FileText },
+  { id: 'returns', label: 'Returns', icon: RefreshCw },
+];
 
-  // Fetch shop settings on mount
+  // Fetch shop settings
   useEffect(() => {
     const fetchShopSettings = async () => {
       try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('🔄 Fetching shop settings...');
         const result = await window.api.getShop();
-        if (result.success) {
-          setShopSettings(result.data);
+        
+        console.log('📦 Shop settings response:', result);
+        
+        if (result && typeof result === 'object') {
+          if (result.success && result.data) {
+            setShopSettings(result.data);
+          } else if (result.id || result.shop_name) {
+            setShopSettings(result);
+          } else if (result.error) {
+            setError(result.error);
+            console.error('❌ Error in response:', result.error);
+          } else if (!result) {
+            setError('No shop settings found');
+            await createDefaultShop();
+          }
         } else {
-          console.error('Failed to fetch shop settings:', result.error);
+          setError('Invalid response format');
         }
       } catch (error) {
-        console.error('Error fetching shop settings:', error);
+        console.error('❌ Error fetching shop settings:', error);
+        setError(error.message || 'Failed to load shop settings');
+        await createDefaultShop();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const createDefaultShop = async () => {
+      try {
+        console.log('🔄 Creating default shop...');
+        const defaultData = {
+          shop_name: 'My Pesticide Shop',
+          address: '123 Main Street, City',
+          phone: '555-0123',
+          email: 'shop@example.com',
+          license_number: 'LIC-001',
+          gst_number: 'GST-001',
+          currency: 'USD'
+        };
+        
+        const result = await window.api.createShop(defaultData);
+        console.log('📦 Create shop response:', result);
+        
+        if (result && result.success) {
+          setShopSettings(result.data || defaultData);
+          setError(null);
+        } else if (result && result.id) {
+          setShopSettings(result);
+          setError(null);
+        } else {
+          setShopSettings(defaultData);
+        }
+      } catch (err) {
+        console.error('❌ Failed to create default shop:', err);
+        setShopSettings({
+          shop_name: 'My Pesticide Shop',
+          address: '123 Main Street, City',
+          phone: '555-0123',
+          email: 'shop@example.com',
+          license_number: 'LIC-001',
+          gst_number: 'GST-001',
+          currency: 'USD'
+        });
       }
     };
 
     fetchShopSettings();
   }, []);
 
+  // Handle click outside settings dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (settingsRef.current && !settingsRef.current.contains(event.target)) {
@@ -63,27 +131,55 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Get shop name with fallback
+  const getShopName = () => {
+    if (loading) return 'Loading...';
+    if (error) return 'Shop Settings Error';
+    return shopSettings?.shop_name || 'Pesticide Shop';
+  };
+
+  // Get license number with fallback
+  const getLicenseNumber = () => {
+    if (loading) return 'Loading...';
+    if (error) return '⚠️ Error';
+    return shopSettings?.license_number ? `Lic: ${shopSettings.license_number}` : 'Shop Manager';
+  };
+
   return (
     <div className="w-56 bg-[#0B251E] text-emerald-100 h-screen flex flex-col justify-between fixed top-0 left-0 border-r border-emerald-950/40">
 
       {/* HEADER */}
       <div>
-        <div className="p-4 flex flex-col items-center gap-2 border-b border-emerald-900/10">
-          {/* Logo - Made bigger */}
-          <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden bg-white/10 shadow-lg shadow-emerald-900/20">
+        <div className="p-4 flex flex-col items-center gap-3 border-b border-emerald-900/10">
+          {/* Logo - No box, larger and prominent with glow effect */}
+          <div className="relative">
             <img 
               src={logo} 
               alt="Shop Logo" 
-              className="w-full h-full object-contain p-1"
+              className="w-24 h-24 object-contain drop-shadow-2xl animate-float"
             />
+            {/* Glow effect behind logo */}
+            <div className="absolute -inset-4 bg-emerald-500/20 rounded-full blur-2xl -z-10" />
+            <div className="absolute -inset-8 bg-emerald-400/10 rounded-full blur-3xl -z-20" />
           </div>
+          
           <div className="text-center w-full">
-            <h2 className="text-sm font-extrabold text-white truncate">
-              {shopSettings?.shop_name || 'Pesticide Shop'}
+            <h2 className="text-sm font-extrabold text-white truncate drop-shadow-lg">
+              {getShopName()}
             </h2>
-            <span className="text-[9px] text-emerald-400">
-              {shopSettings?.license_number ? `Lic: ${shopSettings.license_number}` : 'Shop Manager'}
-            </span>
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-[9px] text-emerald-400">
+                {getLicenseNumber()}
+              </span>
+              {error && (
+                <AlertCircle size={10} className="text-amber-400" />
+              )}
+            </div>
+            {error && (
+              <div className="text-[8px] text-amber-400 mt-0.5">
+                {error}
+              </div>
+            )}
           </div>
         </div>
 
@@ -152,6 +248,16 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
           V1.0.0
         </div>
       </div>
+
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+        }
+        .animate-float {
+          animation: float 4s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 };

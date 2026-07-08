@@ -14,6 +14,10 @@ const { registerPurchaseIPC } = require("./ipc/purchase.ipc.js")
 const { registerSalesIPC } = require("./ipc/sales.ipc.js")
 const { registerLedgerIPC } = require("./ipc/ledger.ipc.js")
 const { registerPDFIPC } = require('./ipc/pdf.ipc');
+const { registerExpenseHandlers } = require("./ipc/expense.ipc.js")
+const { registerDashboardHandlers } = require('./ipc/dashboard.ipc.js');
+const { setupProductReturnIpc } = require("./ipc/productReturn.ipc.js")
+const { setupReportsIpc } = require('./ipc/reports.ipc');
 const purchasePDFGenerator = require('./utils/pdfGenerator'); // Purchase PDF generator
 const salePDFGenerator = require('./utils/saleGenerator'); // ✅ Sale PDF generator
 const fs = require("fs")
@@ -75,6 +79,10 @@ app.whenReady().then(() => {
   registerSalesIPC()  // This registers sale:generatePDF
   registerLedgerIPC()
   registerPDFIPC();
+  registerExpenseHandlers()
+  registerDashboardHandlers();
+  setupProductReturnIpc();
+  setupReportsIpc();
   
   // ===== PDF GENERATION IPC HANDLERS =====
   

@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
   // --- Product Management ---
-  getProducts: () => ipcRenderer.invoke("product:get"),  // ✅ ADD THIS!
+  getProducts: () => ipcRenderer.invoke("product:get"),
   getProductById: (id) => ipcRenderer.invoke("product:getById", id),
   getProductByCode: (code) => ipcRenderer.invoke("product:getByCode", code),
   searchProducts: (query) => ipcRenderer.invoke("product:search", query),
@@ -148,6 +148,7 @@ contextBridge.exposeInMainWorld("api", {
   deleteSale: (id) => ipcRenderer.invoke("sale:delete", id),
   getSaleStats: (filters) => ipcRenderer.invoke("sale:getStats", filters),
   generateInvoiceNumber: () => ipcRenderer.invoke("sale:generateNumber"),
+  generateSalePDF: (saleData, items) => ipcRenderer.invoke("sale:generatePDF", saleData, items),
 
   // --- Ledger Management ---
   createLedgerEntry: (data) => ipcRenderer.invoke("ledger:create", data),
@@ -159,26 +160,107 @@ contextBridge.exposeInMainWorld("api", {
   getSupplierBalance: (supplierId) => ipcRenderer.invoke("ledger:getSupplierBalance", supplierId),
   getLedgerStats: (filters) => ipcRenderer.invoke("ledger:getStats", filters),
   deleteLedgerEntry: (id) => ipcRenderer.invoke("ledger:delete", id),
+  
+  // --- Ledger Payment/Receipt/Adjustment ---
+  recordCustomerPayment: (customerId, amount, paymentMethod, referenceId, notes) => 
+    ipcRenderer.invoke("ledger:recordCustomerPayment", customerId, amount, paymentMethod, referenceId, notes),
+  recordSupplierPayment: (supplierId, amount, paymentMethod, referenceId, notes) => 
+    ipcRenderer.invoke("ledger:recordSupplierPayment", supplierId, amount, paymentMethod, referenceId, notes),
+  recordReceipt: (customerId, amount, paymentMethod, referenceId, notes) => 
+    ipcRenderer.invoke("ledger:recordReceipt", customerId, amount, paymentMethod, referenceId, notes),
+  adjustCustomerBalance: (customerId, amount, reason, referenceId) => 
+    ipcRenderer.invoke("ledger:adjustCustomerBalance", customerId, amount, reason, referenceId),
+  adjustSupplierBalance: (supplierId, amount, reason, referenceId) => 
+    ipcRenderer.invoke("ledger:adjustSupplierBalance", supplierId, amount, reason, referenceId),
 
-  // --- Authentication & Profile Management ---
+  // Ledger Customer Stats
+  getCustomerLedgerStats: (customerId) => ipcRenderer.invoke("ledger:getCustomerLedgerStats", customerId),
+  getAllCustomerLedgerStats: () => ipcRenderer.invoke("ledger:getAllCustomerLedgerStats"),
+
+  // Ledger Supplier Stats
+  getSupplierLedgerStats: (supplierId) => ipcRenderer.invoke("ledger:getSupplierLedgerStats", supplierId),
+  getAllSupplierLedgerStats: () => ipcRenderer.invoke("ledger:getAllSupplierLedgerStats"),
+
+  // ================================================================
+  // ✅ EXPENSE MODULE APIS
+  // ================================================================
+  
+  // --- Expense Categories ---
+  getExpenseCategories: (includeInactive) => ipcRenderer.invoke("expense:getCategories", includeInactive),
+  createExpenseCategory: (data) => ipcRenderer.invoke("expense:createCategory", data),
+  updateExpenseCategory: (data) => ipcRenderer.invoke("expense:updateCategory", data),
+
+  // --- Expenses ---
+  getExpenses: (limit, offset) => ipcRenderer.invoke("expense:getAll", limit, offset),
+  getExpenseById: (id) => ipcRenderer.invoke("expense:getById", id),
+  createExpense: (data) => ipcRenderer.invoke("expense:create", data),
+  updateExpense: (data) => ipcRenderer.invoke("expense:update", data),
+  deleteExpense: (id) => ipcRenderer.invoke("expense:delete", id),
+  getTotalExpenses: (startDate, endDate) => ipcRenderer.invoke("expense:getTotal", startDate, endDate),
+
+  // ================================================================
+  // ✅ AUTHENTICATION & PROFILE MANAGEMENT
+  // ================================================================
   login: (credentials) => ipcRenderer.invoke("auth:login", credentials),
   updateProfile: (profileData) => ipcRenderer.invoke("auth:update-profile", profileData),
   changePassword: (passwordData) => ipcRenderer.invoke("auth:change-password", passwordData),
 
-  // --- Shop Management ---
+  // ================================================================
+  // ✅ SHOP MANAGEMENT
+  // ================================================================
   getShop: () => ipcRenderer.invoke("shop:get"),
   createShop: (data) => ipcRenderer.invoke("shop:create", data),
   updateShop: (data) => ipcRenderer.invoke("shop:update", data),
+  shopExists: () => ipcRenderer.invoke("shop:exists"),
 
-  // --- Backup Management ---
+  // ================================================================
+  // ✅ PRODUCT RETURN MANAGEMENT
+  // ================================================================
+  createReturn: (data) => ipcRenderer.invoke("return:create", data),
+  getReturnById: (id) => ipcRenderer.invoke("return:getById", id),
+  getReturnByNumber: (number) => ipcRenderer.invoke("return:getByNumber", number),
+  getAllReturns: (filters) => ipcRenderer.invoke("return:getAll", filters),
+  updateReturn: (id, data) => ipcRenderer.invoke("return:update", id, data),
+  updateReturnStatus: (id, status) => ipcRenderer.invoke("return:updateStatus", id, status),
+  deleteReturn: (id) => ipcRenderer.invoke("return:delete", id),
+  getReturnsByCustomer: (customerId) => ipcRenderer.invoke("return:getByCustomer", customerId),
+  getReturnSummary: () => ipcRenderer.invoke("return:getSummary"),
+  getTopReturnedProducts: (limit) => ipcRenderer.invoke("return:getTopProducts", limit),
+  processReturn: (id) => ipcRenderer.invoke("return:process", id),
+  canReturn: (saleId) => ipcRenderer.invoke("return:canReturn", saleId),
+
+  // ================================================================
+  // ✅ BACKUP MANAGEMENT
+  // ================================================================
   createBackup: () => ipcRenderer.invoke("backup:create"),
   restoreBackup: (zipFilePath) => ipcRenderer.invoke("backup:restore", zipFilePath),
   selectBackupFile: () => ipcRenderer.invoke('dialog:selectBackupFile'),
 
-  // ===== PDF GENERATION =====
+  // ================================================================
+  // ✅ PDF GENERATION
+  // ================================================================
   generateAndSavePDF: (type, data, items) => {
     return ipcRenderer.invoke('generate-and-save-pdf', type, data, items);
   },
-  // --- Sales PDF Generation ---
-generateSalePDF: (saleData, items) => ipcRenderer.invoke('sale:generatePDF', saleData, items),
+
+  // ================================================================
+  // ✅ DASHBOARD
+  // ================================================================
+  getDashboardData: (startDate, endDate) => ipcRenderer.invoke('dashboard:getData', startDate, endDate),
+
+// ============================================
+// REPORTS API
+// ============================================
+getSalesReport: (filters) => ipcRenderer.invoke("report:sales", filters),
+getPurchaseReport: (filters) => ipcRenderer.invoke("report:purchases", filters),
+getProfitLossReport: (filters) => ipcRenderer.invoke("report:profit-loss", filters),
+getInventoryReport: (filters) => ipcRenderer.invoke("report:inventory", filters),
+getLowStockReport: (filters) => ipcRenderer.invoke("report:low-stock", filters),
+getExpiryReport: (filters) => ipcRenderer.invoke("report:expiry", filters),
+getCustomerLedgerReport: (filters) => ipcRenderer.invoke("report:customer-ledger", filters),
+getCustomerLedgerDetails: (customerId) => ipcRenderer.invoke("report:customer-ledger-details", customerId),
+getSupplierLedgerReport: (filters) => ipcRenderer.invoke("report:supplier-ledger", filters),
+getSupplierLedgerDetails: (supplierId) => ipcRenderer.invoke("report:supplier-ledger-details", supplierId),
+getExpenseReport: (filters) => ipcRenderer.invoke("report:expenses", filters),
+getWarehouseReport: (filters) => ipcRenderer.invoke("report:warehouse", filters),
 });

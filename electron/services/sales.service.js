@@ -6,7 +6,8 @@ const warehouseRepository = require('../repositories/warehouse.repository');
 const productRepository = require('../repositories/product.repository');
 const inventoryService = require('./inventory.service');
 const batchService = require('./batch.service');
-const saleGenerator = require("../utils/saleGenerator")
+const ledgerService = require('./ledger.service');
+const saleGenerator = require("../utils/saleGenerator");
 
 class SalesService {
     // ==================== FIFO LOGIC ====================
@@ -65,7 +66,8 @@ class SalesService {
         console.log('🟢 [SalesService] createSale called:', {
             customer_id: data.customer_id,
             warehouse_id: data.warehouse_id,
-            items: data.items?.length || 0
+            items: data.items?.length || 0,
+            paid_amount: data.paid_amount || 0
         });
 
         if (!data.warehouse_id) {
@@ -149,8 +151,11 @@ class SalesService {
         const discount = data.discount || 0;
         const tax = data.tax || 0;
         const finalTotal = totalAmount - discount + tax;
+        const paidAmount = data.paid_amount || 0;
+        const dueAmount = finalTotal - paidAmount;
 
         console.log(`🟢 [SalesService] Final total: ${finalTotal}`);
+        console.log(`🟢 [SalesService] Paid: ${paidAmount}, Due: ${dueAmount}`);
 
         const invoiceNumber = salesRepository.generateNumber();
 
@@ -161,8 +166,8 @@ class SalesService {
             total_amount: finalTotal,
             discount: discount,
             tax: tax,
-            paid_amount: data.paid_amount || 0,
-            due_amount: finalTotal - (data.paid_amount || 0),
+            paid_amount: paidAmount,
+            due_amount: dueAmount,
             status: data.status || 'completed',
             payment_method: data.payment_method || null,
             sale_date: data.sale_date || new Date().toISOString(),
@@ -172,10 +177,85 @@ class SalesService {
 
         salesRepository.createItems(sale.id, processedItems);
 
-        await this.updateCustomerBalance(data.customer_id, finalTotal, 'debit');
+        // ==========================================
+        // ✅ Update customer balance - FIXED
+        // ==========================================
+        console.log(`\n💰 Updating customer balance...`);
+        console.log(`  Total Amount: ${finalTotal}`);
+        console.log(`  Paid Amount: ${paidAmount}`);
+        console.log(`  Due Amount: ${dueAmount}`);
+
+        // ✅ Add FULL amount to DEBIT (customer owes us)
+        if (finalTotal > 0) {
+            console.log(`  ➕ Adding ${finalTotal} to DEBIT (customer owes)`);
+            const current = customerRepository.getById(data.customer_id);
+            const newDebit = (current.debit || 0) + finalTotal;
+            customerRepository.update(data.customer_id, { debit: newDebit });
+            console.log(`  ✅ Debit updated to: ${newDebit}`);
+        }
+
+        // ✅ If payment was made, REDUCE DEBIT by the paid amount
+        if (paidAmount > 0) {
+            console.log(`  💳 Reducing DEBIT by ${paidAmount} (payment received)`);
+            const current = customerRepository.getById(data.customer_id);
+            const newDebit = Math.max(0, (current.debit || 0) - paidAmount);
+            customerRepository.update(data.customer_id, { debit: newDebit });
+            console.log(`  ✅ New DEBIT: ${newDebit}`);
+        }
+
+        // Verify the update
+        const updatedCustomer = customerRepository.getById(data.customer_id);
+        console.log(`\n📊 Updated Customer Balance:`);
+        console.log(`  Credit: ${updatedCustomer?.credit || 0}`);
+        console.log(`  Debit: ${updatedCustomer?.debit || 0}`);
+        console.log(`  Net Balance: ${(updatedCustomer?.credit || 0) - (updatedCustomer?.debit || 0)}`);
+
+        // ==========================================
+        // ✅ CREATE LEDGER ENTRIES FOR SALE AND PAYMENT - FIXED
+        // ==========================================
+        try {
+            console.log(`\n📒 Creating ledger entries for sale ${invoiceNumber}...`);
+            console.log(`  Total Amount: ${finalTotal}`);
+            console.log(`  Paid Amount: ${paidAmount}`);
+            console.log(`  Due Amount: ${dueAmount}`);
+            
+            // 1. Sale entry (DEBIT) - Full amount
+            await ledgerService.createLedgerEntry({
+                customer_id: data.customer_id,
+                entry_type: 'debit',
+                amount: finalTotal,
+                description: `Sale ${invoiceNumber}`,
+                reference_type: 'sale',
+                reference_id: sale.id,
+                created_by: data.created_by,
+                entry_date: data.sale_date || new Date().toISOString()
+            });
+            console.log(`  ✅ Created sale debit entry: ${finalTotal}`);
+            
+            // 2. Payment entry (CREDIT) - If any payment was made
+            if (paidAmount > 0) {
+                await ledgerService.createLedgerEntry({
+                    customer_id: data.customer_id,
+                    entry_type: 'credit',
+                    amount: paidAmount,
+                    description: `Payment for sale ${invoiceNumber}`,
+                    reference_type: 'payment',
+                    reference_id: sale.id,
+                    created_by: data.created_by,
+                    entry_date: data.sale_date || new Date().toISOString()
+                });
+                console.log(`  ✅ Created payment credit entry: ${paidAmount}`);
+            }
+            
+            console.log(`✅ Ledger entries created for sale ${invoiceNumber}`);
+        } catch (ledgerError) {
+            console.error('❌ Failed to create ledger entries:', ledgerError);
+            // Don't throw - sale is already created, just log the error
+        }
 
         console.log(`🟢 [SalesService] Sale created successfully: ${sale.invoice_number}`);
 
+        // Return complete sale
         return this.getSaleById(sale.id);
     }
 
@@ -420,7 +500,6 @@ class SalesService {
         console.log('🔵 [SalesService] saleGenerator exists?', !!saleGenerator);
         
         try {
-            // Fetch customer details if not already in saleData
             if (saleData.customer_id && !saleData.customer_name) {
                 console.log('🔵 [SalesService] Fetching customer details for ID:', saleData.customer_id);
                 const customer = customerRepository.getById(saleData.customer_id);
@@ -434,7 +513,6 @@ class SalesService {
                 }
             }
 
-            // Ensure invoice_number is set
             if (!saleData.invoice_number) {
                 console.log('🔵 [SalesService] No invoice number, generating...');
                 saleData.invoice_number = salesRepository.generateNumber();
@@ -442,7 +520,6 @@ class SalesService {
             }
 
             console.log('🔵 [SalesService] Calling saleGenerator.generateAndSaveSale...');
-            // Generate and save the PDF using the sale generator
             const result = await saleGenerator.generateAndSaveSale(saleData, items, window);
             console.log('🔵 [SalesService] saleGenerator result:', result);
             return result;
@@ -451,7 +528,6 @@ class SalesService {
             return { success: false, error: error.message };
         }
     }
-
 }
 
 module.exports = new SalesService();

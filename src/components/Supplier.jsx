@@ -1,11 +1,10 @@
-// src/pages/Suppliers/Suppliers.jsx
-
 import React, { useState, useEffect } from "react";
 import {
   Search,
   Plus,
   Edit3,
   Trash2,
+  ShoppingBag,
   X,
   CheckCircle,
   AlertCircle,
@@ -40,11 +39,128 @@ import {
   CreditCard as CreditIcon,
   Receipt,
   PiggyBank,
-  Loader2
+  Loader2,
+  BookOpen,
+  Layers
 } from "lucide-react";
 
 const api = window.api || {};
 
+class SupplierAPI {
+  // ==================== CRUD OPERATIONS ====================
+  async createSupplier(data) {
+    const result = await api.createSupplier(data);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to create supplier");
+    }
+    return result;
+  }
+
+  async getAllSuppliers(filters = {}) {
+    const result = await api.getAllSuppliers(filters);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch suppliers");
+    }
+    return result;
+  }
+
+  async getSupplierById(id) {
+    const result = await api.getSupplierById(id);
+    if (!result.success) {
+      throw new Error(result.error || "Supplier not found");
+    }
+    return result;
+  }
+
+  async updateSupplier(id, data) {
+    const result = await api.updateSupplier(id, data);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to update supplier");
+    }
+    return result;
+  }
+
+  async deleteSupplier(id) {
+    const result = await api.deleteSupplier(id);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to delete supplier");
+    }
+    return result;
+  }
+
+  // ==================== READ OPERATIONS ====================
+  async getActiveSuppliers() {
+    const result = await api.getActiveSuppliers();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch active suppliers");
+    }
+    return result;
+  }
+
+  async searchSuppliers(query) {
+    const result = await api.searchSuppliers(query);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to search suppliers");
+    }
+    return result;
+  }
+
+  // ==================== STATS OPERATIONS ====================
+  async getSupplierStats() {
+    const result = await api.getSupplierStats();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch supplier stats");
+    }
+    return result;
+  }
+
+  async getTopSuppliers(limit = 5) {
+    const result = await api.getTopSuppliers(limit);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch top suppliers");
+    }
+    return result;
+  }
+
+  async getSupplierPurchases(id) {
+    const result = await api.getSupplierPurchases(id);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch supplier purchases");
+    }
+    return result;
+  }
+
+  // ✅ NEW: Get supplier stats from ledger
+  async getSupplierLedgerStats(supplierId) {
+    const result = await api.getSupplierLedgerStats(supplierId);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch supplier ledger stats");
+    }
+    return result;
+  }
+
+  // ✅ NEW: Get all suppliers with ledger stats
+  async getAllSupplierLedgerStats() {
+    const result = await api.getAllSupplierLedgerStats();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to fetch all supplier ledger stats");
+    }
+    return result;
+  }
+
+  // ==================== EXPORT ====================
+  async exportSuppliers(filters = {}) {
+    const result = await api.exportSuppliers(filters);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to export suppliers");
+    }
+    return result;
+  }
+}
+
+const supplierAPI = new SupplierAPI();
+
+// ==================== MAIN COMPONENT ====================
 export default function Suppliers() {
   // ==================== STATE ====================
   const [suppliers, setSuppliers] = useState([]);
@@ -52,6 +168,7 @@ export default function Suppliers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -60,9 +177,12 @@ export default function Suppliers() {
     totalDebit: 0,
     totalBalance: 0,
     totalPurchases: 0,
-    avgPurchase: 0
+    totalPurchasesAmount: 0,
+    avgPurchase: 0,
+    totalEntries: 0
   });
 
+  // ==================== MODAL STATES ====================
   const [modal, setModal] = useState({ open: false, mode: "add", data: null });
   const [form, setForm] = useState({
     name: "",
@@ -76,22 +196,6 @@ export default function Suppliers() {
     is_active: 1
   });
   const [validationErrors, setValidationErrors] = useState({});
-  
-  const [balanceModal, setBalanceModal] = useState({
-    open: false,
-    supplier: null
-  });
-  const [balanceForm, setBalanceForm] = useState({
-    amount: 0,
-    type: "credit"
-  });
-
-  const [detailModal, setDetailModal] = useState({
-    open: false,
-    supplier: null,
-    purchases: []
-  });
-
   const [notification, setNotification] = useState({
     show: false,
     type: "",
@@ -101,20 +205,6 @@ export default function Suppliers() {
   // ==================== EFFECTS ====================
   useEffect(() => {
     loadData();
-    
-    // Auto-refresh when tab becomes visible
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('🔄 Suppliers page visible, refreshing data...');
-        loadData();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
   }, []);
 
   useEffect(() => {
@@ -125,26 +215,48 @@ export default function Suppliers() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [suppliersResult, summaryResult] = await Promise.all([
-        api.getAllSuppliers(),
-        api.getSupplierSummary()
-      ]);
-
-      if (suppliersResult.success) {
-        setSuppliers(suppliersResult.data || []);
-        console.log(`✅ Loaded ${suppliersResult.data?.length || 0} suppliers`);
-      }
-
-      if (summaryResult.success) {
-        setStats(summaryResult.data);
-        console.log('📊 Supplier stats loaded:', summaryResult.data);
+      // ✅ Get suppliers with ledger stats
+      const suppliersResult = await supplierAPI.getAllSupplierLedgerStats();
+      if (suppliersResult.success && suppliersResult.data) {
+        setSuppliers(suppliersResult.data);
+        if (suppliersResult.data.length > 0) {
+          setSelectedSupplier(suppliersResult.data[0]);
+        }
+        calculateStats(suppliersResult.data);
       }
     } catch (err) {
       console.error("Error loading suppliers:", err);
-      showNotification("error", "Failed to load suppliers");
+      showNotification("error", err.message || "Failed to load suppliers");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const calculateStats = (data) => {
+    const active = data.filter(s => s.is_active === 1).length;
+    const inactive = data.filter(s => s.is_active === 0).length;
+    
+    // ✅ Use ledger data for financial stats
+    const totalCredit = data.reduce((sum, s) => sum + (s.totalCredit || 0), 0);
+    const totalDebit = data.reduce((sum, s) => sum + (s.totalDebit || 0), 0);
+    const totalPurchases = data.reduce((sum, s) => sum + (s.totalPurchases || 0), 0);
+    const totalPurchasesAmount = data.reduce((sum, s) => sum + (s.totalPurchasesAmount || 0), 0);
+    const totalEntries = data.reduce((sum, s) => sum + (s.totalEntries || 0), 0);
+    const totalBalance = data.reduce((sum, s) => sum + (s.netBalance || 0), 0);
+    const avgPurchase = data.length > 0 ? totalPurchasesAmount / data.length : 0;
+    
+    setStats({
+      total: data.length,
+      active,
+      inactive,
+      totalCredit,
+      totalDebit,
+      totalBalance,
+      totalPurchases,
+      totalPurchasesAmount,
+      avgPurchase,
+      totalEntries
+    });
   };
 
   // ==================== FILTERS ====================
@@ -263,12 +375,12 @@ export default function Suppliers() {
 
       let result;
       if (modal.mode === "add") {
-        result = await api.createSupplier(data);
+        result = await supplierAPI.createSupplier(data);
         if (result.success) {
           showNotification("success", `Supplier "${form.name}" created successfully`);
         }
       } else {
-        result = await api.updateSupplier(modal.data.id, data);
+        result = await supplierAPI.updateSupplier(modal.data.id, data);
         if (result.success) {
           showNotification("success", `Supplier "${form.name}" updated successfully`);
         }
@@ -293,7 +405,7 @@ export default function Suppliers() {
     if (confirm(`Deactivate supplier "${name}"?`)) {
       setIsLoading(true);
       try {
-        const result = await api.deleteSupplier(id);
+        const result = await supplierAPI.deleteSupplier(id);
         if (result.success) {
           showNotification("success", `Supplier "${name}" deactivated successfully`);
           await loadData();
@@ -309,72 +421,10 @@ export default function Suppliers() {
     }
   };
 
-  // ==================== BALANCE MANAGEMENT ====================
-  const openBalanceModal = (supplier) => {
-    setBalanceForm({ amount: 0, type: "credit" });
-    setBalanceModal({ open: true, supplier });
-  };
-
-  const handleBalanceUpdate = async (e) => {
-    e.preventDefault();
-    if (!balanceForm.amount || balanceForm.amount <= 0) {
-      showNotification("error", "Amount must be greater than 0");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      let result;
-      if (balanceForm.type === "credit") {
-        result = await api.updateSupplierCredit(balanceModal.supplier.id, parseFloat(balanceForm.amount));
-      } else {
-        result = await api.updateSupplierDebit(balanceModal.supplier.id, parseFloat(balanceForm.amount));
-      }
-
-      if (result.success) {
-        showNotification("success", `${balanceForm.type.charAt(0).toUpperCase() + balanceForm.type.slice(1)} updated successfully`);
-        await loadData();
-        setBalanceModal({ open: false, supplier: null });
-      } else {
-        showNotification("error", result.error || "Failed to update balance");
-      }
-    } catch (err) {
-      console.error("Failed updating balance:", err);
-      showNotification("error", err.message || "An error occurred");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ==================== DETAIL VIEW ====================
-  const openDetailModal = async (supplier) => {
-    setIsLoading(true);
-    try {
-      const [detailResult, purchasesResult] = await Promise.all([
-        api.getSupplierById(supplier.id),
-        api.getSupplierPurchases(supplier.id)
-      ]);
-
-      const supplierData = detailResult.success ? detailResult.data : supplier;
-      const purchases = purchasesResult.success ? purchasesResult.data : [];
-
-      setDetailModal({
-        open: true,
-        supplier: supplierData,
-        purchases: purchases
-      });
-    } catch (err) {
-      console.error("Failed loading supplier details:", err);
-      showNotification("error", "Failed to load supplier details");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // ==================== EXPORT ====================
   const handleExport = async () => {
     try {
-      const result = await api.exportSuppliers({ is_active: 1 });
+      const result = await supplierAPI.exportSuppliers({ is_active: 1 });
       if (result.success && result.data) {
         const headers = ["Name", "Phone", "Email", "Address", "CNIC", "Credit", "Debit", "Balance", "Status"];
         const rows = result.data.map(s => [
@@ -453,35 +503,36 @@ export default function Suppliers() {
     return colors[id % colors.length];
   };
 
-  // ==================== GET BALANCE DISPLAY ====================
+  // ✅ Get balance display with ledger data
   const getBalanceDisplay = (supplier) => {
-    const credit = supplier.credit || 0;
-    const debit = supplier.debit || 0;
-    const balance = credit - debit;
+    const balance = supplier.netBalance || 0;
 
     if (balance > 0) {
       return {
-        text: `Supplier owes us ₨${balance.toFixed(2)}`,
-        color: "text-amber-600",
-        bg: "bg-amber-50",
-        border: "border-amber-200",
-        icon: <ArrowUpRight size={14} className="text-amber-500" />
-      };
-    } else if (balance < 0) {
-      return {
-        text: `We owe supplier ₨${Math.abs(balance).toFixed(2)}`,
+        text: `We owe supplier`,
+        amount: formatCurrency(balance),
         color: "text-rose-600",
         bg: "bg-rose-50",
         border: "border-rose-200",
         icon: <ArrowDownRight size={14} className="text-rose-500" />
       };
-    } else {
+    } else if (balance < 0) {
       return {
-        text: "Balance Settled",
+        text: `Supplier owes us`,
+        amount: formatCurrency(Math.abs(balance)),
         color: "text-emerald-600",
         bg: "bg-emerald-50",
         border: "border-emerald-200",
-        icon: <CheckCircle size={14} className="text-emerald-500" />
+        icon: <ArrowUpRight size={14} className="text-emerald-500" />
+      };
+    } else {
+      return {
+        text: "Balance Settled",
+        amount: formatCurrency(0),
+        color: "text-slate-600",
+        bg: "bg-slate-50",
+        border: "border-slate-200",
+        icon: <CheckCircle size={14} className="text-slate-500" />
       };
     }
   };
@@ -526,7 +577,7 @@ export default function Suppliers() {
           </h1>
           <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
             <Building2 size={10} />
-            Manage supplier relationships, credit, and debit
+            Manage supplier information and view balances from ledger
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -555,14 +606,16 @@ export default function Suppliers() {
       </div>
 
       {/* ===== STATS CARDS ===== */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
         {[
           { label: "Total", value: stats.total || 0, icon: Users, color: "from-indigo-500 to-purple-600" },
           { label: "Active", value: stats.active || 0, icon: CheckCircle, color: "from-emerald-500 to-teal-600" },
           { label: "Inactive", value: stats.inactive || 0, icon: X, color: "from-slate-500 to-slate-600" },
+          { label: "Total Entries", value: stats.totalEntries || 0, icon: Layers, color: "from-cyan-500 to-blue-600" },
           { label: "Total Credit", value: formatCurrency(stats.totalCredit), icon: CreditIcon, color: "from-amber-500 to-orange-600" },
           { label: "Total Debit", value: formatCurrency(stats.totalDebit), icon: Receipt, color: "from-rose-500 to-red-600" },
-          { label: "Net Balance", value: formatCurrency(stats.totalBalance), icon: PiggyBank, color: "from-purple-500 to-pink-600" }
+          { label: "Net Balance", value: formatCurrency(stats.totalBalance), icon: PiggyBank, color: "from-purple-500 to-pink-600" },
+          { label: "Total Purchases", value: stats.totalPurchases || 0, icon: ShoppingBag, color: "from-cyan-500 to-blue-600" },
         ].map((item, index) => (
           <div key={index} className={`bg-white rounded-xl border border-slate-200/60 shadow-sm p-2.5 hover:shadow-md transition-all duration-300 group ${
             index >= 6 ? "hidden sm:block" : ""
@@ -638,7 +691,7 @@ export default function Suppliers() {
         </div>
       </div>
 
-      {/* ===== SUPPLIER LIST ===== */}
+      {/* ===== SUPPLIER CARDS ===== */}
       {isLoading && !suppliers.length ? (
         <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-8 text-center">
           <div className="inline-flex items-center gap-2 text-slate-400">
@@ -649,7 +702,7 @@ export default function Suppliers() {
       ) : filteredSuppliers.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-12 text-center">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center mx-auto mb-3">
-            <Users size={32} className="text-slate-400" />
+            <Building2 size={32} className="text-slate-400" />
           </div>
           <p className="text-sm font-medium text-slate-600">No suppliers found</p>
           <p className="text-xs text-slate-400 mt-1">
@@ -671,13 +724,17 @@ export default function Suppliers() {
             const avatarColor = getAvatarColor(index);
             const initials = getInitials(supplier.name);
             const balanceDisplay = getBalanceDisplay(supplier);
-            const credit = supplier.credit || 0;
-            const debit = supplier.debit || 0;
+            const isSelected = selectedSupplier?.id === supplier.id;
 
             return (
               <div
                 key={supplier.id}
-                className="group bg-white rounded-xl border border-slate-200/60 shadow-sm hover:shadow-lg transition-all duration-300 p-3 hover:-translate-y-1 hover:border-indigo-300"
+                onClick={() => setSelectedSupplier(supplier)}
+                className={`group bg-white rounded-xl border transition-all duration-300 p-3 hover:-translate-y-1 cursor-pointer ${
+                  isSelected 
+                    ? 'border-indigo-400 shadow-md bg-indigo-50/30' 
+                    : 'border-slate-200/60 shadow-sm hover:shadow-lg hover:border-indigo-300'
+                }`}
               >
                 <div className="relative overflow-hidden">
                   <div className="flex items-start justify-between">
@@ -694,6 +751,11 @@ export default function Suppliers() {
                             <Phone size={8} />
                             {supplier.phone}
                           </p>
+                        )}
+                        {supplier.totalEntries > 0 && (
+                          <span className="text-[8px] text-slate-400">
+                            {supplier.totalEntries} ledger entries
+                          </span>
                         )}
                       </div>
                     </div>
@@ -732,25 +794,25 @@ export default function Suppliers() {
                         <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-medium border ${balanceDisplay.bg} ${balanceDisplay.color} ${balanceDisplay.border}`}>
                           {balanceDisplay.icon}
                           <span>{balanceDisplay.text}</span>
+                          <span className="font-bold">{balanceDisplay.amount}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-0.5">
                         <button
-                          onClick={() => openDetailModal(supplier)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            showNotification("info", `View ${supplier.name}'s ledger in the Ledger page`);
+                          }}
                           className="p-1 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"
-                          title="View Details"
+                          title="View Ledger"
                         >
-                          <Eye size={12} />
+                          <BookOpen size={12} />
                         </button>
                         <button
-                          onClick={() => openBalanceModal(supplier)}
-                          className="p-1 rounded hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors"
-                          title="Update Balance"
-                        >
-                          <Wallet size={12} />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(supplier)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(supplier);
+                          }}
                           className="p-1 rounded hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
                           title="Edit"
                         >
@@ -758,7 +820,10 @@ export default function Suppliers() {
                         </button>
                         {supplier.is_active === 1 && (
                           <button
-                            onClick={() => handleDelete(supplier.id, supplier.name)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(supplier.id, supplier.name);
+                            }}
                             className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                             title="Deactivate"
                           >
@@ -770,19 +835,19 @@ export default function Suppliers() {
                     
                     {/* ===== Credit/Debit Breakdown ===== */}
                     <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-slate-50">
-                      {credit > 0 && (
+                      {(supplier.totalCredit || 0) > 0 && (
                         <div className="flex items-center gap-1">
                           <span className="text-[8px] text-amber-600 font-medium">Credit:</span>
-                          <span className="text-[9px] font-semibold text-amber-600">{formatCurrency(credit)}</span>
+                          <span className="text-[9px] font-semibold text-amber-600">{formatCurrency(supplier.totalCredit)}</span>
                         </div>
                       )}
-                      {debit > 0 && (
+                      {(supplier.totalDebit || 0) > 0 && (
                         <div className="flex items-center gap-1">
                           <span className="text-[8px] text-rose-600 font-medium">Debit:</span>
-                          <span className="text-[9px] font-semibold text-rose-600">{formatCurrency(debit)}</span>
+                          <span className="text-[9px] font-semibold text-rose-600">{formatCurrency(supplier.totalDebit)}</span>
                         </div>
                       )}
-                      {credit === 0 && debit === 0 && (
+                      {(supplier.totalCredit || 0) === 0 && (supplier.totalDebit || 0) === 0 && (
                         <span className="text-[8px] text-slate-400">No transactions yet</span>
                       )}
                     </div>
@@ -812,7 +877,7 @@ export default function Suppliers() {
               <div className={`p-2 rounded-lg ${
                 modal.mode === "add" ? "bg-gradient-to-br from-emerald-500 to-emerald-600" : "bg-gradient-to-br from-indigo-500 to-purple-600"
               } text-white shadow-lg`}>
-                {modal.mode === "add" ? <Users size={16} /> : <Edit3 size={16} />}
+                {modal.mode === "add" ? <Building2 size={16} /> : <Edit3 size={16} />}
               </div>
               <div>
                 <h3 className="text-base font-semibold text-slate-800">
@@ -1032,189 +1097,6 @@ export default function Suppliers() {
         </div>
       )}
 
-      {/* ===== BALANCE MODAL ===== */}
-      {balanceModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-4 animate-scale-in relative">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-600 rounded-t-xl" />
-            <button
-              onClick={() => setBalanceModal({ open: false, supplier: null })}
-              className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 transition-transform hover:scale-110"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2.5 mt-1 mb-3">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg">
-                <Wallet size={16} />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-slate-800">Update Balance</h3>
-                <p className="text-[10px] text-slate-500">
-                  {balanceModal.supplier?.name} - Credit: {formatCurrency(balanceModal.supplier?.credit || 0)} | Debit: {formatCurrency(balanceModal.supplier?.debit || 0)}
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleBalanceUpdate} className="space-y-2.5">
-              <div>
-                <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                  Transaction Type
-                </label>
-                <select
-                  value={balanceForm.type}
-                  onChange={(e) => setBalanceForm(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-300 bg-white"
-                >
-                  <option value="credit">Credit (Supplier owes us)</option>
-                  <option value="debit">Debit (We owe supplier)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                  Amount *
-                </label>
-                <input
-                  type="number"
-                  value={balanceForm.amount}
-                  onChange={(e) => setBalanceForm(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all duration-300 bg-white"
-                  placeholder="Enter amount"
-                  min="0.01"
-                  step="0.01"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setBalanceModal({ open: false, supplier: null })}
-                  className="px-3 py-1.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-all duration-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-3 py-1.5 text-[10px] font-medium text-white rounded-lg transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-                >
-                  {isLoading ? 'Processing...' : 'Update Balance'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== DETAIL MODAL ===== */}
-      {detailModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in" style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-4 animate-scale-in relative max-h-[90vh] overflow-y-auto">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-t-xl" />
-            <button
-              onClick={() => setDetailModal({ open: false, supplier: null, purchases: [] })}
-              className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 transition-transform hover:scale-110"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-2.5 mt-1 mb-3">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
-                <Users size={16} />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-slate-800">{detailModal.supplier?.name}</h3>
-                <p className="text-[10px] text-slate-500">Supplier Details & Purchase History</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5 mb-3">
-              <div className="bg-amber-50 rounded-lg p-2.5">
-                <p className="text-[7px] text-amber-600 uppercase font-medium">Credit</p>
-                <p className="text-sm font-bold text-amber-600">{formatCurrency(detailModal.supplier?.credit)}</p>
-              </div>
-              <div className="bg-rose-50 rounded-lg p-2.5">
-                <p className="text-[7px] text-rose-600 uppercase font-medium">Debit</p>
-                <p className="text-sm font-bold text-rose-600">{formatCurrency(detailModal.supplier?.debit)}</p>
-              </div>
-              <div className="bg-purple-50 rounded-lg p-2.5">
-                <p className="text-[7px] text-purple-600 uppercase font-medium">Balance</p>
-                <p className={`text-sm font-bold ${(detailModal.supplier?.credit || 0) > (detailModal.supplier?.debit || 0) ? 'text-amber-600' : (detailModal.supplier?.debit || 0) > (detailModal.supplier?.credit || 0) ? 'text-rose-600' : 'text-slate-600'}`}>
-                  {formatCurrency((detailModal.supplier?.credit || 0) - (detailModal.supplier?.debit || 0))}
-                </p>
-              </div>
-            </div>
-
-            {(detailModal.supplier?.phone || detailModal.supplier?.email || detailModal.supplier?.address) && (
-              <div className="bg-indigo-50/50 rounded-lg p-2.5 mb-3 space-y-0.5 border border-indigo-100">
-                {detailModal.supplier?.phone && (
-                  <p className="text-[10px] text-slate-600 flex items-center gap-2">
-                    <Phone size={10} className="text-indigo-400" />
-                    {detailModal.supplier.phone}
-                  </p>
-                )}
-                {detailModal.supplier?.email && (
-                  <p className="text-[10px] text-slate-600 flex items-center gap-2">
-                    <Mail size={10} className="text-indigo-400" />
-                    {detailModal.supplier.email}
-                  </p>
-                )}
-                {detailModal.supplier?.address && (
-                  <p className="text-[10px] text-slate-600 flex items-center gap-2">
-                    <MapPin size={10} className="text-indigo-400" />
-                    {detailModal.supplier.address}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <h4 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-              <FileText size={12} className="text-indigo-500" />
-              Purchase History
-            </h4>
-
-            {detailModal.purchases.length === 0 ? (
-              <div className="text-center py-4 bg-slate-50 rounded-lg">
-                <p className="text-[10px] text-slate-400">No purchase history available</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-2 py-1.5 text-left text-[9px] font-semibold text-slate-500">PO#</th>
-                      <th className="px-2 py-1.5 text-left text-[9px] font-semibold text-slate-500">Date</th>
-                      <th className="px-2 py-1.5 text-right text-[9px] font-semibold text-slate-500">Amount</th>
-                      <th className="px-2 py-1.5 text-right text-[9px] font-semibold text-slate-500">Paid</th>
-                      <th className="px-2 py-1.5 text-right text-[9px] font-semibold text-slate-500">Due</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {detailModal.purchases.map((purchase) => (
-                      <tr key={purchase.id} className="hover:bg-indigo-50/30 transition-colors duration-200">
-                        <td className="px-2 py-1.5 text-[10px] font-medium text-slate-700">{purchase.purchase_number}</td>
-                        <td className="px-2 py-1.5 text-[10px] text-slate-500">{formatDate(purchase.purchase_date)}</td>
-                        <td className="px-2 py-1.5 text-[10px] text-right font-medium text-slate-700">
-                          {formatCurrency(purchase.total_amount)}
-                        </td>
-                        <td className="px-2 py-1.5 text-[10px] text-right text-emerald-600">
-                          {formatCurrency(purchase.paid_amount || 0)}
-                        </td>
-                        <td className="px-2 py-1.5 text-[10px] text-right text-amber-600">
-                          {formatCurrency(purchase.due_amount || 0)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
@@ -1228,14 +1110,6 @@ export default function Suppliers() {
           from { transform: translateY(-8px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-6px); }
-        }
-        @keyframes pulse-slow {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.8; }
-        }
         .animate-fade-in {
           animation: fadeIn 0.3s ease-out forwards;
         }
@@ -1244,12 +1118,6 @@ export default function Suppliers() {
         }
         .animate-slide-down {
           animation: slideDown 0.25s ease-out forwards;
-        }
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
-        }
-        .animate-pulse-slow {
-          animation: pulse-slow 2s ease-in-out infinite;
         }
       `}</style>
     </div>
