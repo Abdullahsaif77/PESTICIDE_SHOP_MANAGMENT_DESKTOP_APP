@@ -1,8 +1,7 @@
 // src/pages/Reports/LowStockReport.jsx
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, Package, Printer, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { AlertCircle, Package } from 'lucide-react';
 import { ReportFilters } from './ReportFilters';
-import { ReportActions } from './ReportActions';
 import { ReportTable } from './ReportTable';
 
 export default function LowStockReport() {
@@ -64,12 +63,6 @@ export default function LowStockReport() {
             Products below minimum stock levels
           </p>
         </div>
-        <ReportActions
-          onPrint={() => window.print()}
-          onExportPDF={() => {}}
-          onExportExcel={() => {}}
-          onExportCSV={() => {}}
-        />
       </div>
 
       <ReportFilters

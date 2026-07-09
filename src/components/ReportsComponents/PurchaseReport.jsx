@@ -1,11 +1,9 @@
 // src/pages/Reports/PurchaseReport.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  ShoppingCart, DollarSign, Box, Package,
-  Printer, Download, FileText, FileSpreadsheet
+  ShoppingCart, DollarSign, Box, Package
 } from 'lucide-react';
 import { ReportFilters } from './ReportFilters';
-import { ReportActions } from './ReportActions';
 import { ReportTable } from './ReportTable';
 
 export default function PurchaseReport() {
@@ -68,12 +66,6 @@ export default function PurchaseReport() {
             Track purchase history and costs
           </p>
         </div>
-        <ReportActions
-          onPrint={() => window.print()}
-          onExportPDF={() => {}}
-          onExportExcel={() => {}}
-          onExportCSV={() => {}}
-        />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">

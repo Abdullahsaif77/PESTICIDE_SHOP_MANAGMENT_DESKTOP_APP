@@ -2,15 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   CreditCard, DollarSign, TrendingUp, Calendar,
-  Printer, Download, FileText, FileSpreadsheet,
   PieChart, BarChart3
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart as RechartsPieChart, Pie, Cell, Legend
+  PieChart as RechartsPieChart, Pie, Cell, Legend,
+  CartesianGrid
 } from 'recharts';
 import { ReportFilters } from './ReportFilters';
-import { ReportActions } from './ReportActions';
 
 const COLORS = ['#059669', '#D97706', '#4F46E5', '#E11D48', '#0891B2', '#7C3AED', '#DC2626', '#8B5CF6', '#EC4899'];
 
@@ -53,12 +52,6 @@ export default function ExpenseReport() {
             Expense breakdown by category and time
           </p>
         </div>
-        <ReportActions
-          onPrint={() => window.print()}
-          onExportPDF={() => {}}
-          onExportExcel={() => {}}
-          onExportCSV={() => {}}
-        />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">

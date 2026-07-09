@@ -1,4 +1,4 @@
-// src/pages/Reports/components/ReportFilters.jsx
+// src/pages/Reports/ReportFilters.jsx
 import React from 'react';
 import { Search, Calendar, Filter, X, ChevronDown } from 'lucide-react';
 
@@ -31,44 +31,53 @@ export const ReportFilters = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Main Filters Row - Now with nowrap on larger screens */}
+      <div className="flex flex-col sm:flex-row sm:flex-nowrap items-start sm:items-center gap-2">
         {/* Date Range */}
-        <div className="flex items-center gap-2">
-          <Calendar size={14} className="text-slate-400" />
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <Calendar size={14} className="text-slate-400 flex-shrink-0" />
           <input
             type="date"
             value={dateRange?.start || ''}
             onChange={(e) => onDateRangeChange?.({ ...dateRange, start: e.target.value })}
-            className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-slate-50 focus:bg-white transition-all"
+            className="w-[110px] px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-slate-50 focus:bg-white transition-all"
           />
-          <span className="text-xs text-slate-400">to</span>
+          <span className="text-xs text-slate-400 flex-shrink-0">to</span>
           <input
             type="date"
             value={dateRange?.end || ''}
             onChange={(e) => onDateRangeChange?.({ ...dateRange, end: e.target.value })}
-            className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-slate-50 focus:bg-white transition-all"
+            className="w-[110px] px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-slate-50 focus:bg-white transition-all"
           />
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+        <div className="relative flex-1 min-w-[120px] sm:min-w-[150px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
           <input
             type="text"
             placeholder="Search..."
             value={searchQuery || ''}
             onChange={(e) => onSearchChange?.(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-slate-50 focus:bg-white transition-all"
+            className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-slate-50 focus:bg-white transition-all"
           />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange?.('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* Dynamic Filters */}
         {filters.map((filter, index) => (
-          <div key={index}>
+          <div key={index} className="flex-shrink-0 min-w-[100px] sm:min-w-[120px]">
             <select
               value={filter.value}
               onChange={(e) => onFilterChange?.(filter.key, e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-slate-50 focus:bg-white transition-all"
+              className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-slate-50 focus:bg-white transition-all"
             >
               <option value="">All {filter.label}</option>
               {filter.options.map((opt) => (
@@ -83,10 +92,10 @@ export const ReportFilters = ({
         {/* Clear Filters */}
         <button
           onClick={onClearFilters}
-          className="flex items-center justify-center gap-1 px-3 py-2 text-xs text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          className="flex-shrink-0 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
         >
           <X size={14} />
-          Clear Filters
+          Clear
         </button>
       </div>
     </div>

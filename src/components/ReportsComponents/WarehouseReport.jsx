@@ -1,11 +1,9 @@
 // src/pages/Reports/WarehouseReport.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  Warehouse, Package, Box, TrendingUp, TrendingDown,
-  Printer, Download, FileText, FileSpreadsheet
+  Warehouse, Package, Box, TrendingUp, TrendingDown, DollarSign
 } from 'lucide-react';
 import { ReportFilters } from './ReportFilters';
-import { ReportActions } from './ReportActions';
 import { ReportTable } from './ReportTable';
 
 export default function WarehouseReport() {
@@ -55,12 +53,6 @@ export default function WarehouseReport() {
             Stock distribution across warehouses
           </p>
         </div>
-        <ReportActions
-          onPrint={() => window.print()}
-          onExportPDF={() => {}}
-          onExportExcel={() => {}}
-          onExportCSV={() => {}}
-        />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

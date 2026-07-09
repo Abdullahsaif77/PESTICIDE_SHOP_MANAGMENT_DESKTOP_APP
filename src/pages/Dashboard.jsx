@@ -80,39 +80,39 @@ const Dashboard = ({ user, onLogout, onUserUpdate }) => {
 
       // ===== REPORTS CASES =====
       case 'reports':
-        return <Reports setActiveTab={setActiveTab} />;
+  return <Reports setActiveTab={setActiveTab} />;
 
-      case 'reports-sales':
-        return <SalesReport />;
+case 'reports-sales':
+  return <SalesReport setActiveTab={setActiveTab} />;
 
-      case 'reports-purchases':
-        return <PurchaseReport />;
+case 'reports-purchases':
+  return <PurchaseReport setActiveTab={setActiveTab} />;
 
-      case 'reports-profit-loss':
-        return <ProfitLossReport />;
+case 'reports-profit-loss':
+  return <ProfitLossReport setActiveTab={setActiveTab} />;
 
-      case 'reports-inventory':
-        return <InventoryReport />;
+case 'reports-inventory':
+  return <InventoryReport setActiveTab={setActiveTab} />;
 
-      case 'reports-low-stock':
-        return <LowStockReport />;
+case 'reports-low-stock':
+  return <LowStockReport setActiveTab={setActiveTab} />;
 
-      case 'reports-expiry':
-        return <ExpiryReport />;
+case 'reports-expiry':
+  return <ExpiryReport setActiveTab={setActiveTab} />;
 
-      case 'reports-customer-ledger':
-        return <CustomerLedgerReport />;
+case 'reports-customer-ledger':
+  return <CustomerLedgerReport setActiveTab={setActiveTab} />;
 
-      case 'reports-supplier-ledger':
-        return <SupplierLedgerReport />;
+case 'reports-supplier-ledger':
+  return <SupplierLedgerReport setActiveTab={setActiveTab} />;
 
-      case 'reports-expenses':
-        return <ExpenseReport />;
+case 'reports-expenses':
+  return <ExpenseReport setActiveTab={setActiveTab} />;
 
-      case 'reports-warehouse':
-        return <WarehouseReport />;
+case 'reports-warehouse':
+  return <WarehouseReport setActiveTab={setActiveTab} />;
 
-      case 'Admin Control Center':
+            case 'Admin Control Center':
         return (
           <Profile
             user={user}

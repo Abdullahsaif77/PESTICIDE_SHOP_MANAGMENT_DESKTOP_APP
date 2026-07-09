@@ -6,7 +6,7 @@ import {
   BarChart3, PieChart, Download, Printer, FileSpreadsheet,
   DollarSign, ShoppingCart, Box, Clock, LayoutDashboard,
   ArrowRight, ChevronRight, Sparkles, Zap, Award,
-  Target, TrendingUp as TrendIcon, Globe, Briefcase, Search, X , RefreshCw
+  Target, TrendingUp as TrendIcon, Globe, Briefcase, Search, X, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -175,21 +175,76 @@ export default function Reports({ setActiveTab }) {
   const fetchSummaryData = async () => {
     try {
       setLoading(true);
-      // Fetch from dashboard API or dedicated summary API
-      const result = await api.getDashboardData();
-      if (result && result.success) {
-        const data = result.data || {};
-        setSummaryData({
-          totalSales: data.totalSales || data.total_revenue || 0,
-          totalPurchases: data.totalPurchases || data.total_purchases || 0,
-          netProfit: data.netProfit || data.net_profit || 0,
-          expenses: data.totalExpenses || data.total_expenses || 0,
-          inventoryValue: data.inventoryValue || data.inventory_value || 0,
-          customers: data.totalCustomers || data.total_customers || 0,
-          suppliers: data.totalSuppliers || data.total_suppliers || 0,
-          products: data.totalProducts || data.total_products || 0
-        });
+      
+      // Fetch data from multiple APIs to get real numbers
+      const [salesResult, purchasesResult, expenseResult, customerResult, supplierResult, productResult, inventoryResult] = await Promise.all([
+        api.getSalesReport({ limit: 1 }),
+        api.getPurchaseReport({ limit: 1 }),
+        api.getTotalExpenses(),
+        api.getAllCustomers({}),
+        api.getAllSuppliers({}),
+        api.getProducts(),
+        api.getInventorySummary()
+      ]);
+
+      // Calculate total sales
+      let totalSales = 0;
+      if (salesResult?.success && salesResult.data?.summary) {
+        totalSales = salesResult.data.summary.total_sales || 0;
       }
+
+      // Calculate total purchases
+      let totalPurchases = 0;
+      if (purchasesResult?.success && purchasesResult.data?.summary) {
+        totalPurchases = purchasesResult.data.summary.total_purchases || 0;
+      }
+
+      // Calculate expenses
+      let expenses = 0;
+      if (expenseResult && !expenseResult.error) {
+        expenses = expenseResult.total || 0;
+      }
+
+      // Calculate customers
+      let customers = 0;
+      if (customerResult && !customerResult.error) {
+        customers = Array.isArray(customerResult) ? customerResult.length : 
+                    customerResult.data?.length || 0;
+      }
+
+      // Calculate suppliers
+      let suppliers = 0;
+      if (supplierResult && !supplierResult.error) {
+        suppliers = Array.isArray(supplierResult) ? supplierResult.length :
+                    supplierResult.data?.length || 0;
+      }
+
+      // Calculate products
+      let products = 0;
+      if (productResult && !productResult.error) {
+        products = Array.isArray(productResult) ? productResult.length :
+                   productResult.data?.length || 0;
+      }
+
+      // Calculate inventory value
+      let inventoryValue = 0;
+      if (inventoryResult && !inventoryResult.error) {
+        inventoryValue = inventoryResult.total_value || 0;
+      }
+
+      // Calculate net profit (Sales - Purchases - Expenses)
+      const netProfit = totalSales - totalPurchases - expenses;
+
+      setSummaryData({
+        totalSales,
+        totalPurchases,
+        netProfit,
+        expenses,
+        inventoryValue,
+        customers,
+        suppliers,
+        products
+      });
     } catch (error) {
       console.error('Error fetching summary:', error);
     } finally {
@@ -199,19 +254,18 @@ export default function Reports({ setActiveTab }) {
 
   const fetchReportStats = async () => {
     try {
-      // Fetch counts for each report type
       const stats = {};
       
       // Sales count
       const salesResult = await api.getSalesReport({ limit: 1 });
       if (salesResult?.success) {
-        stats.sales = salesResult.data?.total || 0;
+        stats.sales = salesResult.data?.total || salesResult.data?.items?.length || 0;
       }
 
       // Purchases count
       const purchasesResult = await api.getPurchaseReport({ limit: 1 });
       if (purchasesResult?.success) {
-        stats.purchases = purchasesResult.data?.total || 0;
+        stats.purchases = purchasesResult.data?.total || purchasesResult.data?.items?.length || 0;
       }
 
       // Customers count
@@ -235,6 +289,42 @@ export default function Reports({ setActiveTab }) {
                          productsResult.data?.length || 0;
       }
 
+      // Expenses count
+      const expenseResult = await api.getExpenses(1, 0);
+      if (expenseResult && !expenseResult.error) {
+        stats.expenses = Array.isArray(expenseResult) ? expenseResult.length :
+                         expenseResult.data?.length || 0;
+      }
+
+      // Inventory count
+      const inventoryResult = await api.getInventorySummary();
+      if (inventoryResult && !inventoryResult.error) {
+        stats.inventory = inventoryResult.total_products || 0;
+      }
+
+      // Low stock count
+      const lowStockResult = await api.getLowStockReport();
+      if (lowStockResult && !lowStockResult.error) {
+        stats.lowStock = Array.isArray(lowStockResult) ? lowStockResult.length :
+                         lowStockResult.data?.length || 0;
+      }
+
+      // Expiry count
+      const expiryResult = await api.getExpiryReport();
+      if (expiryResult && !expiryResult.error) {
+        stats.expiry = expiryResult.data?.items?.length || 0;
+      }
+
+      // Warehouse count
+      const warehouseResult = await api.getActiveOnlyWarehouses();
+      if (warehouseResult && !warehouseResult.error) {
+        stats.warehouse = Array.isArray(warehouseResult) ? warehouseResult.length :
+                          warehouseResult.data?.length || 0;
+      }
+
+      // Profit stats
+      stats.profit = summaryData.netProfit || 0;
+
       setReportStats(stats);
     } catch (error) {
       console.error('Error fetching report stats:', error);
@@ -246,14 +336,14 @@ export default function Reports({ setActiveTab }) {
   };
 
   const formatCurrency = (amount) => {
-    if (!amount) return '₨0';
+    if (!amount || isNaN(amount)) return '₨0';
     if (amount >= 1000000) return `₨${(amount / 1000000).toFixed(1)}M`;
     if (amount >= 1000) return `₨${(amount / 1000).toFixed(1)}K`;
     return `₨${amount.toFixed(0)}`;
   };
 
   const formatNumber = (num) => {
-    if (!num) return '0';
+    if (!num || isNaN(num)) return '0';
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
@@ -318,7 +408,7 @@ export default function Reports({ setActiveTab }) {
               })}</span>
             </div>
             <button
-              onClick={fetchSummaryData}
+              onClick={() => { fetchSummaryData(); fetchReportStats(); }}
               className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors border border-emerald-100"
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -384,9 +474,9 @@ export default function Reports({ setActiveTab }) {
           label="Net Profit" 
           value={formatCurrency(summaryData.netProfit)}
           loading={loading}
-          color="text-purple-600" 
-          bgColor="bg-purple-50"
-          gradient="from-purple-50 to-purple-100/30"
+          color={summaryData.netProfit >= 0 ? 'text-purple-600' : 'text-red-600'}
+          bgColor={summaryData.netProfit >= 0 ? 'bg-purple-50' : 'bg-red-50'}
+          gradient={summaryData.netProfit >= 0 ? 'from-purple-50 to-purple-100/30' : 'from-red-50 to-red-100/30'}
         />
         <SummaryCard 
           icon={CreditCard} 
@@ -409,7 +499,7 @@ export default function Reports({ setActiveTab }) {
         <SummaryCard 
           icon={Users} 
           label="Customers" 
-          value={formatNumber(reportStats.customers || summaryData.customers)}
+          value={formatNumber(summaryData.customers)}
           loading={loading}
           color="text-indigo-600" 
           bgColor="bg-indigo-50"
@@ -418,7 +508,7 @@ export default function Reports({ setActiveTab }) {
         <SummaryCard 
           icon={Handshake} 
           label="Suppliers" 
-          value={formatNumber(reportStats.suppliers || summaryData.suppliers)}
+          value={formatNumber(summaryData.suppliers)}
           loading={loading}
           color="text-teal-600" 
           bgColor="bg-teal-50"
@@ -427,7 +517,7 @@ export default function Reports({ setActiveTab }) {
         <SummaryCard 
           icon={Box} 
           label="Products" 
-          value={formatNumber(reportStats.products || summaryData.products)}
+          value={formatNumber(summaryData.products)}
           loading={loading}
           color="text-sky-600" 
           bgColor="bg-sky-50"
@@ -533,19 +623,6 @@ export default function Reports({ setActiveTab }) {
           </p>
         </motion.div>
       )}
-
-      {/* ===== QUICK ACTIONS ===== */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4, duration: 0.5 }}
-        className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3"
-      >
-        <QuickAction icon={Printer} label="Print Reports" color="text-slate-600" bgColor="bg-slate-50" />
-        <QuickAction icon={FileText} label="Export PDF" color="text-red-600" bgColor="bg-red-50" />
-        <QuickAction icon={FileSpreadsheet} label="Export Excel" color="text-emerald-600" bgColor="bg-emerald-50" />
-        <QuickAction icon={Download} label="Export CSV" color="text-blue-600" bgColor="bg-blue-50" />
-      </motion.div>
     </motion.div>
   );
 }
@@ -570,21 +647,4 @@ const SummaryCard = ({ icon: Icon, label, value, color, bgColor, gradient, loadi
       </div>
     </div>
   </motion.div>
-);
-
-const QuickAction = ({ icon: Icon, label, color, bgColor }) => (
-  <motion.button
-    whileHover={{ y: -3, scale: 1.02 }}
-    whileTap={{ scale: 0.98 }}
-    className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 group"
-  >
-    <div className="flex items-center gap-2">
-      <div className={`p-1.5 rounded-lg ${bgColor} group-hover:scale-110 transition-transform duration-300`}>
-        <Icon size={14} className={color} />
-      </div>
-      <p className="text-[10px] font-medium text-slate-700 group-hover:text-slate-900 transition-colors">
-        {label}
-      </p>
-    </div>
-  </motion.button>
 );

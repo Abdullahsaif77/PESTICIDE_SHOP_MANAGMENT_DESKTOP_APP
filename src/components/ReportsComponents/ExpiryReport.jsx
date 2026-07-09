@@ -1,8 +1,7 @@
 // src/pages/Reports/ExpiryReport.jsx
 import React, { useState, useEffect } from 'react';
-import { Clock, AlertTriangle, Printer, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { Clock, AlertTriangle } from 'lucide-react';
 import { ReportFilters } from './ReportFilters';
-import { ReportActions } from './ReportActions';
 import { ReportTable } from './ReportTable';
 
 export default function ExpiryReport() {
@@ -76,12 +75,6 @@ export default function ExpiryReport() {
             Track product expiry dates and batch management
           </p>
         </div>
-        <ReportActions
-          onPrint={() => window.print()}
-          onExportPDF={() => {}}
-          onExportExcel={() => {}}
-          onExportCSV={() => {}}
-        />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">

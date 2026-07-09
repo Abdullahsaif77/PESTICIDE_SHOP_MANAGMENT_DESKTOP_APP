@@ -2,11 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   Package, Box, DollarSign, TrendingUp,
-  Printer, Download, FileText, FileSpreadsheet,
-  AlertCircle, CheckCircle
+  AlertCircle, CheckCircle, Calculator
 } from 'lucide-react';
 import { ReportFilters } from './ReportFilters';
-import { ReportActions } from './ReportActions';
 import { ReportTable } from './ReportTable';
 
 export default function InventoryReport() {
@@ -84,12 +82,6 @@ export default function InventoryReport() {
             Current stock, value, and profit potential
           </p>
         </div>
-        <ReportActions
-          onPrint={() => window.print()}
-          onExportPDF={() => {}}
-          onExportExcel={() => {}}
-          onExportCSV={() => {}}
-        />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
