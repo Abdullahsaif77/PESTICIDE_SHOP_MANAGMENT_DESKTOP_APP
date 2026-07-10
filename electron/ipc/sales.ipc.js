@@ -91,24 +91,36 @@ function registerSalesIPC() {
     });
 
     // ==================== PDF GENERATION ====================
-    ipcMain.handle('sale:generatePDF', async (event, saleData, items) => {
-        console.log('🟢 [SalesIPC] sale:generatePDF handler called');
-        console.log('🟢 [SalesIPC] saleData:', saleData);
-        console.log('🟢 [SalesIPC] items count:', items?.length || 0);
-        console.log('🟢 [SalesIPC] event.sender exists?', !!event.sender);
-        
+   // electron/ipc/sales.ipc.js
+
+// ==================== PDF GENERATION ====================
+ipcMain.handle('sale:generatePDF', async (event, saleData, items) => {
+    console.log('🟢 [SalesIPC] sale:generatePDF handler called');
+    console.log('🟢 [SalesIPC] saleData:', JSON.stringify(saleData, null, 2));
+    console.log('🟢 [SalesIPC] items count:', items?.length || 0);
+    console.log('🟢 [SalesIPC] event.sender exists?', !!event.sender);
+    
+    try {
+        // ✅ Get the window from the event
+        let window = null;
         try {
-            const window = event.sender ? require('electron').BrowserWindow.fromWebContents(event.sender) : null;
+            const { BrowserWindow } = require('electron');
+            window = BrowserWindow.fromWebContents(event.sender);
             console.log('🟢 [SalesIPC] window obtained:', window ? 'yes' : 'no');
-            console.log('🟢 [SalesIPC] Calling salesService.generateAndSavePDF...');
-            const result = await salesService.generateAndSavePDF(saleData, items, window);
-            console.log('🟢 [SalesIPC] Result from service:', result);
-            return result;
-        } catch (error) {
-            console.error('❌ [SalesIPC] PDF generation error:', error);
-            return { success: false, error: error.message };
+        } catch (err) {
+            console.log('🟢 [SalesIPC] Could not get window:', err.message);
         }
-    });
+        
+        console.log('🟢 [SalesIPC] Calling salesService.generateAndSavePDF...');
+        const result = await salesService.generateAndSavePDF(saleData, items, window);
+        console.log('🟢 [SalesIPC] Result from service:', result);
+        return result;
+    } catch (error) {
+        console.error('❌ [SalesIPC] PDF generation error:', error);
+        console.error('❌ Error stack:', error.stack);
+        return { success: false, error: error.message };
+    }
+});
 }
 
 module.exports = { registerSalesIPC };

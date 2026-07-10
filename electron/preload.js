@@ -242,6 +242,7 @@ contextBridge.exposeInMainWorld("api", {
   generateAndSavePDF: (type, data, items) => {
     return ipcRenderer.invoke('generate-and-save-pdf', type, data, items);
   },
+  
 
   // ================================================================
   // ✅ DASHBOARD

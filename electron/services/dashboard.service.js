@@ -12,18 +12,19 @@ class DashboardService {
       const lowStockCount = dashboardRepository.getLowStockCount();
       const expiringBatchesCount = dashboardRepository.getExpiringBatchesCount();
       const ledgerSummary = dashboardRepository.getLedgerSummary();
+      const totalCustomers = dashboardRepository.getTotalCustomers();
+      const categorySales = dashboardRepository.getCategorySales(startDate, endDate);
+      const categoryPurchases = dashboardRepository.getCategoryPurchases(startDate, endDate);
       const topCustomers = dashboardRepository.getTopCustomers(startDate, endDate);
       const topProducts = dashboardRepository.getTopProducts(startDate, endDate);
-      
-      // 2. ✅ Call the updated Monthly Chart function
       const monthlyChartData = dashboardRepository.getMonthlyChartData(endDate);
 
-      // 3. Calculate Profit Margins
+      // 2. Calculate Profit Margins
       const revenue = salesMetrics.total_revenue;
       const cogs = salesMetrics.total_cogs;
       const expenses = totalExpenses.total_expenses;
 
-      // 4. Compile final dashboard object
+      // 3. Compile final dashboard object
       return {
         success: true,
         data: {
@@ -45,13 +46,16 @@ class DashboardService {
           },
           finance: {
             receivables: ledgerSummary.total_receivables || 0,
-            payables: ledgerSummary.total_payables || 0
+            payables: ledgerSummary.total_payables || 0,
+            total_customers: totalCustomers.total || 0 // ✅ ADDED: Customer count
           },
+          category_sales: categorySales || [], // ✅ ADDED: Sales by category
+          category_purchases: categoryPurchases || [], // ✅ ADDED: Purchases by category
           top_performers: {
             customers: topCustomers || [],
             products: topProducts || []
           },
-          chart_data: monthlyChartData || [] // ✅ This now returns 6 months
+          chart_data: monthlyChartData || []
         }
       };
     } catch (error) {

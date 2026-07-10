@@ -3,12 +3,13 @@
 const fs = require('fs');
 const path = require('path');
 const { app, dialog, BrowserWindow } = require('electron');
+
 const { jsPDF } = require('jspdf');
 const autoTable = require('jspdf-autotable').default || require('jspdf-autotable');
 
-// ==================== THEME (Emerald/Blue for Sales) ====================
+// ==================== THEME ====================
 const THEME = {
-    primary: [5, 150, 105],      // Emerald green
+    primary: [5, 150, 105],
     primaryDark: [4, 120, 87],
     primaryLight: [209, 250, 229],
     slate800: [30, 41, 59],
@@ -303,6 +304,7 @@ function drawFooter(doc, shopData, notes) {
     }
 }
 
+// ==================== SALE PDF GENERATOR CLASS ====================
 class SaleGenerator {
     // ==================== GENERATE SALE INVOICE ====================
     generateSaleInvoice(saleData, shopData, items) {

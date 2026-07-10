@@ -492,7 +492,7 @@ class SalesService {
     }
 
     // ==================== PDF GENERATION ====================
-    async generateAndSavePDF(saleData, items, window = null) {
+   async generateAndSavePDF(saleData, items, window = null) {
         console.log('🔵 [SalesService] generateAndSavePDF called');
         console.log('🔵 [SalesService] saleData:', saleData);
         console.log('🔵 [SalesService] items count:', items?.length || 0);
@@ -500,6 +500,19 @@ class SalesService {
         console.log('🔵 [SalesService] saleGenerator exists?', !!saleGenerator);
         
         try {
+            // ✅ Check if saleGenerator exists
+            if (!saleGenerator) {
+                console.error('❌ saleGenerator is undefined or null!');
+                return { success: false, error: 'SaleGenerator not initialized' };
+            }
+
+            // ✅ Check if generateAndSaveSale method exists
+            if (typeof saleGenerator.generateAndSaveSale !== 'function') {
+                console.error('❌ saleGenerator.generateAndSaveSale is not a function!');
+                return { success: false, error: 'generateAndSaveSale method not found' };
+            }
+
+            // Fetch customer details if needed
             if (saleData.customer_id && !saleData.customer_name) {
                 console.log('🔵 [SalesService] Fetching customer details for ID:', saleData.customer_id);
                 const customer = customerRepository.getById(saleData.customer_id);
@@ -513,6 +526,7 @@ class SalesService {
                 }
             }
 
+            // Generate invoice number if not provided
             if (!saleData.invoice_number) {
                 console.log('🔵 [SalesService] No invoice number, generating...');
                 saleData.invoice_number = salesRepository.generateNumber();
@@ -525,6 +539,7 @@ class SalesService {
             return result;
         } catch (error) {
             console.error('❌ [SalesService] PDF generation error:', error);
+            console.error('❌ Error stack:', error.stack);
             return { success: false, error: error.message };
         }
     }

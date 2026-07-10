@@ -73,6 +73,56 @@ class DashboardRepository {
     return db.prepare(query).get();
   }
 
+  // ✅ NEW: Get total customers count
+  getTotalCustomers() {
+    const query = `
+      SELECT COUNT(*) as total
+      FROM customers
+      WHERE is_active = 1
+    `;
+    return db.prepare(query).get();
+  }
+
+  // ✅ NEW: Get category sales data
+  getCategorySales(startDate, endDate) {
+    const query = `
+      SELECT 
+        c.name,
+        COALESCE(SUM(si.total), 0) as value
+      FROM sale_items si
+      LEFT JOIN products p ON si.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN sales s ON si.sale_id = s.id
+      WHERE s.status != 'cancelled'
+      AND DATE(s.sale_date) BETWEEN DATE(?) AND DATE(?)
+      AND c.name IS NOT NULL
+      GROUP BY c.id
+      ORDER BY value DESC
+      LIMIT 5
+    `;
+    return db.prepare(query).all(startDate, endDate);
+  }
+
+  // ✅ NEW: Get category purchase data
+  getCategoryPurchases(startDate, endDate) {
+    const query = `
+      SELECT 
+        c.name,
+        COALESCE(SUM(pi.total), 0) as value
+      FROM purchase_items pi
+      LEFT JOIN products p ON pi.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN purchases pu ON pi.purchase_id = pu.id
+      WHERE pu.status != 'cancelled'
+      AND DATE(pu.purchase_date) BETWEEN DATE(?) AND DATE(?)
+      AND c.name IS NOT NULL
+      GROUP BY c.id
+      ORDER BY value DESC
+      LIMIT 5
+    `;
+    return db.prepare(query).all(startDate, endDate);
+  }
+
   getTopCustomers(startDate, endDate) {
     const query = `
       SELECT 
@@ -108,7 +158,6 @@ class DashboardRepository {
     return db.prepare(query).all(startDate, endDate);
   }
 
-  // ✅ UPDATED: Now safely returns grouped by Month
   getMonthlyChartData(endDate) {
     const query = `
       SELECT 

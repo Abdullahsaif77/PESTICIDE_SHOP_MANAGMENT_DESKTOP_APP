@@ -4,7 +4,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   RefreshCw, Loader2, Landmark, Users, ShoppingCart,
   Box, AlertCircle, CircleDollarSign, Package,
-  TrendingUp, TrendingDown, Minus, Trophy
+  TrendingUp, TrendingDown, Minus, Trophy, X
 } from 'lucide-react';
 import CountUp from 'react-countup';
 import { format, subMonths, startOfMonth } from 'date-fns';
@@ -14,18 +14,9 @@ import {
   RadialBarChart, RadialBar, PolarAngleAxis
 } from 'recharts';
 
-// NOTE: this file now depends on `framer-motion` in addition to the libraries
-// already in use. Install it once with:
-//   npm install framer-motion
-// Everything else (recharts, react-countup, date-fns, lucide-react) was
-// already a dependency.
-
 const api = window.api || {};
 
 // ==================== DESIGN TOKENS ====================
-// A small "ledger" palette: deep ink for text, paper-white background, and
-// three accent hues that map to the same meaning everywhere in the page
-// (emerald = money in, amber = attention/stock, indigo = net position).
 const TOKENS = {
   ink: '#0F172A',
   paper: '#F8FAF9',
@@ -37,7 +28,7 @@ const TOKENS = {
 };
 const CATEGORY_COLORS = ['#059669', '#D97706', '#4F46E5', '#E11D48', '#0891B2', '#7C3AED'];
 
-// --- Custom Icons for Top Cards (To match those svg wave shapes) ---
+// --- Custom Icons for Top Cards ---
 const GreenWave = ({ className }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth="2">
     <path d="M2 12L6 8L10 12L14 8L18 12L22 8" strokeLinecap="round" strokeLinejoin="round" />
@@ -66,10 +57,6 @@ const makeVariants = (reduced) => ({
 });
 
 // ==================== SMALL SHARED PIECES ====================
-
-// Tiny ambient sparkline drawn behind a hero card, using the same 6-month
-// series the big charts use, so every number on the page traces back to one
-// source of truth.
 const MiniSparkline = ({ data, dataKey, gradId }) => (
   <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none opacity-90">
     <ResponsiveContainer width="100%" height="100%">
@@ -94,8 +81,6 @@ const MiniSparkline = ({ data, dataKey, gradId }) => (
   </div>
 );
 
-// Month-over-month trend badge. `inverse` flips the good/bad color logic for
-// metrics where "up" is not actually good (expenses).
 const TrendBadge = ({ trend, inverse = false }) => {
   if (!trend || !Number.isFinite(trend.pct)) return null;
   const flat = Math.abs(trend.pct) < 0.5;
@@ -143,30 +128,37 @@ export default function DashboardStats() {
 
   useEffect(() => {
     loadDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange.start, dateRange.end]);
 
-  // ==================== HELPERS ====================
+  const resetDates = () => {
+    setDateRange({
+      start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+      end: format(new Date(), 'yyyy-MM-dd'),
+    });
+  };
+
   const getTrend = (curr, prev) => {
     if (prev === undefined || prev === null || prev === 0) return null;
     const diff = (curr || 0) - prev;
     return { pct: (diff / Math.abs(prev)) * 100, direction: diff >= 0 ? 'up' : 'down' };
   };
 
-  // ==================== DATA PROCESSING ====================
   const d = data?.summary || {};
   const inv = data?.inventory || {};
   const fin = data?.finance || {};
   const topProducts = data?.top_performers?.products || [];
+  
+  // Get category data from backend - FIXED: Use category data from backend
+  const categorySalesData = data?.category_sales || [];
+  const categoryPurchaseData = data?.category_purchases || [];
 
-  // --- Generate Last 6 Months Data for the Monthly Chart ---
   const sixMonthData = useMemo(() => {
     const months = [];
     const now = new Date();
     const chartMap = {};
     if (data?.chart_data) {
       data.chart_data.forEach((item) => {
-        chartMap[item.month] = item; // Expecting backend to return "month" (e.g. "2026-01")
+        chartMap[item.month] = item;
       });
     }
 
@@ -189,20 +181,6 @@ export default function DashboardStats() {
   const expenseTrend = getTrend(sixMonthData[5]?.expenses, sixMonthData[4]?.expenses);
   const profitTrend = getTrend(sixMonthData[5]?.profit, sixMonthData[4]?.profit);
 
-  // --- Format Category Data for Donut Charts ---
-  const categoryData = useMemo(() => {
-    const categoryMap = {};
-    topProducts.forEach((p) => {
-      const name = p.category || p.name;
-      if (!categoryMap[name]) categoryMap[name] = 0;
-      categoryMap[name] += p.total_revenue;
-    });
-    return Object.keys(categoryMap).map((key) => ({ name: key, value: categoryMap[key] }));
-  }, [topProducts]);
-
-  const purchaseCategoryColors = useMemo(() => [...CATEGORY_COLORS].reverse(), []);
-
-  // --- Stock health gauge (0-100, higher = healthier) ---
   const stockHealthPct = inv.total_products
     ? Math.max(0, Math.min(100, 100 - (inv.low_stock_items / inv.total_products) * 100))
     : 100;
@@ -212,7 +190,6 @@ export default function DashboardStats() {
   const netProfit = d.net_profit;
   const isProfit = netProfit >= 0;
 
-  // ==================== LOADING STATE (skeleton, not just a spinner) ====================
   if (loading && !data) {
     return (
       <div className="p-6 bg-slate-50 min-h-screen font-sans">
@@ -245,7 +222,6 @@ export default function DashboardStats() {
     );
   }
 
-  // ==================== RENDER ====================
   return (
     <motion.div
       className="p-6 bg-slate-50 min-h-screen font-sans overflow-x-hidden"
@@ -281,6 +257,16 @@ export default function DashboardStats() {
               className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 w-[130px]"
             />
           </div>
+          
+          {/* Reset Button - FIXED: Added reset button */}
+          <button
+            onClick={resetDates}
+            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+            title="Reset to current month"
+          >
+            <X size={16} />
+          </button>
+          
           <motion.button
             onClick={loadDashboard}
             whileTap={{ scale: 0.9 }}
@@ -300,11 +286,10 @@ export default function DashboardStats() {
 
       <AnimatePresence mode="wait">
         <motion.div key={dateRange.start + dateRange.end} variants={V.container} initial="hidden" animate="visible">
-          {/* ===== TOP 3 CARDS (GRADIENTS + SPARKLINES + TRENDS) ===== */}
+          {/* ===== TOP 3 CARDS ===== */}
           <div className="mb-8">
             <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Profit &amp; Loss Summary</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Total Sales - Green */}
               <motion.div
                 variants={V.item}
                 whileHover={reduced ? {} : { y: -4, transition: { duration: 0.2 } }}
@@ -329,7 +314,6 @@ export default function DashboardStats() {
                 </div>
               </motion.div>
 
-              {/* Total Expenses - Red */}
               <motion.div
                 variants={V.item}
                 whileHover={reduced ? {} : { y: -4, transition: { duration: 0.2 } }}
@@ -354,7 +338,6 @@ export default function DashboardStats() {
                 </div>
               </motion.div>
 
-              {/* Net Profit - Blue/Purple */}
               <motion.div
                 variants={V.item}
                 whileHover={reduced ? {} : { y: -4, transition: { duration: 0.2 } }}
@@ -372,7 +355,7 @@ export default function DashboardStats() {
                       <CountUp start={0} end={Math.abs(netProfit) || 0} duration={1.5} separator="," />
                     </h3>
                     <p className="text-indigo-50/70 text-[10px] mt-1">
-                      {isProfit ? "You're in the green! \ud83d\udfe2" : "You're in the red! \ud83d\udd34"}
+                      {isProfit ? "You're in the green! 🟢" : "You're in the red! 🔴"}
                     </p>
                     <div className="mt-2"><TrendBadge trend={profitTrend} /></div>
                   </div>
@@ -384,14 +367,15 @@ export default function DashboardStats() {
             </div>
           </div>
 
-          {/* ===== OPERATIONS CARDS (WHITE) ===== */}
+          {/* ===== OPERATIONS CARDS ===== */}
           <div className="mb-8">
             <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Operations</h2>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               {[
                 { label: 'TOTAL PRODUCTS', value: inv.total_products, sub: 'Active products', icon: Package, bg: 'bg-sky-100', fg: 'text-sky-600', prefix: '' },
                 { label: 'LOW STOCK ITEMS', value: inv.low_stock_items, sub: 'Needs attention', icon: AlertCircle, bg: 'bg-red-100', fg: 'text-red-500', prefix: '' },
-                { label: 'CUSTOMERS', value: fin.receivables, sub: 'Outstanding', icon: Users, bg: 'bg-purple-100', fg: 'text-purple-600', prefix: 'Rs ' },
+                // FIXED: Customers should show count, not sales amount
+                { label: 'CUSTOMERS', value: fin.total_customers || 0, sub: 'Active customers', icon: Users, bg: 'bg-purple-100', fg: 'text-purple-600', prefix: '' },
                 { label: "TODAY'S PURCHASES", value: d.total_cogs, sub: 'Cost of goods sold', icon: ShoppingCart, bg: 'bg-amber-100', fg: 'text-amber-600', prefix: 'Rs ' },
                 { label: 'SUPPLIER PAYABLES', value: fin.payables, sub: 'Owed to suppliers', icon: CircleDollarSign, bg: 'bg-orange-100', fg: 'text-orange-600', prefix: 'Rs ' },
                 { label: 'EXPIRING BATCHES', value: inv.expiring_batches, sub: 'Within 30 days', icon: Box, bg: 'bg-rose-100', fg: 'text-rose-500', prefix: '' },
@@ -419,9 +403,8 @@ export default function DashboardStats() {
             </div>
           </div>
 
-          {/* ===== CHARTS ROW 1: Overview + Stock Health Gauge ===== */}
+          {/* ===== CHARTS ROW 1 ===== */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-            {/* 6-Month Overview: bars + profit line combined */}
             <motion.div
               variants={V.item}
               className="lg:col-span-2 bg-white rounded-xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow duration-200"
@@ -465,7 +448,6 @@ export default function DashboardStats() {
               </div>
             </motion.div>
 
-            {/* Stock Health Gauge */}
             <motion.div
               variants={V.item}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow duration-200 flex flex-col"
@@ -501,9 +483,8 @@ export default function DashboardStats() {
             </motion.div>
           </div>
 
-          {/* ===== CHARTS ROW 2: Profit Trend + Top Products ===== */}
+          {/* ===== CHARTS ROW 2 ===== */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            {/* Profit Trend Area Chart */}
             <motion.div
               variants={V.item}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow duration-200"
@@ -532,7 +513,6 @@ export default function DashboardStats() {
               </div>
             </motion.div>
 
-            {/* Top Products */}
             <motion.div
               variants={V.item}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow duration-200"
@@ -582,9 +562,8 @@ export default function DashboardStats() {
             </motion.div>
           </div>
 
-          {/* ===== BOTTOM CHARTS (Category Distribution) ===== */}
+          {/* ===== BOTTOM CHARTS - FIXED: Using category data from backend ===== */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Sales by Category - Donut Chart */}
             <motion.div
               variants={V.item}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow duration-200"
@@ -592,13 +571,13 @@ export default function DashboardStats() {
               <h3 className="text-sm font-bold text-slate-700 mb-1">Sales by Category</h3>
               <p className="text-[10px] text-slate-400 mb-4">Revenue distribution across product categories</p>
               <div className="h-56 w-full flex flex-col items-center justify-center">
-                {categoryData.length === 0 ? (
+                {categorySalesData.length === 0 ? (
                   <p className="text-xs text-slate-400">No sales data available</p>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={categoryData}
+                        data={categorySalesData}
                         cx="50%"
                         cy="50%"
                         innerRadius={60}
@@ -608,7 +587,7 @@ export default function DashboardStats() {
                         isAnimationActive
                         animationDuration={900}
                       >
-                        {categoryData.map((entry, index) => (
+                        {categorySalesData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
                         ))}
                       </Pie>
@@ -623,7 +602,6 @@ export default function DashboardStats() {
               </div>
             </motion.div>
 
-            {/* Purchases by Category - Donut Chart */}
             <motion.div
               variants={V.item}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow duration-200"
@@ -631,13 +609,13 @@ export default function DashboardStats() {
               <h3 className="text-sm font-bold text-slate-700 mb-1">Purchases by Category</h3>
               <p className="text-[10px] text-slate-400 mb-4">Purchase spend across product categories</p>
               <div className="h-56 w-full flex flex-col items-center justify-center">
-                {categoryData.length === 0 ? (
+                {categoryPurchaseData.length === 0 ? (
                   <p className="text-xs text-slate-400">No purchase data available</p>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={categoryData}
+                        data={categoryPurchaseData}
                         cx="50%"
                         cy="50%"
                         innerRadius={60}
@@ -647,8 +625,8 @@ export default function DashboardStats() {
                         isAnimationActive
                         animationDuration={900}
                       >
-                        {categoryData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={purchaseCategoryColors[index % purchaseCategoryColors.length]} />
+                        {categoryPurchaseData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
                         ))}
                       </Pie>
                       <Tooltip

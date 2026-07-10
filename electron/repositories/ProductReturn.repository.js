@@ -2,23 +2,39 @@
 const db = require("../database/database");
 
 class ProductReturnRepository {
-    // Generate return number
+    // Generate return number - FIXED
     generateReturnNumber() {
         const date = new Date();
         const year = date.getFullYear().toString().slice(-2);
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
+        const dateStr = `${year}${month}${day}`;
         
-        // Get count of returns today
-        const today = `${year}-${month}-${day}`;
-        const count = db.prepare(`
-            SELECT COUNT(*) as count 
+        // Get the last sequence number for today
+        const lastReturn = db.prepare(`
+            SELECT return_number 
             FROM product_returns 
-            WHERE DATE(created_at) = DATE(?)
-        `).get(today);
+            WHERE return_number LIKE ?
+            ORDER BY return_number DESC 
+            LIMIT 1
+        `).get(`RET-${dateStr}-%`);
         
-        const sequence = String((count.count || 0) + 1).padStart(4, '0');
-        return `RET-${year}${month}${day}-${sequence}`;
+        let sequence = 1;
+        if (lastReturn) {
+            const parts = lastReturn.return_number.split('-');
+            if (parts.length === 3) {
+                const lastSeq = parseInt(parts[2]);
+                if (!isNaN(lastSeq)) {
+                    sequence = lastSeq + 1;
+                }
+            }
+        }
+        
+        const sequenceStr = String(sequence).padStart(4, '0');
+        const returnNumber = `RET-${dateStr}-${sequenceStr}`;
+        
+        console.log(`📝 Generated return number: ${returnNumber}`);
+        return returnNumber;
     }
 
     // Create return
@@ -143,12 +159,12 @@ class ProductReturnRepository {
         }
         
         if (filters.start_date) {
-            query += " AND DATE(pr.created_at) >= DATE(?)";
+            query += " AND DATE(pr.return_date) >= DATE(?)";
             params.push(filters.start_date);
         }
         
         if (filters.end_date) {
-            query += " AND DATE(pr.created_at) <= DATE(?)";
+            query += " AND DATE(pr.return_date) <= DATE(?)";
             params.push(filters.end_date);
         }
         
@@ -227,7 +243,7 @@ class ProductReturnRepository {
         const totalReturns = db.prepare(`
             SELECT 
                 COUNT(*) as total_returns,
-                SUM(total_return_amount) as total_amount,
+                COALESCE(SUM(total_return_amount), 0) as total_amount,
                 COUNT(CASE WHEN refund_status = 'completed' THEN 1 END) as completed,
                 COUNT(CASE WHEN refund_status = 'pending' THEN 1 END) as pending,
                 COUNT(CASE WHEN refund_status = 'cancelled' THEN 1 END) as cancelled
@@ -238,15 +254,15 @@ class ProductReturnRepository {
         const todayReturns = db.prepare(`
             SELECT 
                 COUNT(*) as count,
-                SUM(total_return_amount) as total
+                COALESCE(SUM(total_return_amount), 0) as total
             FROM product_returns 
-            WHERE DATE(created_at) = DATE(?)
+            WHERE DATE(return_date) = DATE(?)
         `).get(today);
         
         return {
             ...totalReturns,
-            today_returns: todayReturns.count || 0,
-            today_amount: todayReturns.total || 0
+            today_returns: todayReturns?.count || 0,
+            today_amount: todayReturns?.total || 0
         };
     }
 
@@ -282,11 +298,11 @@ class ProductReturnRepository {
         
         // Check if sale is within return period (e.g., 30 days)
         const sale = db.prepare(`
-            SELECT created_at FROM sales WHERE id = ?
+            SELECT sale_date FROM sales WHERE id = ?
         `).get(saleId);
         
         if (sale) {
-            const saleDate = new Date(sale.created_at);
+            const saleDate = new Date(sale.sale_date);
             const now = new Date();
             const daysDiff = (now - saleDate) / (1000 * 60 * 60 * 24);
             

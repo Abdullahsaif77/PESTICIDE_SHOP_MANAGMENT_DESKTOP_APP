@@ -1,12 +1,16 @@
 // electron/services/productReturn.service.js
 const ProductReturnRepository = require("../repositories/productReturn.repository");
-const salesRepository = require("../repositories/sales.repository"); // ← This is already an instance
+const salesRepository = require("../repositories/sales.repository");
 const InventoryService = require("./inventory.service");
 const LedgerService = require("./ledger.service");
 const CustomerService = require("./customer.service");
 
 const returnRepo = new ProductReturnRepository();
 
+// Create instances of the services
+const inventoryService = InventoryService; // Already exported as instance
+const ledgerService = LedgerService; // Already exported as instance
+const customerService = CustomerService; // Already exported as instance
 
 class ProductReturnService {
     // Create a return
@@ -20,7 +24,7 @@ class ProductReturnService {
             
             // Validate sale if provided
             if (data.sale_id) {
-                const sale = await saleRepo.getById(data.sale_id);
+                const sale = await salesRepository.getById(data.sale_id);
                 if (!sale) {
                     throw new Error("Sale not found");
                 }
@@ -32,7 +36,7 @@ class ProductReturnService {
                 }
                 
                 // Validate items against sale items
-                const saleItems = await saleRepo.getItems(data.sale_id); // ← Use getItems instead of getSaleItems
+                const saleItems = await salesRepository.getItems(data.sale_id);
                 for (const returnItem of data.items) {
                     const saleItem = saleItems.find(item => item.product_id === returnItem.product_id);
                     if (!saleItem) {
@@ -60,7 +64,7 @@ class ProductReturnService {
                 return_date: data.return_date || new Date().toISOString(),
                 total_return_amount: totalReturnAmount,
                 refund_method: data.refund_method || 'cash',
-                refund_status: data.refund_status || 'completed',
+                refund_status: data.refund_status || 'pending',
                 reason: data.reason,
                 notes: data.notes,
                 created_by: data.created_by || 1
@@ -76,19 +80,18 @@ class ProductReturnService {
             
             returnRepo.addReturnItems(returnId, itemsWithRestock);
             
-            // Restock inventory and update ledger
+            // Restock inventory - database triggers will automatically update product stock
             if (data.auto_restock !== false) {
                 for (const item of itemsWithRestock) {
                     // Add stock back to inventory
-                    await inventoryService.addStock(
-                        item.product_id,
-                        data.warehouse_id || 1,
-                        item.batch_id || null,
-                        item.quantity
-                    );
-                    
-                    // Update product stock quantity
-                    await inventoryService.updateProductStockQuantity(item.product_id);
+                    await inventoryService.addStock({
+                        productId: item.product_id,
+                        warehouseId: data.warehouse_id || 1,
+                        batchId: item.batch_id || null,
+                        quantity: item.quantity
+                    });
+                    // REMOVED: await inventoryService.updateProductStockQuantity(item.product_id);
+                    // Database triggers handle this automatically
                 }
             }
             
@@ -168,12 +171,12 @@ class ProductReturnService {
                 const items = existing.items || [];
                 for (const item of items) {
                     if (item.restocked) {
-                        inventoryService.removeStock(
-                            item.product_id,
-                            1,
-                            item.batch_id || null,
-                            item.quantity
-                        );
+                        inventoryService.removeStock({
+                            productId: item.product_id,
+                            warehouseId: 1,
+                            batchId: item.batch_id || null,
+                            quantity: item.quantity
+                        });
                     }
                 }
             }
@@ -203,12 +206,12 @@ class ProductReturnService {
                 const items = existing.items || [];
                 for (const item of items) {
                     if (item.restocked) {
-                        inventoryService.removeStock(
-                            item.product_id,
-                            1,
-                            item.batch_id || null,
-                            item.quantity
-                        );
+                        inventoryService.removeStock({
+                            productId: item.product_id,
+                            warehouseId: 1,
+                            batchId: item.batch_id || null,
+                            quantity: item.quantity
+                        });
                     }
                 }
             }
@@ -241,12 +244,12 @@ class ProductReturnService {
             const items = existing.items || [];
             for (const item of items) {
                 if (item.restocked) {
-                    inventoryService.removeStock(
-                        item.product_id,
-                        1,
-                        item.batch_id || null,
-                        item.quantity
-                    );
+                    inventoryService.removeStock({
+                        productId: item.product_id,
+                        warehouseId: 1,
+                        batchId: item.batch_id || null,
+                        quantity: item.quantity
+                    });
                 }
             }
             

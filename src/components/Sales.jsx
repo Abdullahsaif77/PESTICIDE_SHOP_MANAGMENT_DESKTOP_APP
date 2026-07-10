@@ -549,70 +549,92 @@ export default function Sales() {
     e.preventDefault();
 
     if (!form.customer_id) {
-      showNotification("error", "Please select a customer");
-      return;
+        showNotification("error", "Please select a customer");
+        return;
     }
 
     if (!form.warehouse_id) {
-      showNotification("error", "Please select a warehouse");
-      return;
+        showNotification("error", "Please select a warehouse");
+        return;
     }
 
     if (items.length === 0) {
-      showNotification("error", "Please add at least one product");
-      return;
+        showNotification("error", "Please add at least one product");
+        return;
     }
 
     setIsLoading(true);
     try {
-      const saleData = {
-        customer_id: parseInt(form.customer_id),
-        warehouse_id: parseInt(form.warehouse_id),
-        sale_date: form.sale_date,
-        payment_method: form.payment_method,
-        discount: parseFloat(form.discount) || 0,
-        tax: parseFloat(form.tax) || 0,
-        paid_amount: parseFloat(form.paid_amount) || 0,
-        notes: form.notes,
-        status: form.status,
-        invoice_number: form.invoice_number,
-        subtotal: form.subtotal,
-        total_amount: form.total_amount,
-        due_amount: form.due_amount,
-        items: items.map(item => ({
-          product_id: parseInt(item.product_id),
-          product_name: item.product_name,
-          product_code: item.product_code,
-          quantity: parseFloat(item.quantity),
-          sale_price: parseFloat(item.sale_price),
-          total: item.total,
-          unit: item.unit
-        }))
-      };
-
-      const result = await salesAPI.create(saleData);
-      if (result.success) {
-        showNotification("success", `Sale ${form.invoice_number} created successfully!`);
-        
-        // ✅ Store the created sale data for PDF generation
-        const createdSaleData = {
-          ...saleData,
-          id: result.data?.id,
-          invoice_number: form.invoice_number
+        // Prepare sale data
+        const saleData = {
+            customer_id: parseInt(form.customer_id),
+            warehouse_id: parseInt(form.warehouse_id),
+            sale_date: form.sale_date,
+            payment_method: form.payment_method,
+            discount: parseFloat(form.discount) || 0,
+            tax: parseFloat(form.tax) || 0,
+            paid_amount: parseFloat(form.paid_amount) || 0,
+            notes: form.notes,
+            status: form.status,
+            invoice_number: form.invoice_number,
+            subtotal: form.subtotal,
+            total_amount: form.total_amount,
+            due_amount: form.due_amount,
+            items: items.map(item => ({
+                product_id: parseInt(item.product_id),
+                product_name: item.product_name,
+                product_code: item.product_code,
+                quantity: parseFloat(item.quantity),
+                sale_price: parseFloat(item.sale_price),
+                total: item.total,
+                unit: item.unit
+            }))
         };
-        setLastCreatedSale(createdSaleData);
+
+        // ✅ FIRST: Generate PDF before saving
+        showNotification("info", "Generating PDF...");
+        const pdfResult = await salesAPI.generateSalePDF(saleData, items);
         
-        await resetForm();
-      } else {
-        showNotification("error", result.error || "Failed to create sale");
-      }
+        if (!pdfResult.success) {
+            if (pdfResult.canceled) {
+                showNotification("info", "PDF generation canceled. Sale not saved.");
+                setIsLoading(false);
+                return;
+            }
+            showNotification("error", `PDF generation failed: ${pdfResult.error || 'Unknown error'}. Sale not saved.`);
+            setIsLoading(false);
+            return;
+        }
+
+        showNotification("success", `PDF saved: ${pdfResult.filename || 'Invoice'}`);
+
+        // ✅ THEN: Save the sale to database
+        showNotification("info", "Saving sale...");
+        const result = await salesAPI.create(saleData);
+        
+        if (result.success) {
+            showNotification("success", `Sale ${form.invoice_number} created successfully!`);
+            
+            // Store the created sale data for reference
+            const createdSaleData = {
+                ...saleData,
+                id: result.data?.id,
+                invoice_number: form.invoice_number
+            };
+            setLastCreatedSale(createdSaleData);
+            
+            await resetForm();
+        } else {
+            showNotification("error", result.error || "Failed to create sale");
+        }
     } catch (err) {
-      console.error("Submit error:", err);
-      showNotification("error", err.message || "An error occurred");
+        console.error("Submit error:", err);
+        showNotification("error", err.message || "An error occurred");
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  };
+};
+
 
   const resetForm = async () => {
     setItems([]);
