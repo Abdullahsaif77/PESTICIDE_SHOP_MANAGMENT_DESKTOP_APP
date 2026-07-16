@@ -1,5 +1,5 @@
 // electron/services/productReturn.service.js
-const ProductReturnRepository = require("../repositories/productReturn.repository");
+const ProductReturnRepository = require("../repositories/ProductReturn.repository");
 const salesRepository = require("../repositories/sales.repository");
 const InventoryService = require("./inventory.service");
 const LedgerService = require("./ledger.service");

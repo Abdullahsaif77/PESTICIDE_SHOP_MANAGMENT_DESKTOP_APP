@@ -2,7 +2,8 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("api", {
+// Expose both 'api' and 'electron' for compatibility
+const api = {
   // --- Product Management ---
   getProducts: () => ipcRenderer.invoke("product:get"),
   getProductById: (id) => ipcRenderer.invoke("product:getById", id),
@@ -235,6 +236,10 @@ contextBridge.exposeInMainWorld("api", {
   createBackup: () => ipcRenderer.invoke("backup:create"),
   restoreBackup: (zipFilePath) => ipcRenderer.invoke("backup:restore", zipFilePath),
   selectBackupFile: () => ipcRenderer.invoke('dialog:selectBackupFile'),
+  listBackups: () => ipcRenderer.invoke("backup:list"),
+  deleteBackup: (filename) => ipcRenderer.invoke("backup:delete", filename),
+  openBackupFolder: () => ipcRenderer.invoke("backup:openFolder"),
+  getBackupFolderPath: () => ipcRenderer.invoke("backup:getFolderPath"),
 
   // ================================================================
   // ✅ PDF GENERATION
@@ -249,19 +254,28 @@ contextBridge.exposeInMainWorld("api", {
   // ================================================================
   getDashboardData: (startDate, endDate) => ipcRenderer.invoke('dashboard:getData', startDate, endDate),
 
-// ============================================
-// REPORTS API
-// ============================================
-getSalesReport: (filters) => ipcRenderer.invoke("report:sales", filters),
-getPurchaseReport: (filters) => ipcRenderer.invoke("report:purchases", filters),
-getProfitLossReport: (filters) => ipcRenderer.invoke("report:profit-loss", filters),
-getInventoryReport: (filters) => ipcRenderer.invoke("report:inventory", filters),
-getLowStockReport: (filters) => ipcRenderer.invoke("report:low-stock", filters),
-getExpiryReport: (filters) => ipcRenderer.invoke("report:expiry", filters),
-getCustomerLedgerReport: (filters) => ipcRenderer.invoke("report:customer-ledger", filters),
-getCustomerLedgerDetails: (customerId) => ipcRenderer.invoke("report:customer-ledger-details", customerId),
-getSupplierLedgerReport: (filters) => ipcRenderer.invoke("report:supplier-ledger", filters),
-getSupplierLedgerDetails: (supplierId) => ipcRenderer.invoke("report:supplier-ledger-details", supplierId),
-getExpenseReport: (filters) => ipcRenderer.invoke("report:expenses", filters),
-getWarehouseReport: (filters) => ipcRenderer.invoke("report:warehouse", filters),
+  // ============================================
+  // REPORTS API
+  // ============================================
+  getSalesReport: (filters) => ipcRenderer.invoke("report:sales", filters),
+  getPurchaseReport: (filters) => ipcRenderer.invoke("report:purchases", filters),
+  getProfitLossReport: (filters) => ipcRenderer.invoke("report:profit-loss", filters),
+  getInventoryReport: (filters) => ipcRenderer.invoke("report:inventory", filters),
+  getLowStockReport: (filters) => ipcRenderer.invoke("report:low-stock", filters),
+  getExpiryReport: (filters) => ipcRenderer.invoke("report:expiry", filters),
+  getCustomerLedgerReport: (filters) => ipcRenderer.invoke("report:customer-ledger", filters),
+  getCustomerLedgerDetails: (customerId) => ipcRenderer.invoke("report:customer-ledger-details", customerId),
+  getSupplierLedgerReport: (filters) => ipcRenderer.invoke("report:supplier-ledger", filters),
+  getSupplierLedgerDetails: (supplierId) => ipcRenderer.invoke("report:supplier-ledger-details", supplierId),
+  getExpenseReport: (filters) => ipcRenderer.invoke("report:expenses", filters),
+  getWarehouseReport: (filters) => ipcRenderer.invoke("report:warehouse", filters),
+};
+
+// Expose the API to the renderer
+contextBridge.exposeInMainWorld("api", api);
+contextBridge.exposeInMainWorld("electron", {
+  invoke: (channel, ...args) => {
+    return ipcRenderer.invoke(channel, ...args);
+  },
+  ipcRenderer: ipcRenderer
 });

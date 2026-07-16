@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { registerProductIPC } = require("./ipc/product.ipc")
 const { setupAuthIpc } = require("./ipc/user.ipc")
 const { setupShopIpc } = require("./ipc/shop.ipc")
@@ -18,24 +19,8 @@ const { registerExpenseHandlers } = require("./ipc/expense.ipc.js")
 const { registerDashboardHandlers } = require('./ipc/dashboard.ipc.js');
 const { setupProductReturnIpc } = require("./ipc/productReturn.ipc.js")
 const { setupReportsIpc } = require('./ipc/reports.ipc');
-const purchasePDFGenerator = require('./utils/pdfGenerator'); // Purchase PDF generator
-const salePDFGenerator = require('./utils/saleGenerator'); // ✅ Sale PDF generator
-const fs = require("fs")
-
-const backUpFolderPath = path.join(__dirname, "backups");
-
-function BackupFolderExists() {
-  try {
-    if (!fs.existsSync(backUpFolderPath)) {
-      fs.mkdirSync(backUpFolderPath, { recursive: true })
-      console.log('Backups folder created automatically at:', backUpFolderPath)
-    } else {
-      console.log('Backups folder already exists.');
-    }
-  } catch (error) {
-    console.log("Error", error.message)
-  }
-}
+const purchasePDFGenerator = require('./utils/pdfGenerator');
+const salePDFGenerator = require('./utils/saleGenerator');
 
 let mainWindow;
 
@@ -44,6 +29,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     show: true,
+    icon: path.join(__dirname, "../src/assets/logo.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -62,31 +48,45 @@ function createWindow() {
 
 // App lifecycle
 app.whenReady().then(() => {
+  // ✅ Initialize database AFTER app is ready
+  let db;
+  try {
+    console.log("🗄️ Initializing database...");
+    db = require("./database/database"); // ← FIX: Changed from "database" to "init"
+    console.log("✅ Database initialized successfully");
+  } catch (error) {
+    console.error("❌ Failed to initialize database:", error);
+    dialog.showErrorBox(
+      "Database Error",
+      `Failed to initialize the database:\n\n${error.message}\n\nPlease ensure you have write permissions in:\n${app.getPath('userData')}`
+    );
+    app.quit();
+    return;
+  }
+
   createWindow();
   
   // Register all IPC handlers
-  registerProductIPC()
+  registerProductIPC();
   setupAuthIpc();
   setupShopIpc();
-  getBackUpIpc()
-  SetWareHouseIPC()
-  SetBatchIPC()
-  SetInventoryIPC()
-  SetStockTransferIPC()
-  SetSupplierIPC()
-  registerCustomerIPC()
-  registerPurchaseIPC()
-  registerSalesIPC()  // This registers sale:generatePDF
-  registerLedgerIPC()
+  getBackUpIpc();
+  SetWareHouseIPC();
+  SetBatchIPC();
+  SetInventoryIPC();
+  SetStockTransferIPC();
+  SetSupplierIPC();
+  registerCustomerIPC();
+  registerPurchaseIPC();
+  registerSalesIPC();
+  registerLedgerIPC();
   registerPDFIPC();
-  registerExpenseHandlers()
+  registerExpenseHandlers();
   registerDashboardHandlers();
   setupProductReturnIpc();
   setupReportsIpc();
   
-  // ===== PDF GENERATION IPC HANDLERS =====
-  
-  // Generic handler for both purchase and sale PDFs
+  // PDF Generation IPC Handlers
   ipcMain.handle('generate-and-save-pdf', async (event, type, data, items) => {
     console.log('🔵 [Main] generate-and-save-pdf called with type:', type);
     try {
@@ -107,9 +107,6 @@ app.whenReady().then(() => {
     }
   });
 
-  // ✅ REMOVED: Duplicate sale:generatePDF handler - now handled by sales.ipc.js
-  
-  // Purchase-specific PDF handler (if needed separately)
   ipcMain.handle('purchase:generatePDF', async (event, purchaseData, items) => {
     try {
       const window = BrowserWindow.fromWebContents(event.sender);
@@ -120,7 +117,9 @@ app.whenReady().then(() => {
     }
   });
   
-  BackupFolderExists();
+  // ✅ REMOVED: Backup folder creation - Now handled by backup service
+  // Backup folder will be created in userData by the backup service
+  console.log('📁 User data path:', app.getPath('userData'));
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

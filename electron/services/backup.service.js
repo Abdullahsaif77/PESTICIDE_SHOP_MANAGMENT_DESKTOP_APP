@@ -2,13 +2,16 @@ const backupRepository = require("../repositories/backup.repository");
 const { generateBackupZipFile, restoreBackup } = require("../utils/backup.utils");
 const fs = require("fs");
 const path = require("path");
-const { dialog, BrowserWindow } = require("electron");
+const { dialog, BrowserWindow, app } = require("electron");
 
 class BackupService {
     
     async createBackup() {
         try {
-            // Step 1: Get DB path
+            // Ensure backup folder exists
+            const backupFolder = backupRepository.getBackupFolderPath();
+            
+            // Get DB path
             const dbPath = backupRepository.getDatabasePath();
             
             // Verify database exists
@@ -16,22 +19,19 @@ class BackupService {
                 throw new Error(`Database file not found at: ${dbPath}`);
             }
             
-            // Step 2: Create backup folder if it doesn't exist
-            backupRepository.createBackupFolder();
-            
-            // Step 3: Create ZIP backup
+            // Create ZIP backup
             const zipResult = generateBackupZipFile();
             
             if (!zipResult.success) {
                 throw new Error(zipResult.error);
             }
 
-            // Step 4: Show Save As dialog
+            // Show Save As dialog
             const win = BrowserWindow.getFocusedWindow();
             const saveResult = await dialog.showSaveDialog(win, {
                 title: 'Save Backup',
                 defaultPath: path.join(
-                    require('electron').app.getPath('documents'),
+                    app.getPath('documents'),
                     zipResult.filename
                 ),
                 filters: [
@@ -39,7 +39,6 @@ class BackupService {
                 ]
             });
 
-            // Step 5: Handle cancellation
             if (saveResult.canceled) {
                 return {
                     success: false,
@@ -48,10 +47,9 @@ class BackupService {
                 };
             }
 
-            // Step 6: Copy ZIP to selected location
+            // Copy ZIP to selected location
             fs.copyFileSync(zipResult.outputPath, saveResult.filePath);
             
-            // Step 7: Return file information
             return {
                 success: true,
                 message: "Backup created successfully",
@@ -64,7 +62,7 @@ class BackupService {
             };
             
         } catch (error) {
-            console.error("Error creating backup:", error.message);
+            console.error("❌ Error creating backup:", error.message);
             return {
                 success: false,
                 error: error.message
@@ -79,7 +77,7 @@ class BackupService {
                 throw new Error(`Backup file not found at: ${zipFilePath}`);
             }
             
-            // Get the target restore path (database folder)
+            // Get the database path (where to restore to)
             const targetPath = backupRepository.getDatabasePath();
             const targetFolder = path.dirname(targetPath);
             
@@ -92,7 +90,7 @@ class BackupService {
             
             return {
                 success: true,
-                message: "Backup restored successfully",
+                message: "Backup restored successfully. Please restart the application.",
                 restored: {
                     from: restoreResult.restoredFrom,
                     to: restoreResult.extractedTo,
@@ -101,7 +99,7 @@ class BackupService {
             };
             
         } catch (error) {
-            console.error("Error restoring backup:", error.message);
+            console.error("❌ Error restoring backup:", error.message);
             return {
                 success: false,
                 error: error.message
@@ -139,11 +137,12 @@ class BackupService {
             return {
                 success: true,
                 count: files.length,
-                backups: files
+                backups: files,
+                folderPath: backupFolder
             };
             
         } catch (error) {
-            console.error("Error listing backups:", error.message);
+            console.error("❌ Error listing backups:", error.message);
             return {
                 success: false,
                 error: error.message
@@ -168,12 +167,17 @@ class BackupService {
             };
             
         } catch (error) {
-            console.error("Error deleting backup:", error.message);
+            console.error("❌ Error deleting backup:", error.message);
             return {
                 success: false,
                 error: error.message
             };
         }
+    }
+
+    // NEW: Get backup folder path (for opening in explorer)
+    getBackupFolderPath() {
+        return backupRepository.getBackupFolderPath();
     }
 }
 

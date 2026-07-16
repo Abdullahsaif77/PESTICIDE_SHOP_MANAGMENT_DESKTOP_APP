@@ -1,6 +1,6 @@
 // electron/ipc/productReturn.ipc.js
 const { ipcMain } = require("electron");
-const ProductReturnService = require("../services/productReturn.service");
+const ProductReturnService = require("../services/ProductReturn.service");
 const returnService = new ProductReturnService();
 
 function setupProductReturnIpc() {

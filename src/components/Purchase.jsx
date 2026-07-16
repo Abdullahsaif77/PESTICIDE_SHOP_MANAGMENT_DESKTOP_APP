@@ -96,6 +96,35 @@ export default function Purchases() {
   // Track the last created purchase for PDF generation
   const [lastCreatedPurchase, setLastCreatedPurchase] = useState(null);
 
+  // ===== QUICK ADD PRODUCT STATE =====
+  const [quickProductModal, setQuickProductModal] = useState({ open: false, mode: "add", data: null });
+  const [quickProductForm, setQuickProductForm] = useState({
+    name: "",
+    category_id: "",
+    unit_id: "",
+    purchase_price: 0,
+    sale_price: 0
+  });
+  const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [validationErrors, setValidationErrors] = useState({});
+  const productNameInputRef = useRef(null);
+
+  // ===== QUICK ADD SUPPLIER STATE =====
+  const [quickSupplierModal, setQuickSupplierModal] = useState({ open: false, mode: "add", data: null });
+  const [quickSupplierForm, setQuickSupplierForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+    cnic: "",
+    notes: "",
+    credit: 0,
+    debit: 0
+  });
+  const [supplierValidationErrors, setSupplierValidationErrors] = useState({});
+  const supplierNameInputRef = useRef(null);
+
   // Refs
   const productSearchRef = useRef(null);
 
@@ -104,9 +133,10 @@ export default function Purchases() {
     loadInitialData();
   }, []);
 
+  // ✅ FIX: Include form.paid_amount to recalculate due amount when paid amount changes
   useEffect(() => {
     calculateTotals();
-  }, [items, form.discount, form.tax]);
+  }, [items, form.discount, form.tax, form.paid_amount]);
 
   useEffect(() => {
     if (productSearch.trim()) {
@@ -125,15 +155,72 @@ export default function Purchases() {
     }
   }, [productSearch, products]);
 
+  // Focus input when quick product modal opens
+  useEffect(() => {
+    if (quickProductModal.open && productNameInputRef.current) {
+      setTimeout(() => {
+        productNameInputRef.current.focus();
+      }, 100);
+    }
+  }, [quickProductModal.open]);
+
+  // Focus input when quick supplier modal opens
+  useEffect(() => {
+    if (quickSupplierModal.open && supplierNameInputRef.current) {
+      setTimeout(() => {
+        supplierNameInputRef.current.focus();
+      }, 100);
+    }
+  }, [quickSupplierModal.open]);
+
+  // Reset quick product form when modal closes
+  useEffect(() => {
+    if (!quickProductModal.open) {
+      const timeoutId = setTimeout(() => {
+        setQuickProductForm({
+          name: "",
+          category_id: "",
+          unit_id: "",
+          purchase_price: 0,
+          sale_price: 0
+        });
+        setValidationErrors({});
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [quickProductModal.open]);
+
+  // Reset quick supplier form when modal closes
+  useEffect(() => {
+    if (!quickSupplierModal.open) {
+      const timeoutId = setTimeout(() => {
+        setQuickSupplierForm({
+          name: "",
+          phone: "",
+          email: "",
+          address: "",
+          cnic: "",
+          notes: "",
+          credit: 0,
+          debit: 0
+        });
+        setSupplierValidationErrors({});
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [quickSupplierModal.open]);
+
   // ==================== DATA LOADING ====================
   const loadInitialData = async () => {
     setIsLoading(true);
     try {
-      const [suppliersResult, warehousesResult, productsResult, numberResult] = await Promise.all([
+      const [suppliersResult, warehousesResult, productsResult, numberResult, categoriesResult, unitsResult] = await Promise.all([
         api.getAllSuppliers({ is_active: 1 }),
         api.getActiveOnlyWarehouses(),
         api.getProducts(),
-        api.generatePurchaseNumber()
+        api.generatePurchaseNumber(),
+        api.getCategories(),
+        api.getUnits()
       ]);
 
       if (suppliersResult.success) setSuppliers(suppliersResult.data || []);
@@ -145,6 +232,12 @@ export default function Purchases() {
       } else {
         setProducts([]);
       }
+
+      // Load categories and units for quick add
+      const categoriesData = extractData(categoriesResult);
+      const unitsData = extractData(unitsResult);
+      setCategories(categoriesData);
+      setUnits(unitsData);
 
       if (numberResult.success) {
         setForm(prev => ({ ...prev, purchase_number: numberResult.data.purchase_number }));
@@ -162,6 +255,18 @@ export default function Purchases() {
     }
   };
 
+  // Helper function to extract data from response
+  const extractData = (response) => {
+    if (!response) return [];
+    if (response.success !== undefined && response.data !== undefined) {
+      return Array.isArray(response.data) ? response.data : [];
+    }
+    if (Array.isArray(response)) {
+      return response;
+    }
+    return [];
+  };
+
   // ==================== REFRESH SUPPLIER DATA ====================
   const refreshSupplierData = async (supplierId) => {
     try {
@@ -169,7 +274,6 @@ export default function Purchases() {
       if (result.success) {
         setSuppliers(result.data || []);
         
-        // Log the updated balance for debugging
         const updatedSupplier = result.data.find(s => s.id === supplierId);
         if (updatedSupplier) {
           const credit = updatedSupplier.credit || 0;
@@ -280,9 +384,234 @@ export default function Purchases() {
     setProductSearch(product.name);
     setShowProductDropdown(false);
     
-    // Blur the input using ref
     if (productSearchRef.current) {
       productSearchRef.current.blur();
+    }
+  };
+
+  // ==================== QUICK ADD PRODUCT ====================
+  const openQuickAddProduct = () => {
+    setQuickProductForm({
+      name: "",
+      category_id: "",
+      unit_id: "",
+      purchase_price: 0,
+      sale_price: 0
+    });
+    setValidationErrors({});
+    setQuickProductModal({ open: true, mode: "add", data: null });
+  };
+
+  const validateQuickProductForm = () => {
+    const errors = {};
+
+    if (!quickProductForm.name || quickProductForm.name.trim() === "") {
+      errors.name = "Product name is required";
+    }
+
+    if (!quickProductForm.category_id) {
+      errors.category_id = "Category is required";
+    }
+
+    if (!quickProductForm.unit_id) {
+      errors.unit_id = "Unit is required";
+    }
+
+    if (!quickProductForm.purchase_price || quickProductForm.purchase_price <= 0) {
+      errors.purchase_price = "Purchase price must be greater than 0";
+    }
+
+    if (!quickProductForm.sale_price || quickProductForm.sale_price <= 0) {
+      errors.sale_price = "Sale price must be greater than 0";
+    }
+
+    if (quickProductForm.sale_price < quickProductForm.purchase_price) {
+      errors.sale_price = "Sale price cannot be less than purchase price";
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleQuickProductFieldChange = (field, value) => {
+    setQuickProductForm({ ...quickProductForm, [field]: value });
+    if (validationErrors[field]) {
+      setValidationErrors({ ...validationErrors, [field]: "" });
+    }
+  };
+
+  const handleQuickProductSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateQuickProductForm()) {
+      const firstError = document.querySelector('[data-error="true"]');
+      if (firstError) {
+        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstError.focus();
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const productData = {
+        name: quickProductForm.name,
+        category_id: quickProductForm.category_id,
+        unit_id: quickProductForm.unit_id,
+        purchase_price: quickProductForm.purchase_price,
+        sale_price: quickProductForm.sale_price
+      };
+
+      const result = await api.addProduct(productData);
+
+      if (result && result.success) {
+        showNotification("success", `Product "${quickProductForm.name}" added successfully!`);
+        
+        // Refresh products list
+        const productsResult = await api.getProducts();
+        if (Array.isArray(productsResult)) {
+          setProducts(productsResult);
+        } else if (productsResult.success) {
+          setProducts(productsResult.data || []);
+        }
+
+        // Auto-select the newly created product
+        const newProduct = result.data;
+        if (newProduct) {
+          // Close modal
+          setQuickProductModal({ open: false, mode: "add", data: null });
+          setValidationErrors({});
+          
+          // Select the product
+          setTimeout(() => {
+            selectProduct(newProduct);
+          }, 100);
+        }
+      } else {
+        console.error('Product creation failed:', result?.error || 'Unknown error');
+        showNotification("error", result?.error || 'Failed to add product');
+      }
+    } catch (err) {
+      console.error("Failed saving product:", err);
+      showNotification("error", err.message || 'An error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ==================== QUICK ADD SUPPLIER ====================
+  const openQuickAddSupplier = () => {
+    setQuickSupplierForm({
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      cnic: "",
+      notes: "",
+      credit: 0,
+      debit: 0
+    });
+    setSupplierValidationErrors({});
+    setQuickSupplierModal({ open: true, mode: "add", data: null });
+  };
+
+  const validateSupplierForm = () => {
+    const errors = {};
+
+    if (!quickSupplierForm.name || quickSupplierForm.name.trim() === "") {
+      errors.name = "Supplier name is required";
+    } else if (quickSupplierForm.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters";
+    }
+
+    if (quickSupplierForm.phone && !/^(03\d{2})-?\d{7}$/.test(quickSupplierForm.phone)) {
+      errors.phone = "Invalid phone format (e.g., 03XX-XXXXXXX)";
+    }
+
+    if (quickSupplierForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(quickSupplierForm.email)) {
+      errors.email = "Invalid email format";
+    }
+
+    if (quickSupplierForm.cnic && !/^\d{5}-?\d{7}-?\d{1}$/.test(quickSupplierForm.cnic)) {
+      errors.cnic = "Invalid CNIC format (e.g., XXXXX-XXXXXXX-X)";
+    }
+
+    if (quickSupplierForm.credit && quickSupplierForm.credit < 0) {
+      errors.credit = "Credit cannot be negative";
+    }
+
+    if (quickSupplierForm.debit && quickSupplierForm.debit < 0) {
+      errors.debit = "Debit cannot be negative";
+    }
+
+    setSupplierValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSupplierFieldChange = (field, value) => {
+    setQuickSupplierForm({ ...quickSupplierForm, [field]: value });
+    if (supplierValidationErrors[field]) {
+      setSupplierValidationErrors({ ...supplierValidationErrors, [field]: "" });
+    }
+  };
+
+  const handleQuickSupplierSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateSupplierForm()) {
+      const firstError = document.querySelector('[data-error="true"]');
+      if (firstError) {
+        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstError.focus();
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const supplierData = {
+        name: quickSupplierForm.name.trim(),
+        phone: quickSupplierForm.phone || null,
+        email: quickSupplierForm.email || null,
+        address: quickSupplierForm.address || null,
+        cnic: quickSupplierForm.cnic || null,
+        notes: quickSupplierForm.notes || null,
+        credit: quickSupplierForm.credit || 0,
+        debit: quickSupplierForm.debit || 0
+      };
+
+      const result = await api.createSupplier(supplierData);
+
+      if (result && result.success) {
+        showNotification("success", `Supplier "${quickSupplierForm.name}" added successfully!`);
+        
+        // Refresh suppliers list
+        const suppliersResult = await api.getAllSuppliers({ is_active: 1 });
+        if (suppliersResult.success) {
+          setSuppliers(suppliersResult.data || []);
+        }
+
+        // Auto-select the newly created supplier
+        const newSupplier = result.data;
+        if (newSupplier) {
+          // Close modal
+          setQuickSupplierModal({ open: false, mode: "add", data: null });
+          setSupplierValidationErrors({});
+          
+          // Select the supplier
+          setTimeout(() => {
+            setForm(prev => ({ ...prev, supplier_id: String(newSupplier.id) }));
+          }, 100);
+        }
+      } else {
+        console.error('Supplier creation failed:', result?.error || 'Unknown error');
+        showNotification("error", result?.error || 'Failed to add supplier');
+      }
+    } catch (err) {
+      console.error("Failed saving supplier:", err);
+      showNotification("error", err.message || 'An error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -292,7 +621,6 @@ export default function Purchases() {
       setIsLoading(true);
       showNotification("info", "Preparing PDF...");
       
-      // Call the PDF generation API
       const result = await api.generateAndSavePDF('purchase', purchaseData, purchaseItems);
       
       if (result.success) {
@@ -364,16 +692,13 @@ export default function Purchases() {
       });
 
       if (result.success) {
-        // Get the supplier name for notification
         const supplier = suppliers.find(s => s.id === parseInt(form.supplier_id));
         const supplierName = supplier?.name || 'Supplier';
         
         showNotification("success", `Purchase ${form.purchase_number} created successfully!`);
         
-        // ✅ Refresh supplier data to show updated balance
         await refreshSupplierData(parseInt(form.supplier_id));
         
-        // Store the created purchase data for PDF generation
         const createdPurchaseData = {
           ...purchaseData,
           id: result.data?.id,
@@ -381,7 +706,6 @@ export default function Purchases() {
         };
         setLastCreatedPurchase(createdPurchaseData);
         
-        // Reset form
         await resetForm();
       } else {
         showNotification("error", result.error || "Failed to create purchase");
@@ -570,19 +894,31 @@ export default function Purchases() {
                   <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
                     Supplier *
                   </label>
-                  <select
-                    value={form.supplier_id}
-                    onChange={(e) => setForm(prev => ({ ...prev, supplier_id: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-white transition-all duration-300 appearance-none"
-                    required
-                  >
-                    <option value="">Select Supplier</option>
-                    {suppliers.map((supplier) => (
-                      <option key={supplier.id} value={supplier.id}>
-                        {supplier.name} {supplier.phone ? `- ${supplier.phone}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={form.supplier_id}
+                      onChange={(e) => setForm(prev => ({ ...prev, supplier_id: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-white transition-all duration-300 appearance-none pr-20"
+                      required
+                    >
+                      <option value="">Select Supplier</option>
+                      {suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name} {supplier.phone ? `- ${supplier.phone}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Quick Add Supplier Button */}
+                    <button
+                      type="button"
+                      onClick={openQuickAddSupplier}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-medium text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors flex items-center gap-0.5"
+                      title="Add new supplier quickly"
+                    >
+                      <Plus size={12} />
+                      <span className="hidden sm:inline">Add</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -662,10 +998,24 @@ export default function Purchases() {
 
               {/* Add Item Row */}
               <div className="bg-amber-50/50 rounded-lg p-3 mb-3 border border-amber-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[9px] font-semibold text-slate-600 uppercase tracking-wider">
+                    Add Product
+                  </label>
+                  <button
+                    type="button"
+                    onClick={openQuickAddProduct}
+                    className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-amber-600 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors"
+                  >
+                    <Plus size={12} />
+                    Add New Product
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                   <div className="relative col-span-2">
                     <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                      Product *
+                      Search Product *
                     </label>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
@@ -675,19 +1025,17 @@ export default function Purchases() {
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
                         onFocus={() => {
-                          // Only show dropdown if there are filtered products
                           if (filteredProducts.length > 0) {
                             setShowProductDropdown(true);
                           }
                         }}
                         onBlur={() => {
-                          // Delay hiding to allow click on dropdown items
                           setTimeout(() => {
                             setShowProductDropdown(false);
                           }, 200);
                         }}
                         className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-white transition-all duration-300"
-                        placeholder="Search product..."
+                        placeholder="Search by name, code, brand..."
                       />
                       {showProductDropdown && filteredProducts.length > 0 && (
                         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
@@ -697,7 +1045,6 @@ export default function Purchases() {
                               type="button"
                               onClick={() => selectProduct(product)}
                               onMouseDown={(e) => {
-                                // Prevent input from losing focus before click
                                 e.preventDefault();
                               }}
                               className="w-full text-left px-3 py-1.5 text-xs hover:bg-amber-50 transition-colors flex items-center justify-between"
@@ -1062,13 +1409,461 @@ export default function Purchases() {
         </div>
       </form>
 
+      {/* ===== QUICK ADD PRODUCT MODAL ===== */}
+      {quickProductModal.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setQuickProductModal({ open: false, mode: "add", data: null });
+            }
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5 animate-scale-in relative max-h-[90vh] overflow-y-auto">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500 rounded-t-xl" />
+            <button
+              onClick={() => setQuickProductModal({ open: false, mode: "add", data: null })}
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={18} />
+            </button>
+            
+            <h3 className="text-lg font-semibold text-slate-800 mt-2 mb-1 flex items-center gap-2">
+              <Package size={18} className="text-amber-500" />
+              Quick Add Product
+            </h3>
+            <p className="text-[10px] text-slate-400 mb-4">Add a new product to the catalogue</p>
+
+            {Object.keys(validationErrors).length > 0 && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-xs font-medium text-red-700 mb-1">Please fix the following errors:</p>
+                <ul className="text-[10px] text-red-600 space-y-0.5">
+                  {Object.values(validationErrors).map((error, index) => (
+                    <li key={index}>• {error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <form onSubmit={handleQuickProductSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Product Name *
+                </label>
+                <input
+                  ref={productNameInputRef}
+                  type="text"
+                  required
+                  value={quickProductForm.name}
+                  onChange={(e) => handleQuickProductFieldChange('name', e.target.value)}
+                  className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                    validationErrors.name
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                  }`}
+                  placeholder="Enter product name"
+                  data-error={!!validationErrors.name}
+                  disabled={isLoading}
+                />
+                {validationErrors.name && (
+                  <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.name}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Category *
+                  </label>
+                  <select
+                    required
+                    value={quickProductForm.category_id}
+                    onChange={(e) => handleQuickProductFieldChange('category_id', e.target.value)}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      validationErrors.category_id
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                    }`}
+                    data-error={!!validationErrors.category_id}
+                    disabled={isLoading}
+                  >
+                    <option value="">Select Category</option>
+                    {Array.isArray(categories) && categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  {validationErrors.category_id && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.category_id}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Unit *
+                  </label>
+                  <select
+                    required
+                    value={quickProductForm.unit_id}
+                    onChange={(e) => handleQuickProductFieldChange('unit_id', e.target.value)}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      validationErrors.unit_id
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                    }`}
+                    data-error={!!validationErrors.unit_id}
+                    disabled={isLoading}
+                  >
+                    <option value="">Select Unit</option>
+                    {Array.isArray(units) && units.map((u) => (
+                      <option key={u.id} value={u.id}>{u.short_name || u.name}</option>
+                    ))}
+                  </select>
+                  {validationErrors.unit_id && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.unit_id}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Purchase Price *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={quickProductForm.purchase_price || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      handleQuickProductFieldChange('purchase_price', value);
+                    }}
+                    onFocus={(e) => {
+                      if (e.target.value === '0') {
+                        e.target.select();
+                      }
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      validationErrors.purchase_price
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                    }`}
+                    placeholder="0.00"
+                    data-error={!!validationErrors.purchase_price}
+                    disabled={isLoading}
+                  />
+                  {validationErrors.purchase_price && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.purchase_price}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Sale Price *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={quickProductForm.sale_price || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      handleQuickProductFieldChange('sale_price', value);
+                    }}
+                    onFocus={(e) => {
+                      if (e.target.value === '0') {
+                        e.target.select();
+                      }
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      validationErrors.sale_price
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                    }`}
+                    placeholder="0.00"
+                    data-error={!!validationErrors.sale_price}
+                    disabled={isLoading}
+                  />
+                  {validationErrors.sale_price && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{validationErrors.sale_price}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setQuickProductModal({ open: false, mode: "add", data: null })}
+                  className="px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-all hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                >
+                  {isLoading ? 'Adding...' : 'Add Product'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== QUICK ADD SUPPLIER MODAL ===== */}
+      {quickSupplierModal.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setQuickSupplierModal({ open: false, mode: "add", data: null });
+            }
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5 animate-scale-in relative max-h-[90vh] overflow-y-auto">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500 rounded-t-xl" />
+            <button
+              onClick={() => setQuickSupplierModal({ open: false, mode: "add", data: null })}
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={18} />
+            </button>
+            
+            <h3 className="text-lg font-semibold text-slate-800 mt-2 mb-1 flex items-center gap-2">
+              <Users size={18} className="text-amber-500" />
+              Quick Add Supplier
+            </h3>
+            <p className="text-[10px] text-slate-400 mb-4">Add a new supplier to the system</p>
+
+            {Object.keys(supplierValidationErrors).length > 0 && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-xs font-medium text-red-700 mb-1">Please fix the following errors:</p>
+                <ul className="text-[10px] text-red-600 space-y-0.5">
+                  {Object.values(supplierValidationErrors).map((error, index) => (
+                    <li key={index}>• {error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <form onSubmit={handleQuickSupplierSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Supplier Name *
+                </label>
+                <input
+                  ref={supplierNameInputRef}
+                  type="text"
+                  required
+                  value={quickSupplierForm.name}
+                  onChange={(e) => handleSupplierFieldChange('name', e.target.value)}
+                  className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                    supplierValidationErrors.name
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                  }`}
+                  placeholder="Enter supplier name"
+                  data-error={!!supplierValidationErrors.name}
+                  disabled={isLoading}
+                />
+                {supplierValidationErrors.name && (
+                  <p className="text-[10px] text-red-500 mt-0.5">{supplierValidationErrors.name}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={quickSupplierForm.phone}
+                    onChange={(e) => handleSupplierFieldChange('phone', e.target.value)}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      supplierValidationErrors.phone
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                    }`}
+                    placeholder="03XX-XXXXXXX"
+                    data-error={!!supplierValidationErrors.phone}
+                    disabled={isLoading}
+                  />
+                  {supplierValidationErrors.phone && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{supplierValidationErrors.phone}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={quickSupplierForm.email}
+                    onChange={(e) => handleSupplierFieldChange('email', e.target.value)}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      supplierValidationErrors.email
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                    }`}
+                    placeholder="supplier@example.com"
+                    data-error={!!supplierValidationErrors.email}
+                    disabled={isLoading}
+                  />
+                  {supplierValidationErrors.email && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{supplierValidationErrors.email}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  value={quickSupplierForm.address}
+                  onChange={(e) => handleSupplierFieldChange('address', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all bg-slate-50 focus:bg-white"
+                  placeholder="Enter address"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  CNIC
+                </label>
+                <input
+                  type="text"
+                  value={quickSupplierForm.cnic}
+                  onChange={(e) => handleSupplierFieldChange('cnic', e.target.value)}
+                  className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                    supplierValidationErrors.cnic
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                  }`}
+                  placeholder="XXXXX-XXXXXXX-X"
+                  data-error={!!supplierValidationErrors.cnic}
+                  disabled={isLoading}
+                />
+                {supplierValidationErrors.cnic && (
+                  <p className="text-[10px] text-red-500 mt-0.5">{supplierValidationErrors.cnic}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Credit (Supplier owes us)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={quickSupplierForm.credit || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      handleSupplierFieldChange('credit', value);
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      supplierValidationErrors.credit
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                    }`}
+                    placeholder="0.00"
+                    data-error={!!supplierValidationErrors.credit}
+                    disabled={isLoading}
+                  />
+                  {supplierValidationErrors.credit && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{supplierValidationErrors.credit}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Debit (We owe supplier)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={quickSupplierForm.debit || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      handleSupplierFieldChange('debit', value);
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      supplierValidationErrors.debit
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-amber-400 focus:ring-amber-100'
+                    }`}
+                    placeholder="0.00"
+                    data-error={!!supplierValidationErrors.debit}
+                    disabled={isLoading}
+                  />
+                  {supplierValidationErrors.debit && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{supplierValidationErrors.debit}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={quickSupplierForm.notes}
+                  onChange={(e) => handleSupplierFieldChange('notes', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all bg-slate-50 focus:bg-white resize-none"
+                  placeholder="Additional notes..."
+                  rows="2"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setQuickSupplierModal({ open: false, mode: "add", data: null })}
+                  className="px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-all hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                >
+                  {isLoading ? 'Adding...' : 'Add Supplier'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes slideDown {
           from { transform: translateY(-8px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { transform: scale(0.9); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
         .animate-slide-down {
           animation: slideDown 0.25s ease-out forwards;
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.2s ease-out;
+        }
+        .animate-scale-in {
+          animation: scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
       `}</style>
     </div>

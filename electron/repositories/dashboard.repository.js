@@ -1,20 +1,36 @@
-// electron/database/repositories/dashboard.repository.js
+// electron/repositories/dashboard.repository.js
+
 const db = require("../database/database");
 
 class DashboardRepository {
   
+  // ✅ FIXED: No JOIN - direct from sales table
   getSalesMetrics(startDate, endDate) {
-    const query = `
-      SELECT 
-        COALESCE(SUM(s.total_amount), 0) as total_revenue,
-        COALESCE(SUM(si.purchase_price * si.quantity), 0) as total_cogs,
-        COUNT(DISTINCT s.id) as total_sales_count
-      FROM sales s
-      LEFT JOIN sale_items si ON s.id = si.sale_id
+    // Get total revenue directly from sales table
+    const revenueQuery = `
+      SELECT COALESCE(SUM(total_amount), 0) as total_revenue,
+             COUNT(id) as total_sales_count
+      FROM sales
+      WHERE status != 'cancelled'
+      AND DATE(sale_date) BETWEEN DATE(?) AND DATE(?)
+    `;
+    const revenueResult = db.prepare(revenueQuery).get(startDate, endDate);
+    
+    // Get COGS from sale_items (needs join to filter by date)
+    const cogsQuery = `
+      SELECT COALESCE(SUM(si.purchase_price * si.quantity), 0) as total_cogs
+      FROM sale_items si
+      JOIN sales s ON si.sale_id = s.id
       WHERE s.status != 'cancelled'
       AND DATE(s.sale_date) BETWEEN DATE(?) AND DATE(?)
     `;
-    return db.prepare(query).get(startDate, endDate);
+    const cogsResult = db.prepare(cogsQuery).get(startDate, endDate);
+    
+    return {
+      total_revenue: revenueResult.total_revenue,
+      total_cogs: cogsResult.total_cogs,
+      total_sales_count: revenueResult.total_sales_count
+    };
   }
 
   getTotalExpenses(startDate, endDate) {
@@ -73,7 +89,6 @@ class DashboardRepository {
     return db.prepare(query).get();
   }
 
-  // ✅ NEW: Get total customers count
   getTotalCustomers() {
     const query = `
       SELECT COUNT(*) as total
@@ -83,7 +98,6 @@ class DashboardRepository {
     return db.prepare(query).get();
   }
 
-  // ✅ NEW: Get category sales data
   getCategorySales(startDate, endDate) {
     const query = `
       SELECT 
@@ -103,7 +117,6 @@ class DashboardRepository {
     return db.prepare(query).all(startDate, endDate);
   }
 
-  // ✅ NEW: Get category purchase data
   getCategoryPurchases(startDate, endDate) {
     const query = `
       SELECT 
@@ -158,21 +171,71 @@ class DashboardRepository {
     return db.prepare(query).all(startDate, endDate);
   }
 
+  // ✅ FIXED: Monthly chart data - also needs to avoid JOIN duplication
   getMonthlyChartData(endDate) {
-    const query = `
+    // Get revenue per month from sales table (no JOIN needed)
+    const revenueQuery = `
+      SELECT 
+        strftime('%Y-%m', sale_date) as month,
+        COALESCE(SUM(total_amount), 0) as revenue
+      FROM sales
+      WHERE status != 'cancelled'
+      AND DATE(sale_date) >= DATE(?, '-6 months')
+      GROUP BY strftime('%Y-%m', sale_date)
+    `;
+    const revenueData = db.prepare(revenueQuery).all(endDate);
+    
+    // Get COGS per month from sale_items
+    const cogsQuery = `
       SELECT 
         strftime('%Y-%m', s.sale_date) as month,
-        COALESCE(SUM(s.total_amount), 0) as revenue,
-        COALESCE(SUM(si.purchase_price * si.quantity), 0) as cogs,
-        (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE strftime('%Y-%m', expense_date) = strftime('%Y-%m', s.sale_date)) as expenses
-      FROM sales s
-      LEFT JOIN sale_items si ON s.id = si.sale_id
+        COALESCE(SUM(si.purchase_price * si.quantity), 0) as cogs
+      FROM sale_items si
+      JOIN sales s ON si.sale_id = s.id
       WHERE s.status != 'cancelled'
       AND DATE(s.sale_date) >= DATE(?, '-6 months')
       GROUP BY strftime('%Y-%m', s.sale_date)
-      ORDER BY month ASC
     `;
-    return db.prepare(query).all(endDate);
+    const cogsData = db.prepare(cogsQuery).all(endDate);
+    
+    // Get expenses per month
+    const expensesQuery = `
+      SELECT 
+        strftime('%Y-%m', expense_date) as month,
+        COALESCE(SUM(amount), 0) as expenses
+      FROM expenses
+      WHERE DATE(expense_date) >= DATE(?, '-6 months')
+      GROUP BY strftime('%Y-%m', expense_date)
+    `;
+    const expensesData = db.prepare(expensesQuery).all(endDate);
+    
+    // Combine results
+    const monthMap = {};
+    
+    revenueData.forEach(item => {
+      monthMap[item.month] = { ...monthMap[item.month], month: item.month, revenue: item.revenue };
+    });
+    
+    cogsData.forEach(item => {
+      monthMap[item.month] = { ...monthMap[item.month], cogs: item.cogs };
+    });
+    
+    expensesData.forEach(item => {
+      monthMap[item.month] = { ...monthMap[item.month], expenses: item.expenses };
+    });
+    
+    // Convert to array and ensure all months have values
+    const result = Object.values(monthMap).map(item => ({
+      month: item.month,
+      revenue: item.revenue || 0,
+      cogs: item.cogs || 0,
+      expenses: item.expenses || 0
+    }));
+    
+    // Sort by month
+    result.sort((a, b) => a.month.localeCompare(b.month));
+    
+    return result;
   }
 }
 

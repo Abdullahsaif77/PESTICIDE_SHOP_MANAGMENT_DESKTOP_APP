@@ -76,7 +76,7 @@ export default function Inventory() {
     product: null
   });
   const [reorderForm, setReorderForm] = useState({
-    reorder_level: 0
+    reorder_level: ''
   });
 
   // Notification
@@ -396,7 +396,7 @@ export default function Inventory() {
   // ==================== REORDER LEVEL ====================
   const openReorderModal = (product) => {
     setReorderForm({
-      reorder_level: product.reorder_level || 0
+      reorder_level: product.reorder_level || ''
     });
     setReorderModal({
       open: true,
@@ -409,7 +409,7 @@ export default function Inventory() {
     setIsLoading(true);
     try {
       const product = reorderModal.product;
-      const newLevel = parseFloat(reorderForm.reorder_level);
+      const newLevel = parseFloat(reorderForm.reorder_level) || 0;
 
       const result = await api.updateMinMaxStock(
         product.id,
@@ -1029,12 +1029,16 @@ export default function Inventory() {
                 <input
                   type="number"
                   value={reorderForm.reorder_level}
-                  onChange={(e) => setReorderForm(prev => ({ ...prev, reorder_level: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) => setReorderForm(prev => ({ ...prev, reorder_level: e.target.value }))}
+                  onFocus={(e) => {
+                    if (e.target.value === '0') {
+                      e.target.select();
+                    }
+                  }}
                   className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all bg-white"
                   placeholder="Enter reorder level"
                   min="0"
                   step="1"
-                  required
                 />
                 <p className="text-[8px] text-slate-400 mt-0.5">
                   When stock falls below this level, product shows as "Low Stock"

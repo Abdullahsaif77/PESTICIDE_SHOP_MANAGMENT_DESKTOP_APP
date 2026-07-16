@@ -78,6 +78,20 @@ class SalesAPI {
     }
   }
 
+  // ✅ Create customer
+  async createCustomer(data) {
+    try {
+      const result = await api.createCustomer(data);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create customer");
+      }
+      return result;
+    } catch (error) {
+      console.error("Create customer error:", error);
+      throw error;
+    }
+  }
+
   async getWarehouses() {
     try {
       const result = await api.getActiveOnlyWarehouses();
@@ -149,14 +163,13 @@ class SalesAPI {
     }
   }
 
-  // ✅ PDF Generation method - using the specific sale PDF generator
+  // ✅ PDF Generation method
   async generateSalePDF(saleData, items) {
     try {
       console.log('📄 [SalesAPI] Calling generateSalePDF');
       console.log('📄 [SalesAPI] saleData:', saleData);
       console.log('📄 [SalesAPI] items count:', items?.length || 0);
       
-      // ✅ Call the specific sale PDF method from preload
       const result = await api.generateSalePDF(saleData, items);
       
       console.log('📄 [SalesAPI] Result:', result);
@@ -179,7 +192,7 @@ export default function Sales() {
   // Form Data
   const [form, setForm] = useState({
     invoice_number: "",
-    customer_id: "", // Will be set to walking customer ID (999) after loading
+    customer_id: "",
     warehouse_id: "",
     sale_date: new Date().toISOString().split("T")[0],
     payment_method: "cash",
@@ -221,6 +234,22 @@ export default function Sales() {
   // ✅ Track the last created sale for PDF generation
   const [lastCreatedSale, setLastCreatedSale] = useState(null);
 
+  // ===== QUICK ADD CUSTOMER STATE =====
+  const [quickCustomerModal, setQuickCustomerModal] = useState({ open: false, mode: "add", data: null });
+  const [quickCustomerForm, setQuickCustomerForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+    cnic: "",
+    notes: "",
+    credit: 0,
+    debit: 0,
+    credit_limit: 0
+  });
+  const [customerValidationErrors, setCustomerValidationErrors] = useState({});
+  const customerNameInputRef = useRef(null);
+
   // Refs
   const productSearchRef = useRef(null);
 
@@ -228,39 +257,34 @@ export default function Sales() {
   const loadInitialData = async () => {
     setIsInitialLoading(true);
     try {
-      // Load customers
-      const customersResult = await salesAPI.getCustomers();
+      const [customersResult, warehousesResult, productsResult, numberResult] = await Promise.all([
+        salesAPI.getCustomers(),
+        salesAPI.getWarehouses(),
+        salesAPI.getProducts(),
+        salesAPI.generateNumber()
+      ]);
+
       if (customersResult.success) {
         setCustomers(customersResult.data || []);
-        
-        // ✅ Set default customer to Walking Customer (ID: 999) if exists
         const walkingCustomer = customersResult.data?.find(c => c.id === 999);
         if (walkingCustomer) {
           setForm(prev => ({ ...prev, customer_id: "999" }));
         } else if (customersResult.data && customersResult.data.length > 0) {
-          // Fallback: set to first active customer
           setForm(prev => ({ ...prev, customer_id: String(customersResult.data[0].id) }));
         }
       }
 
-      // Load warehouses
-      const warehousesResult = await salesAPI.getWarehouses();
       if (warehousesResult.success) {
         setWarehouses(warehousesResult.data || []);
-        // Set default warehouse if available
         if (warehousesResult.data && warehousesResult.data.length > 0) {
           setForm(prev => ({ ...prev, warehouse_id: String(warehousesResult.data[0].id) }));
         }
       }
 
-      // Load products
-      const productsResult = await salesAPI.getProducts();
       if (productsResult.success) {
         setProducts(productsResult.data || []);
       }
 
-      // Generate invoice number
-      const numberResult = await salesAPI.generateNumber();
       if (numberResult.success) {
         setForm(prev => ({ 
           ...prev, 
@@ -280,9 +304,10 @@ export default function Sales() {
     loadInitialData();
   }, []);
 
+  // ✅ FIX: Add form.paid_amount to dependencies to recalculate due amount
   useEffect(() => {
     calculateTotals();
-  }, [items, form.discount, form.tax]);
+  }, [items, form.discount, form.tax, form.paid_amount]);
 
   useEffect(() => {
     if (productSearch.trim()) {
@@ -297,6 +322,36 @@ export default function Sales() {
       setShowProductDropdown(false);
     }
   }, [productSearch, products]);
+
+  // Focus input when quick customer modal opens
+  useEffect(() => {
+    if (quickCustomerModal.open && customerNameInputRef.current) {
+      setTimeout(() => {
+        customerNameInputRef.current.focus();
+      }, 100);
+    }
+  }, [quickCustomerModal.open]);
+
+  // Reset quick customer form when modal closes
+  useEffect(() => {
+    if (!quickCustomerModal.open) {
+      const timeoutId = setTimeout(() => {
+        setQuickCustomerForm({
+          name: "",
+          phone: "",
+          email: "",
+          address: "",
+          cnic: "",
+          notes: "",
+          credit: 0,
+          debit: 0,
+          credit_limit: 0
+        });
+        setCustomerValidationErrors({});
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [quickCustomerModal.open]);
 
   // Recalculate available stock when warehouse changes
   useEffect(() => {
@@ -316,7 +371,6 @@ export default function Sales() {
     } else if (newStock === 0) {
       showNotification("info", `⚠️ ${currentItem.product_name} has 0 stock available.`);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.warehouse_id]);
 
   // ==================== HELPERS (stock) ====================
@@ -329,14 +383,12 @@ export default function Sales() {
 
     const targetId = Number(warehouseId);
     
-    // ✅ SUM ALL records for this warehouse, not just the first one!
     const total = inventoryData
         .filter(i => Number(i.warehouse_id) === targetId)
         .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
     
-    console.log(`📊 Total stock in warehouse ${targetId}: ${total}`);
     return total;
-};
+  };
 
   // ==================== CALCULATIONS ====================
   const calculateTotals = () => {
@@ -361,42 +413,149 @@ export default function Sales() {
     return quantity * price;
   };
 
+  // ==================== QUICK ADD CUSTOMER ====================
+  const openQuickAddCustomer = () => {
+    setQuickCustomerForm({
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      cnic: "",
+      notes: "",
+      credit: 0,
+      debit: 0,
+      credit_limit: 0
+    });
+    setCustomerValidationErrors({});
+    setQuickCustomerModal({ open: true, mode: "add", data: null });
+  };
+
+  const validateCustomerForm = () => {
+    const errors = {};
+
+    if (!quickCustomerForm.name || quickCustomerForm.name.trim() === "") {
+      errors.name = "Customer name is required";
+    } else if (quickCustomerForm.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters";
+    }
+
+    if (quickCustomerForm.phone && !/^(03\d{2})-?\d{7}$/.test(quickCustomerForm.phone)) {
+      errors.phone = "Invalid phone format (e.g., 03XX-XXXXXXX)";
+    }
+
+    if (quickCustomerForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(quickCustomerForm.email)) {
+      errors.email = "Invalid email format";
+    }
+
+    if (quickCustomerForm.cnic && !/^\d{5}-?\d{7}-?\d{1}$/.test(quickCustomerForm.cnic)) {
+      errors.cnic = "Invalid CNIC format (e.g., XXXXX-XXXXXXX-X)";
+    }
+
+    if (quickCustomerForm.credit && quickCustomerForm.credit < 0) {
+      errors.credit = "Credit cannot be negative";
+    }
+
+    if (quickCustomerForm.debit && quickCustomerForm.debit < 0) {
+      errors.debit = "Debit cannot be negative";
+    }
+
+    if (quickCustomerForm.credit_limit && quickCustomerForm.credit_limit < 0) {
+      errors.credit_limit = "Credit limit cannot be negative";
+    }
+
+    setCustomerValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleCustomerFieldChange = (field, value) => {
+    setQuickCustomerForm({ ...quickCustomerForm, [field]: value });
+    if (customerValidationErrors[field]) {
+      setCustomerValidationErrors({ ...customerValidationErrors, [field]: "" });
+    }
+  };
+
+  const handleQuickCustomerSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateCustomerForm()) {
+      const firstError = document.querySelector('[data-customer-error="true"]');
+      if (firstError) {
+        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstError.focus();
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const customerData = {
+        name: quickCustomerForm.name.trim(),
+        phone: quickCustomerForm.phone || null,
+        email: quickCustomerForm.email || null,
+        address: quickCustomerForm.address || null,
+        cnic: quickCustomerForm.cnic || null,
+        notes: quickCustomerForm.notes || null,
+        credit: quickCustomerForm.credit || 0,
+        debit: quickCustomerForm.debit || 0,
+        credit_limit: quickCustomerForm.credit_limit || 0
+      };
+
+      const result = await salesAPI.createCustomer(customerData);
+
+      if (result && result.success) {
+        showNotification("success", `Customer "${quickCustomerForm.name}" added successfully!`);
+        
+        const customersResult = await salesAPI.getCustomers();
+        if (customersResult.success) {
+          setCustomers(customersResult.data || []);
+        }
+
+        const newCustomer = result.data;
+        if (newCustomer) {
+          setQuickCustomerModal({ open: false, mode: "add", data: null });
+          setCustomerValidationErrors({});
+          
+          setTimeout(() => {
+            setForm(prev => ({ ...prev, customer_id: String(newCustomer.id) }));
+          }, 100);
+        }
+      } else {
+        console.error('Customer creation failed:', result?.error || 'Unknown error');
+        showNotification("error", result?.error || 'Failed to add customer');
+      }
+    } catch (err) {
+      console.error("Failed saving customer:", err);
+      showNotification("error", err.message || 'An error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ==================== ITEM MANAGEMENT ====================
   const selectProduct = async (product) => {
     try {
       console.log(`🔍 Selecting product: ${product.id} - ${product.name}`);
-      console.log(`🔍 Product stock_quantity: ${product.stock_quantity}`);
       
-      // Fetch inventory data for this product
       const inventoryResult = await salesAPI.getProductInventory(product.id);
       let inventoryData = [];
 
       if (inventoryResult.success && inventoryResult.data) {
         inventoryData = inventoryResult.data;
-        console.log(`📊 Inventory data for product ${product.id}:`, inventoryData);
       }
 
-      // ✅ Calculate stock for selected warehouse
       const availableStock = getStockForWarehouse(inventoryData, form.warehouse_id);
-      
-      // ✅ Calculate total stock across all warehouses
       const totalStock = inventoryData.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-      console.log(`📊 Available stock in warehouse ${form.warehouse_id}: ${availableStock}`);
-      console.log(`📊 Total stock across all warehouses: ${totalStock}`);
 
-      // Fetch batches
       let batches = [];
       try {
         const batchesResult = await salesAPI.getProductBatches(product.id);
         if (batchesResult.success && batchesResult.data) {
           batches = batchesResult.data;
-          console.log(`📊 Found ${batches.length} batches`);
         }
       } catch (err) {
         console.log('⚠️ Could not fetch batches:', err.message);
       }
 
-      // ✅ Set current item with correct stock
       setCurrentItem({
         product_id: product.id,
         product_name: product.name,
@@ -419,7 +578,6 @@ export default function Sales() {
         productSearchRef.current.blur();
       }
 
-      // Show appropriate notification
       if (availableStock === 0 && totalStock > 0) {
         showNotification("info", `⚠️ ${product.name} has 0 stock in this warehouse. Try changing warehouse.`);
       } else if (availableStock === 0) {
@@ -517,13 +675,7 @@ export default function Sales() {
       setIsLoading(true);
       showNotification("info", "Preparing PDF...");
       
-      console.log('📄 [Sales] Generating PDF for invoice:', saleData.invoice_number);
-      console.log('📄 [Sales] Items count:', saleItems?.length || 0);
-      
-      // ✅ Call the specific sale PDF method
       const result = await salesAPI.generateSalePDF(saleData, saleItems);
-      
-      console.log('📄 [Sales] PDF result:', result);
       
       if (result.success) {
         showNotification("success", `PDF saved successfully at: ${result.path}`);
@@ -565,7 +717,6 @@ export default function Sales() {
 
     setIsLoading(true);
     try {
-        // Prepare sale data
         const saleData = {
             customer_id: parseInt(form.customer_id),
             warehouse_id: parseInt(form.warehouse_id),
@@ -591,7 +742,6 @@ export default function Sales() {
             }))
         };
 
-        // ✅ FIRST: Generate PDF before saving
         showNotification("info", "Generating PDF...");
         const pdfResult = await salesAPI.generateSalePDF(saleData, items);
         
@@ -608,14 +758,12 @@ export default function Sales() {
 
         showNotification("success", `PDF saved: ${pdfResult.filename || 'Invoice'}`);
 
-        // ✅ THEN: Save the sale to database
         showNotification("info", "Saving sale...");
         const result = await salesAPI.create(saleData);
         
         if (result.success) {
             showNotification("success", `Sale ${form.invoice_number} created successfully!`);
             
-            // Store the created sale data for reference
             const createdSaleData = {
                 ...saleData,
                 id: result.data?.id,
@@ -633,14 +781,12 @@ export default function Sales() {
     } finally {
         setIsLoading(false);
     }
-};
-
+  };
 
   const resetForm = async () => {
     setItems([]);
     resetCurrentItem();
     
-    // ✅ Keep the walking customer as default on reset
     const walkingCustomer = customers.find(c => c.id === 999);
     setForm({
       invoice_number: "",
@@ -761,7 +907,6 @@ export default function Sales() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {/* ✅ NEW: Last Invoice PDF button */}
           {lastCreatedSale && (
             <button
               onClick={() => generatePDF(lastCreatedSale, items)}
@@ -830,22 +975,32 @@ export default function Sales() {
                   <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
                     Customer *
                   </label>
-                  <select
-                    value={form.customer_id}
-                    onChange={(e) => setForm(prev => ({ ...prev, customer_id: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white transition-all duration-300 appearance-none"
-                    required
-                  >
-                    <option value="">Select Customer</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                
-                        {customer.name} {customer.phone ? `- ${customer.phone}` : ''}
-                        {customer.id === 999 && ' (Walk-in)'}
-                      </option>
-                    ))}
-                  </select>
-                  {/* ✅ Show indicator that walking customer is selected */}
+                  <div className="relative">
+                    <select
+                      value={form.customer_id}
+                      onChange={(e) => setForm(prev => ({ ...prev, customer_id: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white transition-all duration-300 appearance-none pr-16"
+                      required
+                    >
+                      <option value="">Select Customer</option>
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name} {customer.phone ? `- ${customer.phone}` : ''}
+                          {customer.id === 999 && ' (Walk-in)'}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Quick Add Customer Button */}
+                    <button
+                      type="button"
+                      onClick={openQuickAddCustomer}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors flex items-center gap-0.5"
+                      title="Add new customer quickly"
+                    >
+                      <Plus size={12} />
+                      <span className="hidden sm:inline">Add</span>
+                    </button>
+                  </div>
                   {form.customer_id === "999" && (
                     <p className="text-[9px] text-emerald-600 mt-0.5 flex items-center gap-1">
                       Walking customer selected (default for cash sales)
@@ -938,7 +1093,7 @@ export default function Sales() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                   <div className="relative col-span-2">
                     <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                      Product *
+                      Search Product *
                     </label>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
@@ -963,7 +1118,6 @@ export default function Sales() {
                       {showProductDropdown && filteredProducts.length > 0 && (
                         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
                           {filteredProducts.map((product) => {
-                            // ✅ Use product.stock_quantity as fallback display
                             const productStock = product.stock_quantity || 0;
                             const stockStatus = getStockStatus(productStock);
                             return (
@@ -1195,7 +1349,6 @@ export default function Sales() {
                   return (
                     <div className="space-y-1 text-xs text-slate-600">
                       <p className="font-medium text-slate-700 flex items-center gap-1">
-                        {customer.id === 999}
                         {customer.name}
                         {customer.id === 999 && (
                           <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium">
@@ -1372,13 +1525,285 @@ export default function Sales() {
         </div>
       </form>
 
+      {/* ===== QUICK ADD CUSTOMER MODAL ===== */}
+      {quickCustomerModal.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+          style={{ background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setQuickCustomerModal({ open: false, mode: "add", data: null });
+            }
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5 animate-scale-in relative max-h-[90vh] overflow-y-auto">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-t-xl" />
+            <button
+              onClick={() => setQuickCustomerModal({ open: false, mode: "add", data: null })}
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={18} />
+            </button>
+            
+            <h3 className="text-lg font-semibold text-slate-800 mt-2 mb-1 flex items-center gap-2">
+              <Users size={18} className="text-emerald-500" />
+              Quick Add Customer
+            </h3>
+            <p className="text-[10px] text-slate-400 mb-4">Add a new customer to the system</p>
+
+            {Object.keys(customerValidationErrors).length > 0 && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-xs font-medium text-red-700 mb-1">Please fix the following errors:</p>
+                <ul className="text-[10px] text-red-600 space-y-0.5">
+                  {Object.values(customerValidationErrors).map((error, index) => (
+                    <li key={index}>• {error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <form onSubmit={handleQuickCustomerSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Customer Name *
+                </label>
+                <input
+                  ref={customerNameInputRef}
+                  type="text"
+                  required
+                  value={quickCustomerForm.name}
+                  onChange={(e) => handleCustomerFieldChange('name', e.target.value)}
+                  className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                    customerValidationErrors.name
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+                  }`}
+                  placeholder="Enter customer name"
+                  data-customer-error={!!customerValidationErrors.name}
+                  disabled={isLoading}
+                />
+                {customerValidationErrors.name && (
+                  <p className="text-[10px] text-red-500 mt-0.5">{customerValidationErrors.name}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={quickCustomerForm.phone}
+                    onChange={(e) => handleCustomerFieldChange('phone', e.target.value)}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      customerValidationErrors.phone
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+                    }`}
+                    placeholder="03XX-XXXXXXX"
+                    data-customer-error={!!customerValidationErrors.phone}
+                    disabled={isLoading}
+                  />
+                  {customerValidationErrors.phone && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{customerValidationErrors.phone}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={quickCustomerForm.email}
+                    onChange={(e) => handleCustomerFieldChange('email', e.target.value)}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      customerValidationErrors.email
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+                    }`}
+                    placeholder="customer@example.com"
+                    data-customer-error={!!customerValidationErrors.email}
+                    disabled={isLoading}
+                  />
+                  {customerValidationErrors.email && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{customerValidationErrors.email}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  value={quickCustomerForm.address}
+                  onChange={(e) => handleCustomerFieldChange('address', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white"
+                  placeholder="Enter address"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  CNIC
+                </label>
+                <input
+                  type="text"
+                  value={quickCustomerForm.cnic}
+                  onChange={(e) => handleCustomerFieldChange('cnic', e.target.value)}
+                  className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                    customerValidationErrors.cnic
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+                  }`}
+                  placeholder="XXXXX-XXXXXXX-X"
+                  data-customer-error={!!customerValidationErrors.cnic}
+                  disabled={isLoading}
+                />
+                {customerValidationErrors.cnic && (
+                  <p className="text-[10px] text-red-500 mt-0.5">{customerValidationErrors.cnic}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Credit (Customer owes us)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={quickCustomerForm.credit || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      handleCustomerFieldChange('credit', value);
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      customerValidationErrors.credit
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+                    }`}
+                    placeholder="0.00"
+                    data-customer-error={!!customerValidationErrors.credit}
+                    disabled={isLoading}
+                  />
+                  {customerValidationErrors.credit && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{customerValidationErrors.credit}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Debit (We owe customer)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={quickCustomerForm.debit || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      handleCustomerFieldChange('debit', value);
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                      customerValidationErrors.debit
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+                    }`}
+                    placeholder="0.00"
+                    data-customer-error={!!customerValidationErrors.debit}
+                    disabled={isLoading}
+                  />
+                  {customerValidationErrors.debit && (
+                    <p className="text-[10px] text-red-500 mt-0.5">{customerValidationErrors.debit}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Credit Limit
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={quickCustomerForm.credit_limit || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                    handleCustomerFieldChange('credit_limit', value);
+                  }}
+                  className={`w-full px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all bg-slate-50 focus:bg-white ${
+                    customerValidationErrors.credit_limit
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                      : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'
+                  }`}
+                  placeholder="0.00"
+                  data-customer-error={!!customerValidationErrors.credit_limit}
+                  disabled={isLoading}
+                />
+                {customerValidationErrors.credit_limit && (
+                  <p className="text-[10px] text-red-500 mt-0.5">{customerValidationErrors.credit_limit}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={quickCustomerForm.notes}
+                  onChange={(e) => handleCustomerFieldChange('notes', e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white resize-none"
+                  placeholder="Additional notes..."
+                  rows="2"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setQuickCustomerModal({ open: false, mode: "add", data: null })}
+                  className="px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-all hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700"
+                >
+                  {isLoading ? 'Adding...' : 'Add Customer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes slideDown {
           from { transform: translateY(-8px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { transform: scale(0.9); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
         .animate-slide-down {
           animation: slideDown 0.25s ease-out forwards;
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.2s ease-out;
+        }
+        .animate-scale-in {
+          animation: scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
       `}</style>
     </div>

@@ -105,7 +105,33 @@ class LedgerAPI {
       return result;
     } catch (error) {
       console.error("Error fetching ledger stats:", error);
-      return { success: false, data: { totalEntries: 0, totalDebit: 0, totalCredit: 0, totalCustomers: 0, totalSuppliers: 0 } };
+      return { success: false, data: { totalEntries: 0, totalDebit: 0, totalCredit: 0 } };
+    }
+  }
+
+  async getCustomerStats() {
+    try {
+      const result = await api.getAllCustomerLedgerStats();
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch customer stats");
+      }
+      return result;
+    } catch (error) {
+      console.error("Error fetching customer stats:", error);
+      return { success: false, data: [], error: error.message };
+    }
+  }
+
+  async getSupplierStats() {
+    try {
+      const result = await api.getAllSupplierLedgerStats();
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch supplier stats");
+      }
+      return result;
+    } catch (error) {
+      console.error("Error fetching supplier stats:", error);
+      return { success: false, data: [], error: error.message };
     }
   }
 
@@ -230,13 +256,32 @@ export default function Ledger() {
   const [referenceType, setReferenceType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredEntries, setFilteredEntries] = useState([]);
-  const [stats, setStats] = useState({ 
+  
+  // Total stats (overall)
+  const [totalStats, setTotalStats] = useState({ 
     totalEntries: 0, 
     totalDebit: 0, 
-    totalCredit: 0, 
-    totalCustomers: 0, 
-    totalSuppliers: 0 
+    totalCredit: 0
   });
+  
+  // Customer stats (overall customers)
+  const [customerStats, setCustomerStats] = useState({
+    totalDebit: 0,
+    totalCredit: 0,
+    netBalance: 0,
+    totalSales: 0,
+    totalSalesAmount: 0
+  });
+  
+  // Supplier stats (overall suppliers)
+  const [supplierStats, setSupplierStats] = useState({
+    totalDebit: 0,
+    totalCredit: 0,
+    netBalance: 0,
+    totalPurchases: 0,
+    totalPurchasesAmount: 0
+  });
+  
   const [detailModal, setDetailModal] = useState({ open: false, entry: null });
   const [notification, setNotification] = useState({ show: false, type: "", message: "" });
   const [viewMode, setViewMode] = useState("table");
@@ -249,7 +294,9 @@ export default function Ledger() {
   // ==================== EFFECTS ====================
   useEffect(() => {
     loadData();
-    loadStats();
+    loadTotalStats();
+    loadCustomerStats();
+    loadSupplierStats();
   }, []);
 
   useEffect(() => {
@@ -271,8 +318,13 @@ export default function Ledger() {
         ledgerAPI.getSuppliers()
       ]);
 
-      if (customersResult.success) setCustomers(customersResult.data || []);
-      if (suppliersResult.success) setSuppliers(suppliersResult.data || []);
+      if (customersResult.success) {
+        setCustomers(customersResult.data || []);
+      }
+      
+      if (suppliersResult.success) {
+        setSuppliers(suppliersResult.data || []);
+      }
 
       if (ledgerType === "customer" && customersResult.data?.length > 0) {
         setSelectedId(String(customersResult.data[0].id));
@@ -287,14 +339,66 @@ export default function Ledger() {
     }
   };
 
-  const loadStats = async () => {
+  const loadTotalStats = async () => {
     try {
       const result = await ledgerAPI.getStats();
       if (result.success) {
-        setStats(result.data);
+        setTotalStats({
+          totalEntries: result.data.totalEntries || 0,
+          totalDebit: result.data.totalDebit || 0,
+          totalCredit: result.data.totalCredit || 0
+        });
       }
     } catch (err) {
-      console.error("Error loading stats:", err);
+      console.error("Error loading total stats:", err);
+    }
+  };
+
+  const loadCustomerStats = async () => {
+    try {
+      const result = await ledgerAPI.getCustomerStats();
+      if (result.success && result.data) {
+        const data = result.data;
+        const totalDebit = data.reduce((sum, c) => sum + (c.totalDebit || 0), 0);
+        const totalCredit = data.reduce((sum, c) => sum + (c.totalCredit || 0), 0);
+        const netBalance = totalDebit - totalCredit;
+        const totalSales = data.reduce((sum, c) => sum + (c.totalSales || 0), 0);
+        const totalSalesAmount = data.reduce((sum, c) => sum + (c.totalSalesAmount || 0), 0);
+
+        setCustomerStats({
+          totalDebit,
+          totalCredit,
+          netBalance,
+          totalSales,
+          totalSalesAmount
+        });
+      }
+    } catch (err) {
+      console.error("Error loading customer stats:", err);
+    }
+  };
+
+  const loadSupplierStats = async () => {
+    try {
+      const result = await ledgerAPI.getSupplierStats();
+      if (result.success && result.data) {
+        const data = result.data;
+        const totalDebit = data.reduce((sum, s) => sum + (s.totalDebit || 0), 0);
+        const totalCredit = data.reduce((sum, s) => sum + (s.totalCredit || 0), 0);
+        const netBalance = totalDebit - totalCredit;
+        const totalPurchases = data.reduce((sum, s) => sum + (s.totalPurchases || 0), 0);
+        const totalPurchasesAmount = data.reduce((sum, s) => sum + (s.totalPurchasesAmount || 0), 0);
+
+        setSupplierStats({
+          totalDebit,
+          totalCredit,
+          netBalance,
+          totalPurchases,
+          totalPurchasesAmount
+        });
+      }
+    } catch (err) {
+      console.error("Error loading supplier stats:", err);
     }
   };
 
@@ -390,7 +494,9 @@ export default function Ledger() {
         showNotification("success", `Payment of ${formatCurrency(amount)} recorded successfully`);
         setPaymentModal({ open: false, type: "", entity: null });
         await loadLedger();
-        await loadStats();
+        await loadTotalStats();
+        await loadCustomerStats();
+        await loadSupplierStats();
         await loadData();
       } else {
         showNotification("error", result.error || "Failed to record payment");
@@ -415,45 +521,34 @@ export default function Ledger() {
     return `₨${(amount || 0).toFixed(2)}`;
   };
 
-  // ✅ FIXED: Get balance color based on ledger type
   const getBalanceColor = (amount) => {
     const num = amount || 0;
     
     if (ledgerType === "supplier") {
-      // For SUPPLIERS:
-      // Negative = supplier owes us (GOOD) → GREEN
-      // Positive = we owe supplier (BAD) → RED
-      if (num < 0) return 'text-emerald-600';  // Supplier owes us - GOOD ✅
-      if (num > 0) return 'text-red-600';      // We owe supplier - BAD ❌
+      if (num < 0) return 'text-emerald-600';
+      if (num > 0) return 'text-red-600';
       return 'text-slate-600';
     } else {
-      // For CUSTOMERS:
-      // Positive = customer owes us (GOOD) → GREEN
-      // Negative = we owe customer (BAD) → RED
-      if (num > 0) return 'text-emerald-600';  // Customer owes us - GOOD ✅
-      if (num < 0) return 'text-red-600';      // We owe customer - BAD ❌
+      if (num > 0) return 'text-emerald-600';
+      if (num < 0) return 'text-red-600';
       return 'text-slate-600';
     }
   };
 
-  // ✅ FIXED: Get balance sign
   const getBalanceSign = (amount) => {
     const num = amount || 0;
     
     if (ledgerType === "supplier") {
-      // For SUPPLIERS: Show what it means
-      if (num < 0) return '';  // Supplier owes us (no sign needed)
-      if (num > 0) return '-'; // We owe supplier
+      if (num < 0) return '';
+      if (num > 0) return '-';
       return '';
     } else {
-      // For CUSTOMERS
-      if (num > 0) return '+'; // Customer owes us
-      if (num < 0) return '-'; // We owe customer
+      if (num > 0) return '+';
+      if (num < 0) return '-';
       return '';
     }
   };
 
-  // ✅ NEW: Get balance label
   const getBalanceLabel = (amount) => {
     const num = amount || 0;
     
@@ -639,7 +734,7 @@ export default function Ledger() {
             Export
           </button>
           <button
-            onClick={() => { loadData(); loadStats(); loadLedger(); }}
+            onClick={() => { loadData(); loadTotalStats(); loadCustomerStats(); loadSupplierStats(); loadLedger(); }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
           >
             <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
@@ -648,69 +743,128 @@ export default function Ledger() {
         </div>
       </div>
 
-      {/* Stats Cards - DYNAMIC */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        {[
-          { 
-            label: "Total Entries", 
-            value: stats.totalEntries || 0, 
-            icon: FileText, 
-            color: "text-indigo-600",
-            bg: "bg-indigo-50"
-          },
-          { 
-            label: "Total Debit", 
-            value: formatCurrency(stats.totalDebit || 0), 
-            icon: TrendingUp, 
-            color: "text-red-600",
-            bg: "bg-red-50"
-          },
-          { 
-            label: "Total Credit", 
-            value: formatCurrency(stats.totalCredit || 0), 
-            icon: TrendingDown, 
-            color: "text-emerald-600",
-            bg: "bg-emerald-50"
-          },
-          { 
-            label: "Customers", 
-            value: stats.totalCustomers || 0, 
-            icon: Users, 
-            color: "text-blue-600",
-            bg: "bg-blue-50"
-          },
-          { 
-            label: "Suppliers", 
-            value: stats.totalSuppliers || 0, 
-            icon: Building2, 
-            color: "text-amber-600",
-            bg: "bg-amber-50"
-          },
-          { 
-            label: "Net Balance", 
-            value: formatCurrency((stats.totalDebit || 0) - (stats.totalCredit || 0)), 
-            icon: Wallet, 
-            color: "text-purple-600",
-            bg: "bg-purple-50"
-          }
-        ].map((item, index) => (
-          <div key={index} className={`bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 ${item.bg}`}>
+      {/* ===== TOTAL STATS (Overall) ===== */}
+      <div className="mb-4">
+        <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Overall Ledger Summary</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 bg-indigo-50/30">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 font-medium">{item.label}</span>
-              <item.icon size={16} className={item.color} />
+              <span className="text-[10px] text-slate-500 font-medium">Total Entries</span>
+              <FileText size={16} className="text-indigo-600" />
             </div>
-            <p className={`text-xl font-bold ${item.color} mt-1`}>
-              {item.value}
-            </p>
+            <p className="text-xl font-bold text-indigo-600 mt-1">{totalStats.totalEntries || 0}</p>
           </div>
-        ))}
+
+          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 bg-red-50/30">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-500 font-medium">Total Debit</span>
+              <TrendingUp size={16} className="text-red-600" />
+            </div>
+            <p className="text-xl font-bold text-red-600 mt-1">{formatCurrency(totalStats.totalDebit || 0)}</p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 bg-emerald-50/30">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-500 font-medium">Total Credit</span>
+              <TrendingDown size={16} className="text-emerald-600" />
+            </div>
+            <p className="text-xl font-bold text-emerald-600 mt-1">{formatCurrency(totalStats.totalCredit || 0)}</p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 bg-purple-50/30">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-500 font-medium">Net Balance</span>
+              <Wallet size={16} className="text-purple-600" />
+            </div>
+            <p className="text-xl font-bold text-purple-600 mt-1">{formatCurrency((totalStats.totalDebit || 0) - (totalStats.totalCredit || 0))}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== CUSTOMER VS SUPPLIER STATS ===== */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {/* Customer Stats */}
+        <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-lg bg-blue-100">
+              <Users size={16} className="text-blue-600" />
+            </div>
+            <h3 className="text-sm font-semibold text-slate-700">Customer Summary</h3>
+            <span className="ml-auto text-xs text-slate-400">{customers.length} customers</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Debit</p>
+              <p className="text-base font-bold text-red-600">{formatCurrency(customerStats.totalDebit || 0)}</p>
+            </div>
+            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Credit</p>
+              <p className="text-base font-bold text-emerald-600">{formatCurrency(customerStats.totalCredit || 0)}</p>
+            </div>
+            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center col-span-2">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Net Balance</p>
+              <p className={`text-base font-bold ${customerStats.netBalance > 0 ? 'text-emerald-600' : customerStats.netBalance < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+                {formatCurrency(customerStats.netBalance || 0)}
+              </p>
+              <p className="text-[7px] text-slate-400 mt-0.5">
+                {customerStats.netBalance > 0 ? 'Customers owe us' : customerStats.netBalance < 0 ? 'We owe customers' : 'Settled'}
+              </p>
+            </div>
+            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center col-span-1">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Sales</p>
+              <p className="text-base font-bold text-blue-600">{customerStats.totalSales || 0}</p>
+            </div>
+            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center col-span-1">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Sales Amount</p>
+              <p className="text-base font-bold text-blue-600">{formatCurrency(customerStats.totalSalesAmount || 0)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Supplier Stats */}
+        <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-1.5 rounded-lg bg-amber-100">
+              <Building2 size={16} className="text-amber-600" />
+            </div>
+            <h3 className="text-sm font-semibold text-slate-700">Supplier Summary</h3>
+            <span className="ml-auto text-xs text-slate-400">{suppliers.length} suppliers</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Debit</p>
+              <p className="text-base font-bold text-red-600">{formatCurrency(supplierStats.totalDebit || 0)}</p>
+            </div>
+            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Credit</p>
+              <p className="text-base font-bold text-emerald-600">{formatCurrency(supplierStats.totalCredit || 0)}</p>
+            </div>
+            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center col-span-2">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Net Balance</p>
+              <p className={`text-base font-bold ${supplierStats.netBalance < 0 ? 'text-emerald-600' : supplierStats.netBalance > 0 ? 'text-red-600' : 'text-slate-600'}`}>
+                {formatCurrency(Math.abs(supplierStats.netBalance || 0))}
+              </p>
+              <p className="text-[7px] text-slate-400 mt-0.5">
+                {supplierStats.netBalance < 0 ? 'Suppliers owe us' : supplierStats.netBalance > 0 ? 'We owe suppliers' : 'Settled'}
+              </p>
+            </div>
+            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center col-span-1">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Purchases</p>
+              <p className="text-base font-bold text-amber-600">{supplierStats.totalPurchases || 0}</p>
+            </div>
+            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center col-span-1">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Purchase Amount</p>
+              <p className="text-base font-bold text-amber-600">{formatCurrency(supplierStats.totalPurchasesAmount || 0)}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main Content - Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         {/* Left Sidebar - Selector & Entity List */}
         <div className="lg:col-span-1 space-y-3">
-          {/* Type Selector */}
+          {/* Type Selector - Show counts */}
           <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3">
             <div className="flex gap-1">
               <button
@@ -722,7 +876,7 @@ export default function Ledger() {
                 }`}
               >
                 <Users size={14} className="inline mr-1.5" />
-                Customers
+                Customers ({customers.length})
               </button>
               <button
                 onClick={() => setLedgerType("supplier")}
@@ -733,7 +887,7 @@ export default function Ledger() {
                 }`}
               >
                 <Building2 size={14} className="inline mr-1.5" />
-                Suppliers
+                Suppliers ({suppliers.length})
               </button>
             </div>
           </div>

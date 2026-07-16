@@ -1,5 +1,6 @@
 // electron/services/dashboard.service.js
-const dashboardRepository = require("../repositories/dashboard.repository")
+
+const dashboardRepository = require("../repositories/dashboard.repository");
 
 class DashboardService {
 
@@ -34,7 +35,8 @@ class DashboardService {
             gross_profit: revenue - cogs,
             total_expenses: expenses,
             net_profit: (revenue - cogs) - expenses,
-            total_sales_count: salesMetrics.total_sales_count
+            total_sales_count: salesMetrics.total_sales_count,
+            total_customers: totalCustomers.total || 0 // ✅ ADDED: Customer count in summary
           },
           inventory: {
             total_purchase_value: inventoryValue.total_purchase_value,
@@ -47,10 +49,10 @@ class DashboardService {
           finance: {
             receivables: ledgerSummary.total_receivables || 0,
             payables: ledgerSummary.total_payables || 0,
-            total_customers: totalCustomers.total || 0 // ✅ ADDED: Customer count
+            total_customers: totalCustomers.total || 0
           },
-          category_sales: categorySales || [], // ✅ ADDED: Sales by category
-          category_purchases: categoryPurchases || [], // ✅ ADDED: Purchases by category
+          category_sales: categorySales || [],
+          category_purchases: categoryPurchases || [],
           top_performers: {
             customers: topCustomers || [],
             products: topProducts || []
