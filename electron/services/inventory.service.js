@@ -414,57 +414,109 @@ class InventoryService {
         }
     }
 
-    async updateMinMax(productId, warehouseId, minStock, maxStock) {
-        try {
-            if (!productId) {
-                return { success: false, error: 'Product ID is required' };
-            }
-            if (!warehouseId) {
-                return { success: false, error: 'Warehouse ID is required' };
-            }
-            if (minStock !== undefined && minStock < 0) {
-                return { success: false, error: 'Min stock cannot be negative' };
-            }
-            if (maxStock !== undefined && maxStock < 0) {
-                return { success: false, error: 'Max stock cannot be negative' };
-            }
-            if (minStock !== undefined && maxStock !== undefined && minStock > maxStock) {
-                return { success: false, error: 'Min stock cannot be greater than max stock' };
-            }
+    // electron/services/inventory.service.js
 
+async updateMinMax(productId, warehouseId, minStock, maxStock) {
+    try {
+        if (!productId) {
+            return { success: false, error: 'Product ID is required' };
+        }
+
+        // ✅ Convert empty strings and null to undefined
+        const min = (minStock !== undefined && minStock !== null && minStock !== '') 
+            ? parseFloat(minStock) 
+            : undefined;
+        const max = (maxStock !== undefined && maxStock !== null && maxStock !== '') 
+            ? parseFloat(maxStock) 
+            : undefined;
+
+        // ✅ Validate min if provided
+        if (min !== undefined && isNaN(min)) {
+            return { success: false, error: 'Min stock must be a valid number' };
+        }
+        if (min !== undefined && min < 0) {
+            return { success: false, error: 'Min stock cannot be negative' };
+        }
+
+        // ✅ Validate max if provided
+        if (max !== undefined && isNaN(max)) {
+            return { success: false, error: 'Max stock must be a valid number' };
+        }
+        if (max !== undefined && max < 0) {
+            return { success: false, error: 'Max stock cannot be negative' };
+        }
+
+        // ✅ Only validate min > max if BOTH are provided
+        if (min !== undefined && max !== undefined && min > max) {
+            return { success: false, error: 'Min stock cannot be greater than max stock' };
+        }
+
+        // ✅ Update inventory table ONLY if warehouseId is provided
+        if (warehouseId) {
             const existingInventory = await InventoryRepository.getByProductAndWarehouse(productId, warehouseId);
             
             if (existingInventory.length === 0) {
+                // Create new inventory record
                 const result = await InventoryRepository.create({
                     product_id: productId,
                     warehouse_id: warehouseId,
                     quantity: 0,
-                    min_stock: minStock || 0,
-                    max_stock: maxStock || 0
+                    min_stock: min || 0,
+                    max_stock: max || 0
                 });
                 if (!result.lastInsertRowid) {
                     return { success: false, error: 'Failed to create inventory record' };
                 }
+                console.log(`✅ Created inventory record for product ${productId} in warehouse ${warehouseId}`);
             } else {
+                // Update existing inventory record
                 const record = existingInventory[0];
-                await InventoryRepository.update(record.id, {
-                    min_stock: minStock,
-                    max_stock: maxStock
-                });
+                const updateData = {};
+                if (min !== undefined) updateData.min_stock = min;
+                if (max !== undefined) updateData.max_stock = max;
+                
+                if (Object.keys(updateData).length > 0) {
+                    await InventoryRepository.update(record.id, updateData);
+                    console.log(`✅ Updated inventory record ${record.id} for product ${productId}`);
+                }
             }
-
-            if (minStock !== undefined) {
-                await ProductRepository.update(parseInt(productId), { reorder_level: minStock });
-            }
-
-            return {
-                success: true,
-                message: 'Min/Max stock levels updated successfully'
-            };
-        } catch (error) {
-            return { success: false, error: error.message };
         }
+
+        // ✅ ALWAYS update product reorder level (this is the main goal)
+        if (min !== undefined) {
+            const productUpdate = db.prepare(`
+                UPDATE products 
+                SET reorder_level = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `);
+            const result = productUpdate.run(min, parseInt(productId));
+            
+            if (result.changes === 0) {
+                return { success: false, error: 'Product not found or update failed' };
+            }
+            
+            console.log(`✅ Updated product ${productId} reorder_level to ${min}`);
+        }
+
+        return {
+            success: true,
+            message: warehouseId 
+                ? 'Min/Max stock levels and reorder level updated successfully'
+                : 'Reorder level updated successfully',
+            data: {
+                product_id: productId,
+                reorder_level: min,
+                warehouse_id: warehouseId || null,
+                min_stock: min,
+                max_stock: max
+            }
+        };
+    } catch (error) {
+        console.error('❌ updateMinMax error:', error);
+        return { success: false, error: error.message };
     }
+}
 
     async getInventorySummary() {
         try {

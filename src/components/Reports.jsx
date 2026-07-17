@@ -1,4 +1,5 @@
 // src/pages/Reports/index.jsx
+
 import React, { useState, useEffect } from 'react';
 import {
   FileText, TrendingUp, TrendingDown, Package, AlertCircle,
@@ -36,18 +37,6 @@ const reportCards = [
     gradient: 'from-blue-50 to-blue-100/50',
     borderColor: 'border-blue-200',
     apiKey: 'purchases'
-  },
-  {
-    id: 'profit-loss',
-    title: 'Profit & Loss',
-    description: 'Revenue, costs, and net profit analysis',
-    icon: DollarSign,
-    color: 'from-purple-500 to-purple-600',
-    bgColor: 'bg-purple-50',
-    iconColor: 'text-purple-600',
-    gradient: 'from-purple-50 to-purple-100/50',
-    borderColor: 'border-purple-200',
-    apiKey: 'profit'
   },
   {
     id: 'inventory',
@@ -140,20 +129,9 @@ export default function Reports({ setActiveTab }) {
   const [filteredReports, setFilteredReports] = useState(reportCards);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [summaryData, setSummaryData] = useState({
-    totalSales: 0,
-    totalPurchases: 0,
-    netProfit: 0,
-    expenses: 0,
-    inventoryValue: 0,
-    customers: 0,
-    suppliers: 0,
-    products: 0
-  });
   const [reportStats, setReportStats] = useState({});
 
   useEffect(() => {
-    fetchSummaryData();
     fetchReportStats();
   }, []);
 
@@ -172,174 +150,97 @@ export default function Reports({ setActiveTab }) {
     }
   }, [searchQuery]);
 
-  const fetchSummaryData = async () => {
+  // Helper function to safely extract data from API responses
+  const safeExtractData = (result, fallback = {}) => {
+    if (!result) return fallback;
+    if (result.success && result.data) return result.data;
+    if (result.success && !result.data) return result;
+    if (result.data && !result.success) return result.data;
+    return fallback;
+  };
+
+  // Helper function to get count from various response formats
+  const getCount = (result) => {
+    if (!result) return 0;
+    if (Array.isArray(result)) return result.length;
+    if (result.success && result.data) {
+      if (Array.isArray(result.data)) return result.data.length;
+      if (result.data.total) return result.data.total;
+      if (result.data.items) return result.data.items.length;
+    }
+    if (result.data) {
+      if (Array.isArray(result.data)) return result.data.length;
+      if (result.data.total) return result.data.total;
+      if (result.data.items) return result.data.items.length;
+    }
+    if (result.total) return result.total;
+    if (result.items) return result.items.length;
+    if (result.length !== undefined) return result.length;
+    return 0;
+  };
+
+  // Fetch report stats
+  const fetchReportStats = async () => {
     try {
       setLoading(true);
+      const stats = {};
       
-      // Fetch data from multiple APIs to get real numbers
-      const [salesResult, purchasesResult, expenseResult, customerResult, supplierResult, productResult, inventoryResult] = await Promise.all([
-        api.getSalesReport({ limit: 1 }),
-        api.getPurchaseReport({ limit: 1 }),
-        api.getTotalExpenses(),
-        api.getAllCustomers({}),
-        api.getAllSuppliers({}),
-        api.getProducts(),
-        api.getInventorySummary()
-      ]);
+      // ✅ Sales count
+      const salesResult = await api.getSalesReport({ limit: 1000 });
+      const salesData = safeExtractData(salesResult);
+      stats.sales = salesData?.items?.length || 0;
 
-      // Calculate total sales
-      let totalSales = 0;
-      if (salesResult?.success && salesResult.data?.summary) {
-        totalSales = salesResult.data.summary.total_sales || 0;
-      }
+      // ✅ Purchases count
+      const purchasesResult = await api.getPurchaseReport({ limit: 1000 });
+      const purchasesData = safeExtractData(purchasesResult);
+      stats.purchases = purchasesData?.items?.length || 0;
 
-      // Calculate total purchases
-      let totalPurchases = 0;
-      if (purchasesResult?.success && purchasesResult.data?.summary) {
-        totalPurchases = purchasesResult.data.summary.total_purchases || 0;
-      }
+      // ✅ Customers count
+      const customersResult = await api.getAllCustomers({ is_active: 1 });
+      stats.customers = getCount(customersResult);
 
-      // Calculate expenses
-      let expenses = 0;
-      if (expenseResult && !expenseResult.error) {
-        expenses = expenseResult.total || 0;
-      }
+      // ✅ Suppliers count
+      const suppliersResult = await api.getAllSuppliers({ is_active: 1 });
+      stats.suppliers = getCount(suppliersResult);
 
-      // Calculate customers
-      let customers = 0;
-      if (customerResult && !customerResult.error) {
-        customers = Array.isArray(customerResult) ? customerResult.length : 
-                    customerResult.data?.length || 0;
-      }
+      // ✅ Products count
+      const productsResult = await api.getProducts();
+      stats.products = getCount(productsResult);
 
-      // Calculate suppliers
-      let suppliers = 0;
-      if (supplierResult && !supplierResult.error) {
-        suppliers = Array.isArray(supplierResult) ? supplierResult.length :
-                    supplierResult.data?.length || 0;
-      }
+      // ✅ Expenses count
+      const expenseResult = await api.getExpenseReport({ limit: 1000 });
+      const expenseData = safeExtractData(expenseResult);
+      stats.expenses = expenseData?.items?.length || 0;
 
-      // Calculate products
-      let products = 0;
-      if (productResult && !productResult.error) {
-        products = Array.isArray(productResult) ? productResult.length :
-                   productResult.data?.length || 0;
-      }
+      // ✅ Inventory count
+      const inventoryResult = await api.getInventorySummary();
+      const inventoryData = safeExtractData(inventoryResult);
+      stats.inventory = inventoryData?.total_products || 0;
 
-      // Calculate inventory value
-      let inventoryValue = 0;
-      if (inventoryResult && !inventoryResult.error) {
-        inventoryValue = inventoryResult.total_value || 0;
-      }
+      // ✅ Low stock count
+      const lowStockResult = await api.getLowStockReport();
+      stats.lowStock = getCount(lowStockResult);
 
-      // Calculate net profit (Sales - Purchases - Expenses)
-      const netProfit = totalSales - totalPurchases - expenses;
+      // ✅ Expiry count
+      const expiryResult = await api.getExpiryReport();
+      stats.expiry = getCount(expiryResult);
 
-      setSummaryData({
-        totalSales,
-        totalPurchases,
-        netProfit,
-        expenses,
-        inventoryValue,
-        customers,
-        suppliers,
-        products
-      });
+      // ✅ Warehouse count
+      const warehouseResult = await api.getActiveOnlyWarehouses();
+      stats.warehouse = getCount(warehouseResult);
+
+      console.log('📊 Report Stats:', stats);
+
+      setReportStats(stats);
     } catch (error) {
-      console.error('Error fetching summary:', error);
+      console.error('Error fetching report stats:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchReportStats = async () => {
-    try {
-      const stats = {};
-      
-      // Sales count
-      const salesResult = await api.getSalesReport({ limit: 1 });
-      if (salesResult?.success) {
-        stats.sales = salesResult.data?.total || salesResult.data?.items?.length || 0;
-      }
-
-      // Purchases count
-      const purchasesResult = await api.getPurchaseReport({ limit: 1 });
-      if (purchasesResult?.success) {
-        stats.purchases = purchasesResult.data?.total || purchasesResult.data?.items?.length || 0;
-      }
-
-      // Customers count
-      const customersResult = await api.getAllCustomers({});
-      if (customersResult && !customersResult.error) {
-        stats.customers = Array.isArray(customersResult) ? customersResult.length : 
-                          customersResult.data?.length || 0;
-      }
-
-      // Suppliers count
-      const suppliersResult = await api.getAllSuppliers({});
-      if (suppliersResult && !suppliersResult.error) {
-        stats.suppliers = Array.isArray(suppliersResult) ? suppliersResult.length :
-                          suppliersResult.data?.length || 0;
-      }
-
-      // Products count
-      const productsResult = await api.getProducts();
-      if (productsResult && !productsResult.error) {
-        stats.products = Array.isArray(productsResult) ? productsResult.length :
-                         productsResult.data?.length || 0;
-      }
-
-      // Expenses count
-      const expenseResult = await api.getExpenses(1, 0);
-      if (expenseResult && !expenseResult.error) {
-        stats.expenses = Array.isArray(expenseResult) ? expenseResult.length :
-                         expenseResult.data?.length || 0;
-      }
-
-      // Inventory count
-      const inventoryResult = await api.getInventorySummary();
-      if (inventoryResult && !inventoryResult.error) {
-        stats.inventory = inventoryResult.total_products || 0;
-      }
-
-      // Low stock count
-      const lowStockResult = await api.getLowStockReport();
-      if (lowStockResult && !lowStockResult.error) {
-        stats.lowStock = Array.isArray(lowStockResult) ? lowStockResult.length :
-                         lowStockResult.data?.length || 0;
-      }
-
-      // Expiry count
-      const expiryResult = await api.getExpiryReport();
-      if (expiryResult && !expiryResult.error) {
-        stats.expiry = expiryResult.data?.items?.length || 0;
-      }
-
-      // Warehouse count
-      const warehouseResult = await api.getActiveOnlyWarehouses();
-      if (warehouseResult && !warehouseResult.error) {
-        stats.warehouse = Array.isArray(warehouseResult) ? warehouseResult.length :
-                          warehouseResult.data?.length || 0;
-      }
-
-      // Profit stats
-      stats.profit = summaryData.netProfit || 0;
-
-      setReportStats(stats);
-    } catch (error) {
-      console.error('Error fetching report stats:', error);
-    }
-  };
-
   const handleReportClick = (reportId) => {
     setActiveTab(`reports-${reportId}`);
-  };
-
-  const formatCurrency = (amount) => {
-    if (!amount || isNaN(amount)) return '₨0';
-    if (amount >= 1000000) return `₨${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `₨${(amount / 1000).toFixed(1)}K`;
-    return `₨${amount.toFixed(0)}`;
   };
 
   const formatNumber = (num) => {
@@ -386,7 +287,7 @@ export default function Reports({ setActiveTab }) {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="mb-8"
+        className="mb-6"
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -408,7 +309,7 @@ export default function Reports({ setActiveTab }) {
               })}</span>
             </div>
             <button
-              onClick={() => { fetchSummaryData(); fetchReportStats(); }}
+              onClick={fetchReportStats}
               className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors border border-emerald-100"
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -442,87 +343,6 @@ export default function Reports({ setActiveTab }) {
             </button>
           )}
         </div>
-      </motion.div>
-
-      {/* ===== SUMMARY CARDS ===== */}
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6"
-      >
-        <SummaryCard 
-          icon={TrendingUp} 
-          label="Total Sales" 
-          value={formatCurrency(summaryData.totalSales)}
-          loading={loading}
-          color="text-emerald-600" 
-          bgColor="bg-emerald-50"
-          gradient="from-emerald-50 to-emerald-100/30"
-        />
-        <SummaryCard 
-          icon={ShoppingCart} 
-          label="Total Purchases" 
-          value={formatCurrency(summaryData.totalPurchases)}
-          loading={loading}
-          color="text-blue-600" 
-          bgColor="bg-blue-50"
-          gradient="from-blue-50 to-blue-100/30"
-        />
-        <SummaryCard 
-          icon={DollarSign} 
-          label="Net Profit" 
-          value={formatCurrency(summaryData.netProfit)}
-          loading={loading}
-          color={summaryData.netProfit >= 0 ? 'text-purple-600' : 'text-red-600'}
-          bgColor={summaryData.netProfit >= 0 ? 'bg-purple-50' : 'bg-red-50'}
-          gradient={summaryData.netProfit >= 0 ? 'from-purple-50 to-purple-100/30' : 'from-red-50 to-red-100/30'}
-        />
-        <SummaryCard 
-          icon={CreditCard} 
-          label="Expenses" 
-          value={formatCurrency(summaryData.expenses)}
-          loading={loading}
-          color="text-rose-600" 
-          bgColor="bg-rose-50"
-          gradient="from-rose-50 to-rose-100/30"
-        />
-        <SummaryCard 
-          icon={Package} 
-          label="Inventory Value" 
-          value={formatCurrency(summaryData.inventoryValue)}
-          loading={loading}
-          color="text-amber-600" 
-          bgColor="bg-amber-50"
-          gradient="from-amber-50 to-amber-100/30"
-        />
-        <SummaryCard 
-          icon={Users} 
-          label="Customers" 
-          value={formatNumber(summaryData.customers)}
-          loading={loading}
-          color="text-indigo-600" 
-          bgColor="bg-indigo-50"
-          gradient="from-indigo-50 to-indigo-100/30"
-        />
-        <SummaryCard 
-          icon={Handshake} 
-          label="Suppliers" 
-          value={formatNumber(summaryData.suppliers)}
-          loading={loading}
-          color="text-teal-600" 
-          bgColor="bg-teal-50"
-          gradient="from-teal-50 to-teal-100/30"
-        />
-        <SummaryCard 
-          icon={Box} 
-          label="Products" 
-          value={formatNumber(summaryData.products)}
-          loading={loading}
-          color="text-sky-600" 
-          bgColor="bg-sky-50"
-          gradient="from-sky-50 to-sky-100/30"
-        />
       </motion.div>
 
       {/* ===== REPORT CARDS GRID ===== */}
@@ -626,25 +446,3 @@ export default function Reports({ setActiveTab }) {
     </motion.div>
   );
 }
-
-// ===== SUB-COMPONENTS =====
-
-const SummaryCard = ({ icon: Icon, label, value, color, bgColor, gradient, loading }) => (
-  <motion.div
-    whileHover={{ y: -3, transition: { type: 'spring', stiffness: 400 } }}
-    className="relative bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 overflow-hidden group"
-  >
-    <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-    <div className="relative flex items-center gap-2">
-      <div className={`p-1.5 rounded-lg ${bgColor} group-hover:scale-110 transition-transform duration-300`}>
-        <Icon size={12} className={color} />
-      </div>
-      <div>
-        <p className="text-[8px] text-slate-400 font-medium uppercase tracking-wider">{label}</p>
-        <p className="text-xs font-bold text-slate-700">
-          {loading ? <span className="animate-pulse">...</span> : value}
-        </p>
-      </div>
-    </div>
-  </motion.div>
-);

@@ -4,9 +4,7 @@ const db = require("../database/database");
 
 class DashboardRepository {
   
-  // ✅ FIXED: No JOIN - direct from sales table
   getSalesMetrics(startDate, endDate) {
-    // Get total revenue directly from sales table
     const revenueQuery = `
       SELECT COALESCE(SUM(total_amount), 0) as total_revenue,
              COUNT(id) as total_sales_count
@@ -16,7 +14,6 @@ class DashboardRepository {
     `;
     const revenueResult = db.prepare(revenueQuery).get(startDate, endDate);
     
-    // Get COGS from sale_items (needs join to filter by date)
     const cogsQuery = `
       SELECT COALESCE(SUM(si.purchase_price * si.quantity), 0) as total_cogs
       FROM sale_items si
@@ -27,9 +24,9 @@ class DashboardRepository {
     const cogsResult = db.prepare(cogsQuery).get(startDate, endDate);
     
     return {
-      total_revenue: revenueResult.total_revenue,
-      total_cogs: cogsResult.total_cogs,
-      total_sales_count: revenueResult.total_sales_count
+      total_revenue: revenueResult.total_revenue || 0,
+      total_cogs: cogsResult.total_cogs || 0,
+      total_sales_count: revenueResult.total_sales_count || 0
     };
   }
 
@@ -48,23 +45,64 @@ class DashboardRepository {
         COALESCE(SUM(i.quantity * p.purchase_price), 0) as total_purchase_value,
         COALESCE(SUM(i.quantity * p.sale_price), 0) as total_sale_value,
         COUNT(DISTINCT i.product_id) as total_products_in_stock,
-        SUM(i.quantity) as total_physical_quantity
+        COALESCE(SUM(i.quantity), 0) as total_physical_quantity
       FROM inventory i
       LEFT JOIN products p ON i.product_id = p.id
       WHERE i.quantity > 0
     `;
-    return db.prepare(query).get();
+    const result = db.prepare(query).get();
+    return {
+      total_purchase_value: result?.total_purchase_value || 0,
+      total_sale_value: result?.total_sale_value || 0,
+      total_products_in_stock: result?.total_products_in_stock || 0,
+      total_physical_quantity: result?.total_physical_quantity || 0
+    };
   }
 
+  // ✅ FIXED: Get low stock count - count unique products
   getLowStockCount() {
-    const query = `
-      SELECT COUNT(*) as count
-      FROM inventory i
-      LEFT JOIN products p ON i.product_id = p.id
-      WHERE (i.quantity - i.reserved_quantity) <= p.reorder_level
-      AND p.reorder_level > 0 AND i.quantity > 0
-    `;
-    return db.prepare(query).get();
+    try {
+      const query = `
+        SELECT COUNT(DISTINCT p.id) as count
+        FROM products p
+        WHERE p.is_active = 1
+        AND p.reorder_level > 0
+        AND (
+          SELECT COALESCE(SUM(i.quantity), 0)
+          FROM inventory i
+          WHERE i.product_id = p.id
+        ) <= p.reorder_level
+        AND (
+          SELECT COALESCE(SUM(i.quantity), 0)
+          FROM inventory i
+          WHERE i.product_id = p.id
+        ) > 0
+      `;
+      const result = db.prepare(query).get();
+      return { count: result?.count || 0 };
+    } catch (error) {
+      console.error('Error getting low stock count:', error);
+      return { count: 0 };
+    }
+  }
+
+  // ✅ NEW: Alternative low stock count from inventory table
+  getLowStockCountFromInventory() {
+    try {
+      const query = `
+        SELECT COUNT(DISTINCT i.product_id) as count
+        FROM inventory i
+        LEFT JOIN products p ON i.product_id = p.id
+        WHERE i.quantity > 0
+        AND p.reorder_level > 0
+        AND (i.quantity - COALESCE(i.reserved_quantity, 0)) <= p.reorder_level
+      `;
+      const result = db.prepare(query).get();
+      return { count: result?.count || 0 };
+    } catch (error) {
+      console.error('Error getting low stock count from inventory:', error);
+      return { count: 0 };
+    }
   }
 
   getExpiringBatchesCount() {
@@ -76,7 +114,8 @@ class DashboardRepository {
       AND expiry_date >= date('now')
       AND is_active = 1
     `;
-    return db.prepare(query).get();
+    const result = db.prepare(query).get();
+    return { count: result?.count || 0 };
   }
 
   getLedgerSummary() {
@@ -89,13 +128,36 @@ class DashboardRepository {
     return db.prepare(query).get();
   }
 
+  // ✅ FIXED: Get total active customers
   getTotalCustomers() {
-    const query = `
-      SELECT COUNT(*) as total
-      FROM customers
-      WHERE is_active = 1
-    `;
-    return db.prepare(query).get();
+    try {
+      const query = `
+        SELECT COUNT(*) as total
+        FROM customers
+        WHERE is_active = 1
+      `;
+      const result = db.prepare(query).get();
+      return { total: result?.total || 0 };
+    } catch (error) {
+      console.error('Error getting total customers:', error);
+      return { total: 0 };
+    }
+  }
+
+  // ✅ NEW: Get total active suppliers
+  getTotalSuppliers() {
+    try {
+      const query = `
+        SELECT COUNT(*) as total
+        FROM suppliers
+        WHERE is_active = 1
+      `;
+      const result = db.prepare(query).get();
+      return { total: result?.total || 0 };
+    } catch (error) {
+      console.error('Error getting total suppliers:', error);
+      return { total: 0 };
+    }
   }
 
   getCategorySales(startDate, endDate) {
@@ -140,12 +202,12 @@ class DashboardRepository {
     const query = `
       SELECT 
         c.id, c.name, 
-        SUM(s.total_amount) as total_spent,
+        COALESCE(SUM(s.total_amount), 0) as total_spent,
         COUNT(s.id) as sale_count
       FROM customers c
       LEFT JOIN sales s ON c.id = s.customer_id AND s.status != 'cancelled'
-      WHERE c.is_active = 1
       AND DATE(s.sale_date) BETWEEN DATE(?) AND DATE(?)
+      WHERE c.is_active = 1
       GROUP BY c.id
       ORDER BY total_spent DESC
       LIMIT 5
@@ -171,9 +233,7 @@ class DashboardRepository {
     return db.prepare(query).all(startDate, endDate);
   }
 
-  // ✅ FIXED: Monthly chart data - also needs to avoid JOIN duplication
   getMonthlyChartData(endDate) {
-    // Get revenue per month from sales table (no JOIN needed)
     const revenueQuery = `
       SELECT 
         strftime('%Y-%m', sale_date) as month,
@@ -185,7 +245,6 @@ class DashboardRepository {
     `;
     const revenueData = db.prepare(revenueQuery).all(endDate);
     
-    // Get COGS per month from sale_items
     const cogsQuery = `
       SELECT 
         strftime('%Y-%m', s.sale_date) as month,
@@ -198,7 +257,6 @@ class DashboardRepository {
     `;
     const cogsData = db.prepare(cogsQuery).all(endDate);
     
-    // Get expenses per month
     const expensesQuery = `
       SELECT 
         strftime('%Y-%m', expense_date) as month,
@@ -209,7 +267,6 @@ class DashboardRepository {
     `;
     const expensesData = db.prepare(expensesQuery).all(endDate);
     
-    // Combine results
     const monthMap = {};
     
     revenueData.forEach(item => {
@@ -224,7 +281,6 @@ class DashboardRepository {
       monthMap[item.month] = { ...monthMap[item.month], expenses: item.expenses };
     });
     
-    // Convert to array and ensure all months have values
     const result = Object.values(monthMap).map(item => ({
       month: item.month,
       revenue: item.revenue || 0,
@@ -232,9 +288,7 @@ class DashboardRepository {
       expenses: item.expenses || 0
     }));
     
-    // Sort by month
     result.sort((a, b) => a.month.localeCompare(b.month));
-    
     return result;
   }
 }

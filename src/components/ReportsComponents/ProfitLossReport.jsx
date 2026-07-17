@@ -1,15 +1,15 @@
 // src/pages/Reports/ProfitLossReport.jsx
+
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign, TrendingUp, TrendingDown, Calendar,
   PieChart, ShoppingCart, CreditCard, ArrowLeft,
-  Loader2
+  Loader2, RefreshCw
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart as RechartsPieChart, Pie, Cell, Legend, CartesianGrid
 } from 'recharts';
-import { ReportFilters } from './ReportFilters';
 
 const api = window.api || {};
 
@@ -31,7 +31,10 @@ export default function ProfitLossReport({ setActiveTab }) {
     chartData: [], 
     breakdown: [] 
   });
-  const [filters, setFilters] = useState({ startDate: '', endDate: '' });
+  const [filters, setFilters] = useState({ 
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0]
+  });
 
   useEffect(() => {
     loadData();
@@ -39,11 +42,18 @@ export default function ProfitLossReport({ setActiveTab }) {
 
   const loadData = async () => {
     setLoading(true);
+    console.log('📊 Loading Profit & Loss report with filters:', filters);
+    
     try {
       const result = await api.getProfitLossReport(filters);
+      console.log('📊 API Response:', result);
+      
       if (result && result.success) {
         setData(result.data);
+        console.log('✅ Data loaded:', result.data);
       } else {
+        console.error('❌ API returned error:', result?.error || 'Unknown error');
+        // Set default empty data
         setData({ 
           summary: { 
             revenue: 0,
@@ -60,7 +70,7 @@ export default function ProfitLossReport({ setActiveTab }) {
         });
       }
     } catch (error) {
-      console.error('Error loading profit & loss report:', error);
+      console.error('❌ Error loading profit & loss report:', error);
       setData({ 
         summary: { 
           revenue: 0,
@@ -84,6 +94,17 @@ export default function ProfitLossReport({ setActiveTab }) {
     if (setActiveTab) {
       setActiveTab('reports');
     }
+  };
+
+  const handleDateChange = (type, value) => {
+    setFilters(prev => ({ ...prev, [type]: value }));
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ 
+      startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0]
+    });
   };
 
   const summary = data.summary || {};
@@ -129,6 +150,44 @@ export default function ProfitLossReport({ setActiveTab }) {
               <PieChart size={12} />
               Revenue, costs, and net profit analysis
             </p>
+          </div>
+        </div>
+        <button
+          onClick={loadData}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-slate-200/60 shadow-sm p-3 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-slate-400" />
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date Range</label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => handleDateChange('startDate', e.target.value)}
+              className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 bg-white"
+            />
+            <span className="text-xs text-slate-400">to</span>
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => handleDateChange('endDate', e.target.value)}
+              className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 bg-white"
+            />
+            <button
+              onClick={handleResetFilters}
+              className="px-2 py-1 text-[10px] font-medium text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              Reset
+            </button>
           </div>
         </div>
       </div>
@@ -188,15 +247,6 @@ export default function ProfitLossReport({ setActiveTab }) {
           trend={summary.yearProfit >= 0 ? 'up' : 'down'}
         />
       </div>
-
-      {/* Filters */}
-      <ReportFilters
-        dateRange={{ start: filters.startDate, end: filters.endDate }}
-        onDateRangeChange={(range) => setFilters({ startDate: range.start, endDate: range.end })}
-        searchQuery=""
-        onSearchChange={() => {}}
-        onClearFilters={() => setFilters({ startDate: '', endDate: '' })}
-      />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -281,19 +281,32 @@ const AdminControlCenter = ({ user, onUserUpdate }) => {
     }
   };
 
+  // ✅ FIXED: Shop update handler
   const handleShopUpdate = async (e) => {
     e.preventDefault();
     setShopLoading(true);
     setShopMsg("");
     try {
       const res = await window.api.updateShop(shop);
-      if (res?.changes > 0) {
+      
+      console.log('Shop update response:', res); // Debug log
+      
+      // ✅ Check for success in multiple ways
+      if (res?.success === true || res?.changes > 0 || res?.id) {
         showModal("shop", "Shop Settings Saved", "Your shop profile has been synchronized successfully.");
+        // Reload shop data to confirm changes
+        await loadShop();
+      } else if (res?.error) {
+        setShopMsg(res.error);
+        showModal("error", "Update Failed", res.error);
       } else {
-        setShopMsg("No changes detected");
+        setShopMsg("No changes detected or update failed");
+        showModal("error", "Update Failed", "No changes were detected or the update failed.");
       }
-    } catch {
-      setShopMsg("Error");
+    } catch (err) {
+      console.error('Shop update error:', err);
+      setShopMsg(err.message || "Error updating shop");
+      showModal("error", "Update Failed", err.message || "An error occurred while updating shop settings");
     } finally {
       setShopLoading(false);
     }
@@ -322,47 +335,43 @@ const AdminControlCenter = ({ user, onUserUpdate }) => {
   };
 
   const handleRestoreBackup = async () => {
-  try {
-    // Show confirmation dialog first
-    setConfirmModal({
-      isOpen: true,
-      title: "Restore Database",
-      message: "Are you sure you want to restore the database? This will replace the current database. An emergency backup will be created automatically.",
-      onConfirm: async () => {
-        setConfirmModal({ ...confirmModal, isOpen: false });
-        
-        try {
-          setRestoreLoading(true);
-          setBackupMsg("");
+    try {
+      setConfirmModal({
+        isOpen: true,
+        title: "Restore Database",
+        message: "Are you sure you want to restore the database? This will replace the current database. An emergency backup will be created automatically.",
+        onConfirm: async () => {
+          setConfirmModal({ ...confirmModal, isOpen: false });
           
-          // Show file picker dialog using Electron's dialog
-          const result = await window.api.selectBackupFile();
-          
-          if (result.canceled) {
+          try {
+            setRestoreLoading(true);
+            setBackupMsg("");
+            
+            const result = await window.api.selectBackupFile();
+            
+            if (result.canceled) {
+              setRestoreLoading(false);
+              return;
+            }
+            
+            const restoreResult = await window.api.restoreBackup(result.filePath);
+            
+            if (restoreResult.success) {
+              showModal("restore", "Restore Complete!", "Database restored successfully!");
+            } else {
+              showModal("error", "Restore Failed", restoreResult.error || "Failed to restore backup");
+            }
+          } catch (err) {
+            showModal("error", "Restore Failed", err.message || "An error occurred");
+          } finally {
             setRestoreLoading(false);
-            return;
           }
-          
-          // Call the restore handler with the selected file path
-          const restoreResult = await window.api.restoreBackup(result.filePath);
-          
-          if (restoreResult.success) {
-            showModal("restore", "Restore Complete!", "Database restored successfully!");
-            // Optionally reload the app or refresh data
-          } else {
-            showModal("error", "Restore Failed", restoreResult.error || "Failed to restore backup");
-          }
-        } catch (err) {
-          showModal("error", "Restore Failed", err.message || "An error occurred");
-        } finally {
-          setRestoreLoading(false);
         }
-      }
-    });
-  } catch (err) {
-    showModal("error", "Restore Failed", err.message || "An error occurred");
-  }
-};
+      });
+    } catch (err) {
+      showModal("error", "Restore Failed", err.message || "An error occurred");
+    }
+  };
 
   const formatDate = (date) => {
     if (!date) return "N/A";

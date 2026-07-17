@@ -576,19 +576,19 @@ export default function Ledger() {
 
   const getEntryTypeBadge = (type) => {
     if (type === "debit") {
-      return "bg-red-50 text-red-600 border-red-200";
+      return "bg-gradient-to-r from-red-100 to-red-50 text-red-600 border-red-200";
     }
-    return "bg-emerald-50 text-emerald-600 border-emerald-200";
+    return "bg-gradient-to-r from-emerald-100 to-emerald-50 text-emerald-600 border-emerald-200";
   };
 
   const getReferenceTypeBadge = (type) => {
     const types = {
-      sale: "bg-blue-50 text-blue-600 border-blue-200",
-      purchase: "bg-amber-50 text-amber-600 border-amber-200",
-      payment: "bg-purple-50 text-purple-600 border-purple-200",
-      receipt: "bg-emerald-50 text-emerald-600 border-emerald-200"
+      sale: "bg-gradient-to-r from-blue-100 to-blue-50 text-blue-600 border-blue-200",
+      purchase: "bg-gradient-to-r from-amber-100 to-amber-50 text-amber-600 border-amber-200",
+      payment: "bg-gradient-to-r from-purple-100 to-purple-50 text-purple-600 border-purple-200",
+      receipt: "bg-gradient-to-r from-emerald-100 to-emerald-50 text-emerald-600 border-emerald-200"
     };
-    return types[type] || "bg-slate-50 text-slate-600 border-slate-200";
+    return types[type] || "bg-gradient-to-r from-slate-100 to-slate-50 text-slate-600 border-slate-200";
   };
 
   const getReferenceIcon = (type) => {
@@ -661,9 +661,9 @@ export default function Ledger() {
       {/* Notification */}
       {notification.show && (
         <div className={`fixed top-4 right-4 z-50 max-w-sm w-full p-4 rounded-xl shadow-lg animate-slide-down border ${
-          notification.type === "success" ? "bg-emerald-50 border-emerald-200" : 
-          notification.type === "info" ? "bg-blue-50 border-blue-200" :
-          "bg-red-50 border-red-200"
+          notification.type === "success" ? "bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-emerald-200" : 
+          notification.type === "info" ? "bg-gradient-to-r from-blue-50 to-blue-100/50 border-blue-200" :
+          "bg-gradient-to-r from-red-50 to-red-100/50 border-red-200"
         }`}>
           <div className="flex items-start gap-3">
             <div className={`mt-0.5 p-1.5 rounded-full ${
@@ -701,11 +701,11 @@ export default function Ledger() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25">
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg shadow-indigo-500/25">
             <BookOpen size={20} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 via-indigo-700 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               Ledger (Khata)
             </h1>
             <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
@@ -743,118 +743,84 @@ export default function Ledger() {
         </div>
       </div>
 
-      {/* ===== TOTAL STATS (Overall) ===== */}
-      <div className="mb-4">
-        <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Overall Ledger Summary</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 bg-indigo-50/30">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 font-medium">Total Entries</span>
-              <FileText size={16} className="text-indigo-600" />
+      {/* ===== STATS SECTION ===== */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {/* Overall Stats */}
+        <div className="bg-gradient-to-br from-indigo-50/80 via-white to-purple-50/50 rounded-xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <div className="w-1 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full" />
+            Overall Ledger
+          </h3>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white/80 rounded-lg p-2.5 text-center shadow-sm">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Entries</p>
+              <p className="text-lg font-bold text-indigo-600">{totalStats.totalEntries || 0}</p>
             </div>
-            <p className="text-xl font-bold text-indigo-600 mt-1">{totalStats.totalEntries || 0}</p>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 bg-red-50/30">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 font-medium">Total Debit</span>
-              <TrendingUp size={16} className="text-red-600" />
+            <div className="bg-white/80 rounded-lg p-2.5 text-center shadow-sm">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Net Balance</p>
+              <p className="text-lg font-bold text-purple-600">{formatCurrency((totalStats.totalDebit || 0) - (totalStats.totalCredit || 0))}</p>
             </div>
-            <p className="text-xl font-bold text-red-600 mt-1">{formatCurrency(totalStats.totalDebit || 0)}</p>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 bg-emerald-50/30">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 font-medium">Total Credit</span>
-              <TrendingDown size={16} className="text-emerald-600" />
+            <div className="bg-white/80 rounded-lg p-2.5 text-center shadow-sm">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Debit</p>
+              <p className="text-base font-bold text-red-600">{formatCurrency(totalStats.totalDebit || 0)}</p>
             </div>
-            <p className="text-xl font-bold text-emerald-600 mt-1">{formatCurrency(totalStats.totalCredit || 0)}</p>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 hover:shadow-md transition-all duration-300 bg-purple-50/30">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 font-medium">Net Balance</span>
-              <Wallet size={16} className="text-purple-600" />
+            <div className="bg-white/80 rounded-lg p-2.5 text-center shadow-sm">
+              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Credit</p>
+              <p className="text-base font-bold text-emerald-600">{formatCurrency(totalStats.totalCredit || 0)}</p>
             </div>
-            <p className="text-xl font-bold text-purple-600 mt-1">{formatCurrency((totalStats.totalDebit || 0) - (totalStats.totalCredit || 0))}</p>
           </div>
         </div>
-      </div>
 
-      {/* ===== CUSTOMER VS SUPPLIER STATS ===== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {/* Customer Stats */}
-        <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 rounded-lg bg-blue-100">
-              <Users size={16} className="text-blue-600" />
-            </div>
-            <h3 className="text-sm font-semibold text-slate-700">Customer Summary</h3>
-            <span className="ml-auto text-xs text-slate-400">{customers.length} customers</span>
-          </div>
+        <div className="bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/50 rounded-xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <div className="w-1 h-4 bg-gradient-to-b from-blue-500 to-cyan-500 rounded-full" />
+            Customer Summary ({customers.length})
+          </h3>
           <div className="grid grid-cols-2 gap-2">
-            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center">
+            <div className="bg-white/80 rounded-lg p-2.5 text-center shadow-sm">
               <p className="text-[8px] text-slate-400 uppercase font-medium">Total Debit</p>
               <p className="text-base font-bold text-red-600">{formatCurrency(customerStats.totalDebit || 0)}</p>
             </div>
-            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center">
+            <div className="bg-white/80 rounded-lg p-2.5 text-center shadow-sm">
               <p className="text-[8px] text-slate-400 uppercase font-medium">Total Credit</p>
               <p className="text-base font-bold text-emerald-600">{formatCurrency(customerStats.totalCredit || 0)}</p>
             </div>
-            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center col-span-2">
+            <div className="bg-white/80 rounded-lg p-2.5 text-center col-span-2 shadow-sm">
               <p className="text-[8px] text-slate-400 uppercase font-medium">Net Balance</p>
               <p className={`text-base font-bold ${customerStats.netBalance > 0 ? 'text-emerald-600' : customerStats.netBalance < 0 ? 'text-red-600' : 'text-slate-600'}`}>
                 {formatCurrency(customerStats.netBalance || 0)}
               </p>
               <p className="text-[7px] text-slate-400 mt-0.5">
-                {customerStats.netBalance > 0 ? 'Customers owe us' : customerStats.netBalance < 0 ? 'We owe customers' : 'Settled'}
+                {customerStats.netBalance > 0 ? '✅ Customers owe us' : customerStats.netBalance < 0 ? '⚠️ We owe customers' : '⚖️ Settled'}
               </p>
-            </div>
-            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center col-span-1">
-              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Sales</p>
-              <p className="text-base font-bold text-blue-600">{customerStats.totalSales || 0}</p>
-            </div>
-            <div className="bg-blue-50/50 rounded-lg p-2.5 text-center col-span-1">
-              <p className="text-[8px] text-slate-400 uppercase font-medium">Sales Amount</p>
-              <p className="text-base font-bold text-blue-600">{formatCurrency(customerStats.totalSalesAmount || 0)}</p>
             </div>
           </div>
         </div>
 
         {/* Supplier Stats */}
-        <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 rounded-lg bg-amber-100">
-              <Building2 size={16} className="text-amber-600" />
-            </div>
-            <h3 className="text-sm font-semibold text-slate-700">Supplier Summary</h3>
-            <span className="ml-auto text-xs text-slate-400">{suppliers.length} suppliers</span>
-          </div>
+        <div className="bg-gradient-to-br from-amber-50/80 via-white to-orange-50/50 rounded-xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <div className="w-1 h-4 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full" />
+            Supplier Summary ({suppliers.length})
+          </h3>
           <div className="grid grid-cols-2 gap-2">
-            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center">
+            <div className="bg-white/80 rounded-lg p-2.5 text-center shadow-sm">
               <p className="text-[8px] text-slate-400 uppercase font-medium">Total Debit</p>
               <p className="text-base font-bold text-red-600">{formatCurrency(supplierStats.totalDebit || 0)}</p>
             </div>
-            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center">
+            <div className="bg-white/80 rounded-lg p-2.5 text-center shadow-sm">
               <p className="text-[8px] text-slate-400 uppercase font-medium">Total Credit</p>
               <p className="text-base font-bold text-emerald-600">{formatCurrency(supplierStats.totalCredit || 0)}</p>
             </div>
-            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center col-span-2">
+            <div className="bg-white/80 rounded-lg p-2.5 text-center col-span-2 shadow-sm">
               <p className="text-[8px] text-slate-400 uppercase font-medium">Net Balance</p>
               <p className={`text-base font-bold ${supplierStats.netBalance < 0 ? 'text-emerald-600' : supplierStats.netBalance > 0 ? 'text-red-600' : 'text-slate-600'}`}>
                 {formatCurrency(Math.abs(supplierStats.netBalance || 0))}
               </p>
               <p className="text-[7px] text-slate-400 mt-0.5">
-                {supplierStats.netBalance < 0 ? 'Suppliers owe us' : supplierStats.netBalance > 0 ? 'We owe suppliers' : 'Settled'}
+                {supplierStats.netBalance < 0 ? '✅ Suppliers owe us' : supplierStats.netBalance > 0 ? '⚠️ We owe suppliers' : '⚖️ Settled'}
               </p>
-            </div>
-            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center col-span-1">
-              <p className="text-[8px] text-slate-400 uppercase font-medium">Total Purchases</p>
-              <p className="text-base font-bold text-amber-600">{supplierStats.totalPurchases || 0}</p>
-            </div>
-            <div className="bg-amber-50/50 rounded-lg p-2.5 text-center col-span-1">
-              <p className="text-[8px] text-slate-400 uppercase font-medium">Purchase Amount</p>
-              <p className="text-base font-bold text-amber-600">{formatCurrency(supplierStats.totalPurchasesAmount || 0)}</p>
             </div>
           </div>
         </div>
@@ -871,7 +837,7 @@ export default function Ledger() {
                 onClick={() => setLedgerType("customer")}
                 className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-all duration-300 ${
                   ledgerType === "customer"
-                    ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md"
+                    ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
@@ -882,7 +848,7 @@ export default function Ledger() {
                 onClick={() => setLedgerType("supplier")}
                 className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-all duration-300 ${
                   ledgerType === "supplier"
-                    ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md"
+                    ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
@@ -1214,7 +1180,7 @@ export default function Ledger() {
           ) : (
             <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-16 text-center">
               <div className="flex flex-col items-center gap-3">
-                <div className="p-4 rounded-full bg-slate-50">
+                <div className="p-4 rounded-full bg-gradient-to-br from-slate-100 to-slate-200">
                   <BookOpen size={48} className="text-slate-300" />
                 </div>
                 <p className="text-sm font-medium text-slate-600">Select a {ledgerType}</p>

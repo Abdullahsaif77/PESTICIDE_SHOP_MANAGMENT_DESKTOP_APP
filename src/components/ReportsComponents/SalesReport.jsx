@@ -1,17 +1,17 @@
 // src/pages/Reports/SalesReport.jsx
+
 import React, { useState, useEffect } from 'react';
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingBag,
   Users, Percent, Calculator,
-  Calendar, CreditCard, Box, ArrowLeft
+  Calendar, CreditCard, Box, ArrowLeft,
+  RefreshCw, Loader2, Search, X, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, PieChart as RechartsPieChart,
   Pie, Cell, Legend, Area, AreaChart
 } from 'recharts';
-import { ReportFilters } from './ReportFilters';
-import { ReportTable } from './ReportTable';
 
 const api = window.api || {};
 
@@ -21,70 +21,38 @@ export default function SalesReport({ setActiveTab }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({ summary: {}, items: [], chartData: [] });
   const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
     search: '',
     warehouse: '',
     customer: '',
     paymentMethod: ''
   });
-  const [quickFilter, setQuickFilter] = useState('today');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
-
-  // Quick filter options
-  const quickFilters = [
-    { key: 'today', label: 'Today' },
-    { key: 'yesterday', label: 'Yesterday' },
-    { key: 'week', label: 'This Week' },
-    { key: 'month', label: 'This Month' }
-  ];
 
   useEffect(() => {
     loadData();
-  }, [filters, quickFilter, pagination.current]);
+  }, [filters, pagination.current]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Set date range based on quick filter
-      let dateFilters = { ...filters };
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const weekStart = new Date(today);
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-
-      switch (quickFilter) {
-        case 'today':
-          dateFilters.startDate = today.toISOString().split('T')[0];
-          dateFilters.endDate = today.toISOString().split('T')[0];
-          break;
-        case 'yesterday':
-          dateFilters.startDate = yesterday.toISOString().split('T')[0];
-          dateFilters.endDate = yesterday.toISOString().split('T')[0];
-          break;
-        case 'week':
-          dateFilters.startDate = weekStart.toISOString().split('T')[0];
-          dateFilters.endDate = today.toISOString().split('T')[0];
-          break;
-        case 'month':
-          dateFilters.startDate = monthStart.toISOString().split('T')[0];
-          dateFilters.endDate = today.toISOString().split('T')[0];
-          break;
-        default:
-          break;
-      }
-
+      console.log('📊 Loading sales report with filters:', filters);
+      
       const result = await api.getSalesReport({
-        ...dateFilters,
+        ...filters,
         page: pagination.current,
         pageSize: pagination.pageSize
       });
       
+      console.log('📊 Sales report result:', result);
+      
       if (result && result.success) {
         setData(result.data);
-        setPagination(prev => ({ ...prev, total: result.data.total || result.data.items?.length || 0 }));
+        setPagination(prev => ({ 
+          ...prev, 
+          total: result.data?.total || result.data?.items?.length || 0 
+        }));
       } else {
         setData({ summary: {}, items: [], chartData: [] });
       }
@@ -102,6 +70,22 @@ export default function SalesReport({ setActiveTab }) {
     }
   };
 
+  const handleDateChange = (type, value) => {
+    setFilters(prev => ({ ...prev, [type]: value }));
+  };
+
+  const handleResetFilters = () => {
+    setFilters({
+      startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0],
+      search: '',
+      warehouse: '',
+      customer: '',
+      paymentMethod: ''
+    });
+    setPagination({ ...pagination, current: 1 });
+  };
+
   const summary = data.summary || {};
   const items = data.items || [];
   const chartData = data.chartData || [];
@@ -113,16 +97,24 @@ export default function SalesReport({ setActiveTab }) {
     return `₨${Number(value).toFixed(2)}`;
   };
 
-  const columns = [
-    { key: 'invoice_number', label: 'Invoice No', sortable: true },
-    { key: 'date', label: 'Date', sortable: true },
-    { key: 'customer', label: 'Customer', sortable: true },
-    { key: 'items', label: 'Items', sortable: true },
-    { key: 'total', label: 'Total', sortable: true, render: (v) => formatCurrency(v) },
-    { key: 'paid', label: 'Paid', sortable: true, render: (v) => formatCurrency(v) },
-    { key: 'due', label: 'Due', sortable: true, render: (v) => formatCurrency(v) },
-    { key: 'profit', label: 'Profit', sortable: true, render: (v) => formatCurrency(v) }
-  ];
+  const formatNumber = (value) => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return '0';
+    }
+    return Number(value).toFixed(0);
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-6 bg-gradient-to-br from-slate-50 via-white to-slate-100/50 min-h-screen flex items-center justify-center">
+        <div className="flex items-center gap-3 text-slate-500">
+          <Loader2 size={24} className="animate-spin" />
+          <span className="text-sm">Loading sales report...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 bg-gradient-to-br from-slate-50 via-white to-slate-100/50 min-h-screen">
@@ -146,96 +138,57 @@ export default function SalesReport({ setActiveTab }) {
             </p>
           </div>
         </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <SummaryCard
-          icon={DollarSign}
-          label="Total Sales"
-          value={formatCurrency(summary.totalSales)}
-          color="text-emerald-600"
-          bgColor="bg-emerald-50"
-        />
-        <SummaryCard
-          icon={Users}
-          label="Cash Sales"
-          value={formatCurrency(summary.cashSales)}
-          color="text-blue-600"
-          bgColor="bg-blue-50"
-        />
-        <SummaryCard
-          icon={CreditCard}
-          label="Credit Sales"
-          value={formatCurrency(summary.creditSales)}
-          color="text-purple-600"
-          bgColor="bg-purple-50"
-        />
-        <SummaryCard
-          icon={ShoppingBag}
-          label="Invoices"
-          value={summary.invoiceCount || 0}
-          color="text-amber-600"
-          bgColor="bg-amber-50"
-        />
-        <SummaryCard
-          icon={Box}
-          label="Quantity Sold"
-          value={summary.totalQuantity || 0}
-          color="text-sky-600"
-          bgColor="bg-sky-50"
-        />
-        <SummaryCard
-          icon={Percent}
-          label="Discount Given"
-          value={formatCurrency(summary.discount)}
-          color="text-rose-600"
-          bgColor="bg-rose-50"
-        />
-        <SummaryCard
-          icon={Calculator}
-          label="Net Sales"
-          value={formatCurrency(summary.netSales)}
-          color="text-indigo-600"
-          bgColor="bg-indigo-50"
-        />
-        <SummaryCard
-          icon={TrendingUp}
-          label="Profit"
-          value={formatCurrency(summary.profit)}
-          color="text-emerald-600"
-          bgColor="bg-emerald-50"
-        />
+        <button
+          onClick={loadData}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
       </div>
 
       {/* Filters */}
-      <ReportFilters
-        dateRange={{ start: filters.startDate, end: filters.endDate }}
-        onDateRangeChange={(range) => setFilters({ ...filters, startDate: range.start, endDate: range.end })}
-        searchQuery={filters.search}
-        onSearchChange={(value) => setFilters({ ...filters, search: value })}
-        quickFilters={quickFilters}
-        onQuickFilter={(key) => setQuickFilter(key)}
-        filters={[
-          {
-            key: 'warehouse',
-            label: 'Warehouse',
-            value: filters.warehouse,
-            options: [{ value: '1', label: 'Main Warehouse' }]
-          },
-          {
-            key: 'paymentMethod',
-            label: 'Payment Method',
-            value: filters.paymentMethod,
-            options: [
-              { value: 'cash', label: 'Cash' },
-              { value: 'credit', label: 'Credit' }
-            ]
-          }
-        ]}
-        onFilterChange={(key, value) => setFilters({ ...filters, [key]: value })}
-        onClearFilters={() => setFilters({ startDate: '', endDate: '', search: '', warehouse: '', customer: '', paymentMethod: '' })}
-      />
+      <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-slate-200/60 shadow-sm p-3 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-slate-400" />
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date Range</label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => handleDateChange('startDate', e.target.value)}
+              className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white"
+            />
+            <span className="text-xs text-slate-400">to</span>
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => handleDateChange('endDate', e.target.value)}
+              className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white"
+            />
+          </div>
+          <div className="flex items-center gap-2 ml-0 sm:ml-auto">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                className="pl-8 pr-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 bg-white w-32"
+              />
+            </div>
+            <button
+              onClick={handleResetFilters}
+              className="px-2 py-1 text-[10px] font-medium text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Chart */}
       <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-4 mb-6">
@@ -267,34 +220,90 @@ export default function SalesReport({ setActiveTab }) {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden">
-        <ReportTable
-          columns={columns}
-          data={items}
-          loading={loading}
-          pagination={{
-            current: pagination.current,
-            totalPages: Math.max(1, Math.ceil(pagination.total / pagination.pageSize)),
-            start: (pagination.current - 1) * pagination.pageSize + 1,
-            end: Math.min(pagination.current * pagination.pageSize, pagination.total),
-            total: pagination.total
-          }}
-          onPageChange={(page) => setPagination({ ...pagination, current: page })}
-        />
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gradient-to-r from-slate-50 to-emerald-50/30 border-b border-slate-200">
+              <tr>
+                <th className="px-3 py-2.5 text-left text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Invoice</th>
+                <th className="px-3 py-2.5 text-left text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                <th className="px-3 py-2.5 text-left text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Customer</th>
+                <th className="px-3 py-2.5 text-center text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Items</th>
+                <th className="px-3 py-2.5 text-right text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Total</th>
+                <th className="px-3 py-2.5 text-right text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Paid</th>
+                <th className="px-3 py-2.5 text-right text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Due</th>
+                <th className="px-3 py-2.5 text-right text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Profit</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="py-8 text-center text-slate-400">
+                    No sales records found
+                  </td>
+                </tr>
+              ) : (
+                items.map((item, index) => (
+                  <tr key={index} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-3 py-2.5 font-mono text-[10px] text-slate-600">
+                      {item.invoice_number || item.invoice || '-'}
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-600">
+                      {item.date ? new Date(item.date).toLocaleDateString() : '-'}
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-700">
+                      {item.customer || '-'}
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-slate-600">
+                      {item.items || 0}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-medium text-slate-700">
+                      {formatCurrency(item.total || 0)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-emerald-600">
+                      {formatCurrency(item.paid || 0)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-red-600">
+                      {formatCurrency(item.due || 0)}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-medium ${(item.profit || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {formatCurrency(item.profit || 0)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {pagination.total > pagination.pageSize && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50/50">
+            <div className="text-[10px] text-slate-400">
+              Showing {pagination.current * pagination.pageSize - pagination.pageSize + 1} to{' '}
+              {Math.min(pagination.current * pagination.pageSize, pagination.total)} of {pagination.total} entries
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setPagination({ ...pagination, current: pagination.current - 1 })}
+                disabled={pagination.current === 1}
+                className="p-1 rounded hover:bg-slate-200 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="px-2 py-1 text-[10px] text-slate-600">
+                {pagination.current} / {Math.ceil(pagination.total / pagination.pageSize)}
+              </span>
+              <button
+                onClick={() => setPagination({ ...pagination, current: pagination.current + 1 })}
+                disabled={pagination.current * pagination.pageSize >= pagination.total}
+                className="p-1 rounded hover:bg-slate-200 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
-const SummaryCard = ({ icon: Icon, label, value, color, bgColor }) => (
-  <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-4">
-    <div className="flex items-center gap-3">
-      <div className={`p-2 rounded-lg ${bgColor}`}>
-        <Icon size={16} className={color} />
-      </div>
-      <div>
-        <p className="text-[10px] text-slate-400 font-medium">{label}</p>
-        <p className="text-sm font-bold text-slate-800">{value}</p>
-      </div>
-    </div>
-  </div>
-);

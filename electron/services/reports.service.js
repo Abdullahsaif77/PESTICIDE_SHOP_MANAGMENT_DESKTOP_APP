@@ -1,4 +1,5 @@
 // electron/services/reports.service.js
+
 const ReportsRepository = require("../repositories/reports.repository");
 const reportsRepo = new ReportsRepository();
 
@@ -68,7 +69,7 @@ class ReportsService {
     }
 
     // ============================================
-    // PROFIT & LOSS REPORT
+    // PROFIT & LOSS REPORT - FIXED ✅
     // ============================================
     async getProfitLossReport(filters = {}) {
         try {
@@ -179,21 +180,35 @@ class ReportsService {
     }
 
     // ============================================
-    // CUSTOMER LEDGER REPORT
+    // CUSTOMER LEDGER REPORT - FIXED ✅
     // ============================================
     async getCustomerLedgerReport(filters = {}) {
         try {
+            console.log('📊 [Service] getCustomerLedgerReport called with filters:', filters);
+            
+            // ✅ Get data from ledger table (real-time)
             const items = reportsRepo.getCustomerLedgerReport(filters);
-            const summary = {
-                totalCustomers: items.length,
-                totalOutstanding: items.reduce((sum, item) => sum + item.outstanding, 0),
-                totalBalance: items.reduce((sum, item) => sum + item.closing_balance, 0)
-            };
+            console.log(`📊 [Service] Found ${items.length} customer records`);
+            
+            // Calculate summary from actual data
+            const totalCustomers = items.length;
+            const totalDebit = items.reduce((sum, item) => sum + (item.total_purchases || 0), 0);
+            const totalCredit = items.reduce((sum, item) => sum + (item.total_paid || 0), 0);
+            const totalOutstanding = totalDebit - totalCredit;
+            const totalBalance = items.reduce((sum, item) => sum + (item.closing_balance || 0), 0);
+            
             return {
                 success: true,
                 data: {
-                    summary,
-                    items
+                    items,
+                    summary: {
+                        totalCustomers,
+                        totalOutstanding,
+                        totalBalance,
+                        totalDebit,
+                        totalCredit,
+                        netBalance: totalDebit - totalCredit
+                    }
                 }
             };
         } catch (error) {
@@ -202,12 +217,58 @@ class ReportsService {
         }
     }
 
-    async getCustomerLedgerDetails(customerId) {
+    /**
+     * Get customer ledger details with running balance
+     * Matches what Ledger page uses - FIXED ✅
+     */
+    async getCustomerLedgerDetails(customerId, filters = {}) {
         try {
-            const items = reportsRepo.getCustomerLedgerDetails(customerId);
+            console.log(`📊 [Service] getCustomerLedgerDetails called for customer ${customerId}`);
+            
+            // ✅ Get details from ledger table with running balance
+            const items = reportsRepo.getCustomerLedgerDetails(customerId, filters);
+            console.log(`📊 [Service] Found ${items.length} ledger entries`);
+            
+            // Calculate summary
+            let totalDebit = 0;
+            let totalCredit = 0;
+            let openingBalance = 0;
+            let closingBalance = 0;
+            
+            if (items.length > 0) {
+                // Calculate totals from entries
+                for (const entry of items) {
+                    if (entry.type === 'debit') {
+                        totalDebit += entry.amount;
+                    } else if (entry.type === 'credit') {
+                        totalCredit += entry.amount;
+                    }
+                }
+                
+                // Get opening balance (balance before first entry)
+                const firstEntry = items[items.length - 1];
+                if (firstEntry) {
+                    const balanceBeforeFirst = firstEntry.calculated_balance - 
+                        (firstEntry.type === 'debit' ? firstEntry.amount : -firstEntry.amount);
+                    openingBalance = balanceBeforeFirst;
+                }
+                
+                closingBalance = items[0]?.calculated_balance || 0;
+            }
+            
             return {
                 success: true,
-                data: items
+                data: {
+                    entries: items,
+                    summary: {
+                        totalEntries: items.length,
+                        totalDebit,
+                        totalCredit,
+                        netBalance: totalDebit - totalCredit,
+                        openingBalance,
+                        closingBalance
+                    }
+                }
             };
         } catch (error) {
             console.error("Error in getCustomerLedgerDetails:", error);
@@ -216,21 +277,35 @@ class ReportsService {
     }
 
     // ============================================
-    // SUPPLIER LEDGER REPORT
+    // SUPPLIER LEDGER REPORT - FIXED ✅
     // ============================================
     async getSupplierLedgerReport(filters = {}) {
         try {
+            console.log('📊 [Service] getSupplierLedgerReport called with filters:', filters);
+            
+            // ✅ Get data from ledger table (real-time)
             const items = reportsRepo.getSupplierLedgerReport(filters);
-            const summary = {
-                totalSuppliers: items.length,
-                totalPayable: items.reduce((sum, item) => sum + item.payable, 0),
-                totalBalance: items.reduce((sum, item) => sum + item.closing_balance, 0)
-            };
+            console.log(`📊 [Service] Found ${items.length} supplier records`);
+            
+            // Calculate summary from actual data
+            const totalSuppliers = items.length;
+            const totalDebit = items.reduce((sum, item) => sum + (item.total_purchases || 0), 0);
+            const totalCredit = items.reduce((sum, item) => sum + (item.payments_made || 0), 0);
+            const totalPayable = totalDebit - totalCredit;
+            const totalBalance = items.reduce((sum, item) => sum + (item.closing_balance || 0), 0);
+            
             return {
                 success: true,
                 data: {
-                    summary,
-                    items
+                    items,
+                    summary: {
+                        totalSuppliers,
+                        totalPayable,
+                        totalBalance,
+                        totalDebit,
+                        totalCredit,
+                        netBalance: totalDebit - totalCredit
+                    }
                 }
             };
         } catch (error) {
@@ -239,12 +314,58 @@ class ReportsService {
         }
     }
 
-    async getSupplierLedgerDetails(supplierId) {
+    /**
+     * Get supplier ledger details with running balance
+     * Matches what Ledger page uses - FIXED ✅
+     */
+    async getSupplierLedgerDetails(supplierId, filters = {}) {
         try {
-            const items = reportsRepo.getSupplierLedgerDetails(supplierId);
+            console.log(`📊 [Service] getSupplierLedgerDetails called for supplier ${supplierId}`);
+            
+            // ✅ Get details from ledger table with running balance
+            const items = reportsRepo.getSupplierLedgerDetails(supplierId, filters);
+            console.log(`📊 [Service] Found ${items.length} ledger entries`);
+            
+            // Calculate summary
+            let totalDebit = 0;
+            let totalCredit = 0;
+            let openingBalance = 0;
+            let closingBalance = 0;
+            
+            if (items.length > 0) {
+                // Calculate totals from entries
+                for (const entry of items) {
+                    if (entry.type === 'debit') {
+                        totalDebit += entry.amount;
+                    } else if (entry.type === 'credit') {
+                        totalCredit += entry.amount;
+                    }
+                }
+                
+                // Get opening balance (balance before first entry)
+                const firstEntry = items[items.length - 1];
+                if (firstEntry) {
+                    const balanceBeforeFirst = firstEntry.calculated_balance - 
+                        (firstEntry.type === 'debit' ? firstEntry.amount : -firstEntry.amount);
+                    openingBalance = balanceBeforeFirst;
+                }
+                
+                closingBalance = items[0]?.calculated_balance || 0;
+            }
+            
             return {
                 success: true,
-                data: items
+                data: {
+                    entries: items,
+                    summary: {
+                        totalEntries: items.length,
+                        totalDebit,
+                        totalCredit,
+                        netBalance: totalDebit - totalCredit,
+                        openingBalance,
+                        closingBalance
+                    }
+                }
             };
         } catch (error) {
             console.error("Error in getSupplierLedgerDetails:", error);
@@ -295,22 +416,66 @@ class ReportsService {
     // ============================================
     // WAREHOUSE REPORT
     // ============================================
-    async getWarehouseReport(filters = {}) {
-        try {
-            const items = reportsRepo.getWarehouseReport(filters);
-            const summary = reportsRepo.getWarehouseSummary();
-            return {
-                success: true,
-                data: {
-                    summary,
-                    items
+   async getWarehouseReport(filters = {}) {
+    try {
+        console.log('📊 [Service] getWarehouseReport called with filters:', filters);
+        
+        const items = reportsRepo.getWarehouseReport(filters);
+        const summary = reportsRepo.getWarehouseSummary();
+        
+        // ✅ Ensure items is always an array
+        const safeItems = Array.isArray(items) ? items : [];
+        console.log(`📊 [Service] Found ${safeItems.length} warehouse records`);
+        
+        // Calculate additional statistics
+        const totalProducts = safeItems.reduce((sum, item) => sum + (item.products || 0), 0);
+        const totalQuantity = safeItems.reduce((sum, item) => sum + (item.total_qty || 0), 0);
+        const totalInventoryValue = safeItems.reduce((sum, item) => sum + (item.inventory_value || 0), 0);
+        const totalPurchaseValue = safeItems.reduce((sum, item) => sum + (item.purchase_value || 0), 0);
+        const totalPotentialProfit = safeItems.reduce((sum, item) => sum + (item.potential_profit || 0), 0);
+        const totalLowStock = safeItems.reduce((sum, item) => sum + (item.low_stock_items || 0), 0);
+        const totalOutOfStock = safeItems.reduce((sum, item) => sum + (item.out_of_stock_items || 0), 0);
+        
+        return {
+            success: true,
+            data: {
+                items: safeItems,
+                summary: {
+                    totalWarehouses: safeItems.length,
+                    totalProducts,
+                    totalQuantity,
+                    inventoryValue: totalInventoryValue,
+                    purchaseValue: totalPurchaseValue,
+                    potentialProfit: totalPotentialProfit,
+                    lowStockItems: totalLowStock,
+                    outOfStockItems: totalOutOfStock,
+                    // Summary from the summary query
+                    ...summary
                 }
-            };
-        } catch (error) {
-            console.error("Error in getWarehouseReport:", error);
-            return { success: false, error: error.message };
-        }
+            }
+        };
+    } catch (error) {
+        console.error("Error in getWarehouseReport:", error);
+        return { 
+            success: false, 
+            error: error.message,
+            data: {
+                items: [],
+                summary: {
+                    totalWarehouses: 0,
+                    totalProducts: 0,
+                    totalQuantity: 0,
+                    inventoryValue: 0,
+                    purchaseValue: 0,
+                    potentialProfit: 0,
+                    lowStockItems: 0,
+                    outOfStockItems: 0
+                }
+            }
+        };
     }
+}
+
 }
 
 module.exports = ReportsService;
